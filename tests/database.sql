@@ -14,8 +14,14 @@ do $$ declare did uuid;pid uuid;tid uuid;token uuid=gen_random_uuid();n int; beg
  select count(*) into n from public.paid_reports where diagnosis_id=did;assert n=1,'one report per payment';
  select count(*) into n from public.claim_report(did,token);assert n=1,'worker claims';
  select count(*) into n from public.claim_report(did,gen_random_uuid());assert n=0,'concurrent worker rejected';
+ update public.paid_reports set status='failed',lease_until=null where diagnosis_id=did;
+ token=gen_random_uuid();
+ select count(*) into n from public.claim_report(did,token);assert n=1,'failed generation can retry';
+ assert (select count(*)=1 from public.payments where diagnosis_id=did),'retry does not create a second payment';
+ assert (select attempts=2 from public.paid_reports where diagnosis_id=did),'retry counts one new attempt';
  assert not public.finish_report(did,gen_random_uuid(),'{}','test','test'),'wrong lease';
  assert public.finish_report(did,token,'{}','test','test'),'complete';
+ select count(*) into n from public.claim_report(did,gen_random_uuid());assert n=0,'completed report cannot generate again';
  perform public.apply_stripe_event('evt_fail','payment_intent.payment_failed','hash',null,'pi_test',pid,0,'jpy','failed');
  assert (select status='paid' from public.payments where id=pid),'late failure must not downgrade';
  perform public.apply_stripe_event('evt_refund','charge.refunded','hash',null,'pi_test',pid,0,'jpy','refunded');

@@ -38,15 +38,21 @@ npm run dev
 
 ## Supabase
 
-`supabase/migrations` のDDL・初期10問を適用。公開される19テーブルでRLS有効。匿名ユーザーは256bit HttpOnly CookieでサーバーAPIだけにアクセス。DBにはHMACのみ保存。ユーザー入力で所有者IDを変更できません。会員には所有レコードのみの読み取りRLS。書き込み・決済更新・ジョブRPCはservice_role専用です。
+`supabase/migrations` のDDL・初期10問を適用。管理する20テーブルでRLS有効。匿名ユーザーは256bit HttpOnly CookieでサーバーAPIだけにアクセス。DBにはHMACのみ保存。ユーザー入力で所有者IDを変更できません。会員には所有レコードのみの読み取りRLS。書き込み・決済更新・ジョブRPCはservice_role専用です。
 
-Supabase AuthのSite URLとRedirect URLsに `/auth/callback` を含む配置先を設定。メールリンクでログイン後、同じブラウザの匿名診断を一度だけ紐付け。メール送信はユーザーがフォームを送った場合のみ。
+Supabase AuthのSite URLとRedirect URLsには公開URLと `/auth/callback`、`/auth/callback?next=recovery` を登録済み。メール＋パスワード登録、確認メール再送、ログイン、ログアウト、再設定に対応。確認済みユーザーへ匿名診断と支払いを一度だけ紐付けます。カスタムSMTPは未設定で、実際のメール到達は本番開始前に確認が必要です。
 
 質問は `diagnosis_questions` で管理。公開中の質問を途中で編集する場合は既存診断との整合性を確認してください。現在は質問スナップショットの世代管理を未実装。
 
 ## OpenAI
 
-`src/lib/ai/prompts` に分類・追加質問・分析・無料・有料・将来の広告推薦を分離。Zodによる構造検証、最大1回の再試行、保存済み結果の再利用。失敗時に偽の診断結果を返しません。入力はuserデータとして分離。危険語の早期検出とAI分類で安全フローへ。
+`src/lib/ai/prompts` に分類・追加質問・分析・無料・有料・将来の広告推薦を分離。Zodによる構造検証、最大1回の再試行、保存済み結果の再利用。失敗時に偽の診断結果を返しません。入力はuserデータとして分離。軽量ルールを参考に、否定や矛盾を考慮したAI文脈分類で安全フローへ。単語一致だけで通常相談を停止しません。追加回答後は再分類します。
+
+## Operator, contact and indexing
+
+`.env.example` の `OPERATOR_*`、`DATA_RETENTION_POLICY`、`REFUND_REQUEST_PERIOD`、`SUPPORT_RESPONSE_TIME` を正式な情報で設定します。未設定時は明示的なプレースホルダーを表示します。問い合わせは `contact_messages` に保存し、Supabase管理者がTable Editorで `status` / `admin_note` / `resolved_at` を管理できます。自動返信は未実装です。
+
+`PUBLIC_INDEXING_ENABLED` はテスト環境では未設定のまま。正式公開時に `true` としても個人ページは検索対象にしません。
 
 ## Stripe Webhook
 
@@ -78,7 +84,7 @@ GitHubブランチ `codex/partner-mind-mvp` をVercel Previewへ接続。Preview
 
 ## MVP scope / known limitations
 
-1画面1質問、DB保存と再開、最大3追加質問、無料結果、危険相談の分岐、Checkout、Webhook、有料13項目、再生成、任意のメールログイン、法務7ページ、DBイベント。
+1画面1質問、DB保存と再開、最大3追加質問、無料結果、危険相談の分岐、Checkout、Webhook、有料13項目、再生成、任意のメール＋パスワード認証、診断履歴、問い合わせDB保存、法務7ページ、DBイベント。
 
 - 運営者・住所・連絡先・保存期間・返金処理手順は要設定。法務ページは暫定案。
 - GA4、継続相談、サブスク、広告推薦、n8n自動配信はMVP後。対応テーブル・格納先のみ。

@@ -84,14 +84,18 @@ export default function Report({ id }: { id: string }) {
       {!report ? (
         <section className="panel">
           <h2>
-            {status === "waiting"
+            {error
+              ? "レポートを表示できませんでした"
+              : status === "waiting"
               ? "お支払いの確認を待っています"
               : status === "failed"
                 ? "レポートを再生成できます"
                 : "レポートを準備しています"}
           </h2>
           <p>
-            決済通知の確認後にAIが分析します。数分かかる場合があります。再購入は必要ありません。
+            {error
+              ? "診断したブラウザ、または保存したアカウントで開いているかをご確認ください。通信エラーの場合は、少し待ってから状況を確認できます。購入済みの場合、再購入は必要ありません。"
+              : "決済通知の確認後にAIが分析します。数分かかる場合があります。再購入は必要ありません。"}
           </p>
           <button className="button secondary" onClick={load} disabled={busy}>
             状況を確認する
