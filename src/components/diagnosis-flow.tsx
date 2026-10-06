@@ -138,7 +138,7 @@ export default function DiagnosisFlow() {
           </h1>
           <p>約10問・約3分。必要に応じて、最大3問の追加質問があります。</p>
           <p className="fine">
-            回答は分析のためOpenAIに送信します。氏名、住所、連絡先などは書かないでください。この端末のCookieを削除すると、会員登録前の診断には戻れなくなります。
+            AIによる分析のため、回答内容を外部サービス（OpenAI）で処理します。氏名、住所、連絡先などは書かないでください。この端末のCookieを削除すると、会員登録前の診断には戻れなくなります。
           </p>
           <label className="choice">
             <input
