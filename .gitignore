@@ -1,0 +1,15 @@
+node_modules/
+.next/
+.env*
+!.env.example
+.vercel/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.DS_Store
+
+supabase/.temp/
+
+# Local handoff notes are not part of published source.
+docs/resume.md

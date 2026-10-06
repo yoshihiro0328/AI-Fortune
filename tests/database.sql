@@ -1,0 +1,34 @@
+begin;
+-- Disposable synthetic rows; the entire transaction is rolled back.
+do $$ declare did uuid;pid uuid;tid uuid;token uuid=gen_random_uuid();n int; begin
+ select id into tid from public.diagnosis_types where slug='partner-mind';
+ insert into public.diagnoses(anonymous_session_id,diagnosis_type_id) values('test_session',tid) returning id into did;
+ insert into public.diagnosis_answers(diagnosis_id,question_key,question_text,answer_text) values(did,'test','test','test');
+ select count(*) into n from public.diagnosis_answers where diagnosis_id=did;assert n=1,'answer save';
+ insert into public.payments(diagnosis_id) values(did) returning id into pid;
+ select count(*) into n from public.claim_report(did,token);assert n=0,'unpaid must not generate';
+ perform public.apply_stripe_event('evt_test','checkout.session.completed','hash','cs_test','pi_test',pid,1980,'jpy','paid');
+ assert (select status='paid' from public.payments where id=pid),'paid transition';
+ assert not public.apply_stripe_event('evt_test','checkout.session.completed','hash','cs_test','pi_test',pid,1980,'jpy','paid'),'duplicate';
+ perform public.apply_stripe_event('evt_test2','checkout.session.completed','hash','cs_test','pi_test',pid,1980,'jpy','paid');
+ select count(*) into n from public.paid_reports where diagnosis_id=did;assert n=1,'one report per payment';
+ select count(*) into n from public.claim_report(did,token);assert n=1,'worker claims';
+ select count(*) into n from public.claim_report(did,gen_random_uuid());assert n=0,'concurrent worker rejected';
+ assert not public.finish_report(did,gen_random_uuid(),'{}','test','test'),'wrong lease';
+ assert public.finish_report(did,token,'{}','test','test'),'complete';
+ perform public.apply_stripe_event('evt_fail','payment_intent.payment_failed','hash',null,'pi_test',pid,0,'jpy','failed');
+ assert (select status='paid' from public.payments where id=pid),'late failure must not downgrade';
+ perform public.apply_stripe_event('evt_refund','charge.refunded','hash',null,'pi_test',pid,0,'jpy','refunded');
+ assert (select status='refunded' from public.payments where id=pid),'refund';
+ assert (select status='revoked' and report_json is null from public.paid_reports where diagnosis_id=did),'revoke';
+ perform public.apply_stripe_event('evt_late','checkout.session.completed','hash','cs_test','pi_test',pid,1980,'jpy','paid');
+ assert (select status='refunded' from public.payments where id=pid),'late completed must not undo refund';
+ assert public.consume_limit('test-limit',1,60),'first limit';assert not public.consume_limit('test-limit',1,60),'second limit';
+ assert not has_table_privilege('anon','public.paid_reports','SELECT'),'anon cannot query paid';
+ assert not has_function_privilege('authenticated','public.apply_stripe_event(text,text,text,text,text,uuid,integer,text,text)','EXECUTE'),'client cannot grant payment';
+end $$;
+set local role authenticated;
+select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-000000000001","role":"authenticated"}',true);
+do $$ begin assert (select count(*)=0 from public.diagnoses where anonymous_session_id='test_session'),'other user denied';assert (select count(*)=0 from public.paid_reports),'other user report denied';end $$;
+reset role;
+rollback;
