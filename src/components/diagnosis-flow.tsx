@@ -57,8 +57,8 @@ export default function DiagnosisFlow() {
             );
             setStarted(true);
             setConsent(true);
-          } catch {
-            localStorage.removeItem("yorisoi_diagnosis");
+          } catch (e) {
+            setError((e as Error).message);
           }
         }
       } catch (e) {
@@ -80,6 +80,11 @@ export default function DiagnosisFlow() {
     try {
       const d = await request<{ id: string }>("/api/diagnoses", {});
       localStorage.setItem("yorisoi_diagnosis", d.id);
+      window.history.replaceState(
+        null,
+        "",
+        "/diagnosis/partner-mind?resume=" + d.id,
+      );
       setId(d.id);
       setStarted(true);
     } catch (e) {
