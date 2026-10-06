@@ -94,6 +94,9 @@ it("a review identifying factual drift never releases the draft", async () => {
     .mockResolvedValueOnce({
       edits: [{ path: "summary", text: "対話してください。" }],
     });
+  run.mockResolvedValueOnce({
+    edits: [{ path: "summary", text: "対話してください。" }],
+  });
   await expect(
     editForReader("id", "free_report", z.object({ summary: z.string() }), {
       summary: "断られていなければ話してみてください。",

@@ -65,7 +65,11 @@ export default function Home() {
       </section>
       <section className="wrap">
         <span className="eyebrow">無料で整理できること</span>
-        <h2>良いところも、気になることも。</h2>
+        <h2>
+          良いところも、
+          <br />
+          気になることも。
+        </h2>
         <div className="steps">
           {[
             [

@@ -26,13 +26,14 @@ export async function editForReader<T>(
   const leaves = textLeaves(original, scope);
   if (!leaves.length) return schema.parse(original);
   let issues: string[] = [];
-  for (let pass = 0; pass < 2; pass++) {
+  let previous: unknown = null;
+  for (let pass = 0; pass < 3; pass++) {
     const result = await runAI(
       id,
       `${scope}_rewrite_${pass}`,
-      `${conversationStyle}\nあなたは最終編集者。入力originalの各pathについて自然な日本語のtextを返す。pathの追加・削除は禁止。分析、事実、理由、不確実性、助言の条件・強さ、否定、数量は一切変えない。数字は元の順序のまま残す。固有の出来事を一般論へ薄めない。新しい助言や日数を足さない。引用メッセージは送れる自然な文にする。問題点issuesをすべて解消する。自然な箇所も含め全pathを返す。`,
+      `${conversationStyle}\nあなたは最終編集者。入力originalの各pathについて自然な日本語のtextを返す。pathの追加・削除は禁止。分析、事実、理由、不確実性、助言の条件・強さ、否定、数量は一切変えない。数字は元の順序のまま残す。固有の出来事を一般論へ薄めない。新しい助言や日数を足さない。引用メッセージは送れる自然な文にする。問題点issuesをすべて解消する。自然な箇所も含め全pathを返す。previousがあれば、指摘された箇所を中心に修正し、問題のない文章をむやみに変更しない。`,
       editsSchema,
-      { original: leaves, issues },
+      { original: leaves, previous, issues },
       {
         ...options,
         attempts: 1,
@@ -40,6 +41,7 @@ export async function editForReader<T>(
         timeout: 90000,
       },
     );
+    previous = result.edits;
     let candidate: T;
     try {
       candidate = schema.parse(mergeText(original, result.edits, scope));
@@ -79,8 +81,10 @@ export async function editForReader<T>(
       .in("stage", [
         `${scope}_rewrite_0`,
         `${scope}_rewrite_1`,
+        `${scope}_rewrite_2`,
         `${scope}_review_0`,
         `${scope}_review_1`,
+        `${scope}_review_2`,
       ]),
   );
   throw new Error("Editorial review did not pass; draft withheld");

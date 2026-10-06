@@ -82,7 +82,7 @@ export async function dispatchMail(contactId?: string) {
       await db()
         .from("contact_mail")
         .update({
-          status: "failed",
+          status: job.attempts >= 5 ? "manual_review" : "failed",
           lease_until: null,
           updated_at: new Date().toISOString(),
         })
