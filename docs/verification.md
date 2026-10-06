@@ -1,6 +1,6 @@
 # Verification — 2026-10-06
 
-ローカルで無料診断→実Stripe Sandbox決済→真正な決済通知→有料AIレポート生成→再表示を確認済み。MVP全体は未完了：GitHub保存を進行中。Vercel Preview上のE2Eは未検証。
+ローカルで無料診断→実Stripe Sandbox決済→真正な決済通知→有料AIレポート生成→再表示を確認済み。MVP全体は未完了：GitHubへ保存済み（Draft PR #1）。Vercel Preview上のE2Eは未検証。
 
 ## Passed
 
@@ -20,7 +20,7 @@
 
 ## Actual resources
 
-- GitHub: https://github.com/yoshihiro0328/AI-Fortune （再接続後の書き込み成功、開発ブランチ作成済み）
+- GitHub: https://github.com/yoshihiro0328/AI-Fortune （開発ブランチ・Draft PR #1作成済み）
 - Local branch: codex/partner-mind-mvp
 - Supabase: rnvrdrfdbapfafwjbygo / partner-mind / Tokyo / AI Fortune
 - Stripe Sandbox: AI Fortune テスト / acct_1UNSvsIYwtQeIHKP
@@ -33,7 +33,7 @@
 ## Blocked / not yet verified
 
 1. Stripeキー設定は解消。Sandboxアカウント一致・JPY 1,980価格をAPIで確認。公式テストカードでCheckout支払い成功。Stripe CLIから本物の決済通知をローカルへ転送しHTTP 200、DB支払状態paid。実請求なし。
-2. GitHub権限は再接続で解消。初回READMEと開発ブランチの作成に成功。コード保存・PR・CI確認を進行中。
+2. GitHub権限は再接続で解消し、コード保存・Draft PR #1の作成に成功。初回CIでlockfileの@emnapi依存不足を検出。GitHubと同じnpm 11.19でlockfileを再生成し、clean installの事前検証に成功。再実行結果はGitHub Actionsを参照。
 3. Vercelの最初の配置がproductionになる挙動を受け、再配置は自動承認レビューで拒否。ユーザーへテスト専用としての再配置許可を確認中。
 4. Vercel PreviewへSupabase公開値・セッション鍵・Cron鍵・Stripe価格IDは登録済み。OpenAI/Supabase秘密鍵の転送は、ツール出力への露出懸念で自動承認レビュー拒否。秘密値を出力しない登録経路が必要。実行中の初回production配置には登録していない。
 5. Vercel build/runtimeログ取得は403。CLI代替も権限回避の懸念で自動承認レビュー拒否。ログに問題が無いと断定しない。
