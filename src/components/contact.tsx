@@ -6,7 +6,8 @@ export default function Contact() {
   const startedAt = useRef(0);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [receipt, setReceipt] = useState("");
+    [receipt, setReceipt] = useState(""),
+    [mailQueued, setMailQueued] = useState(false);
   useEffect(() => {
     startedAt.current = Date.now();
   }, []);
@@ -16,15 +17,19 @@ export default function Contact() {
     setError("");
     const data = new FormData(e.currentTarget);
     try {
-      const r = await request<{ id?: string }>("/api/contact", {
-        name: data.get("name"),
-        email: data.get("email"),
-        message: data.get("message"),
-        website: data.get("website"),
-        consent: data.get("consent") === "on",
-        startedAt: startedAt.current,
-      });
+      const r = await request<{ id?: string; mailQueued?: boolean }>(
+        "/api/contact",
+        {
+          name: data.get("name"),
+          email: data.get("email"),
+          message: data.get("message"),
+          website: data.get("website"),
+          consent: data.get("consent") === "on",
+          startedAt: startedAt.current,
+        },
+      );
       setReceipt(r.id ?? "受付済み");
+      setMailQueued(!!r.mailQueued);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -43,7 +48,9 @@ export default function Contact() {
           <h2>お問い合わせを受け付けました。</h2>
           <p>受付番号：{receipt}</p>
           <p>
-            内容を保存しました。現在はテスト受付のため、自動返信メールは送信されません。返信体制は本番公開前に整備します。
+            {mailQueued
+              ? "内容を保存し、受付メールの送信を手配しました。届かない場合も、この受付番号でお問い合わせ内容を確認できます。"
+              : "内容を保存しました。現在はメール送信の設定前のため、受付メールは届きません。受付番号をお控えください。"}
           </p>
         </div>
       ) : (

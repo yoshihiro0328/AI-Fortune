@@ -18,7 +18,7 @@ export async function GET(req: Request) {
       .in("status", ["queued", "failed", "generating"])
       .lt("attempts", 5)
       .order("updated_at")
-      // One report may use two 120s AI attempts within this route's 300s budget.
+      // Resume saved generation/editorial stages within a 265s budget.
       .limit(1),
   );
   for (const j of jobs ?? []) {

@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID, createHash } from "node:crypto";
 import { db, checked } from "../supabase/admin";
 import { HttpError } from "../http";
+import { editForReader } from "./editor";
 import { runAI } from "./run";
 import {
   classificationSchema,
@@ -36,6 +37,7 @@ export async function lock<T>(key: string, fn: () => Promise<T>) {
 }
 export async function analyzeDiagnosis(id: string) {
   return lock("diagnosis:" + id, async () => {
+    const options = { deadline: Date.now() + 265000 };
     const d = checked(
       await db().from("diagnoses").select("*").eq("id", id).single(),
     );
@@ -86,6 +88,7 @@ export async function analyzeDiagnosis(id: string) {
           answers,
           triage: triageRisk(answers!.map((a) => a.answer_text).join("\n")),
         },
+        options,
       );
       classification = { ...result, input_hash: inputHash };
       checked(
@@ -103,10 +106,24 @@ export async function analyzeDiagnosis(id: string) {
     }
     let follow = d.followup_json;
     if (!follow) {
-      follow = await runAI(id, "followup", followup, followupSchema, {
-        classification,
-        answers,
-      });
+      follow = await runAI(
+        id,
+        "followup",
+        followup,
+        followupSchema,
+        {
+          classification,
+          answers,
+        },
+        options,
+      );
+      follow = await editForReader(
+        id,
+        "followup",
+        followupSchema,
+        follow,
+        options,
+      );
       const used = new Set(answers!.map((a) => a.question_key));
       follow.questions = follow.needs_follow_up
         ? follow.questions
@@ -147,10 +164,17 @@ export async function analyzeDiagnosis(id: string) {
           .maybeSingle(),
       )?.analysis_json;
       if (!analysis) {
-        analysis = await runAI(id, "analyze", analyze, analysisSchema, {
-          classification,
-          answers,
-        });
+        analysis = await runAI(
+          id,
+          "analyze",
+          analyze,
+          analysisSchema,
+          {
+            classification,
+            answers,
+          },
+          options,
+        );
         checked(
           await db()
             .from("diagnosis_analyses")
@@ -162,7 +186,21 @@ export async function analyzeDiagnosis(id: string) {
             }),
         );
       }
-      const report = await runAI(id, "free_report", free, freeSchema, analysis);
+      const draft = await runAI(
+        id,
+        "free_report",
+        free,
+        freeSchema,
+        analysis,
+        options,
+      );
+      const report = await editForReader(
+        id,
+        "free_report",
+        freeSchema,
+        draft,
+        options,
+      );
       checked(
         await db()
           .from("free_reports")
@@ -190,6 +228,7 @@ export async function analyzeDiagnosis(id: string) {
   });
 }
 export async function generatePaid(id: string) {
+  const options = { deadline: Date.now() + 265000 };
   const token = randomUUID();
   const claimed = checked(
     await db().rpc("claim_report", { p_diagnosis: id, p_token: token }),
@@ -209,10 +248,24 @@ export async function generatePaid(id: string) {
         .select("question_text,answer_text")
         .eq("diagnosis_id", id),
     );
-    const report = await runAI(id, "paid_report", paid, paidSchema, {
-      analysis: a!.analysis_json,
-      answers,
-    });
+    const draft = await runAI(
+      id,
+      "paid_report",
+      paid,
+      paidSchema,
+      {
+        analysis: a!.analysis_json,
+        answers,
+      },
+      options,
+    );
+    const report = await editForReader(
+      id,
+      "paid_report",
+      paidSchema,
+      draft,
+      options,
+    );
     checked(
       await db().rpc("finish_report", {
         p_diagnosis: id,

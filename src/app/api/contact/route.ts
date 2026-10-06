@@ -1,6 +1,10 @@
+import { randomUUID } from "node:crypto";
+import { after } from "next/server";
+import { receiptJobs, dispatchMail } from "@/lib/mail";
 import { api, csrf, body, identity, rate, rateIP, HttpError } from "@/lib/http";
 import { db, checked } from "@/lib/supabase/admin";
 import { contactSchema } from "@/lib/contact-validation";
+export const maxDuration = 60;
 export async function POST(req: Request) {
   return api(async () => {
     csrf(req);
@@ -14,18 +18,22 @@ export async function POST(req: Request) {
       input.startedAt < Date.now() - 86400000
     )
       throw new HttpError(400, "内容を確認して、もう一度送信してください。");
-    const row = checked(
-      await db()
-        .from("contact_messages")
-        .insert({
-          name: input.name,
-          email: input.email,
-          message: input.message,
-          user_id: who.userId,
-        })
-        .select("id")
-        .single(),
+    const id = randomUUID();
+    const jobs = receiptJobs(id, input.email);
+    checked(
+      await db().rpc("submit_contact", {
+        p_id: id,
+        p_name: input.name,
+        p_email: input.email,
+        p_message: input.message,
+        p_user: who.userId,
+        p_jobs: jobs,
+      }),
     );
-    return { ok: true, id: row!.id };
+    if (jobs.length)
+      after(async () => {
+        await dispatchMail(id);
+      });
+    return { ok: true, id, mailQueued: jobs.length > 0 };
   });
 }

@@ -1,5 +1,9 @@
 import { it, expect, vi, beforeEach, afterEach } from "vitest";
-const mocks = vi.hoisted(() => ({ from: vi.fn(), retrieve: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  from: vi.fn(),
+  retrieve: vi.fn(),
+  rpc: vi.fn(),
+}));
 vi.mock("@/lib/http", async (original) => ({
   ...(await original<typeof import("../src/lib/http")>()),
   csrf: vi.fn(),
@@ -10,7 +14,7 @@ vi.mock("@/lib/http", async (original) => ({
 }));
 vi.mock("@/lib/supabase/admin", async (original) => ({
   ...(await original<typeof import("../src/lib/supabase/admin")>()),
-  db: () => ({ from: mocks.from }),
+  db: () => ({ from: mocks.from, rpc: mocks.rpc }),
 }));
 vi.mock("@/lib/stripe/client", () => ({
   stripe: () => ({ prices: { retrieve: mocks.retrieve } }),
@@ -22,6 +26,10 @@ import { POST as contact } from "../src/app/api/contact/route";
 import { POST as checkout } from "../src/app/api/diagnoses/[id]/checkout/route";
 beforeEach(() => {
   mocks.from.mockReset();
+  mocks.rpc.mockResolvedValue({
+    data: null,
+    error: { message: "private database detail" },
+  });
   mocks.retrieve.mockReset();
   vi.spyOn(console, "error").mockImplementation(() => {});
 });

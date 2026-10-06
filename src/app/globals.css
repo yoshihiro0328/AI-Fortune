@@ -490,3 +490,21 @@ input[type="password"] {
     flex: 1 1 150px;
   }
 }
+
+.worry-list {
+  list-style: none;
+  padding: 0;
+  margin: 24px 0 0;
+}
+.worry-list li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.closing {
+  border-top: 1px solid var(--line);
+  margin-top: 40px;
+}
+.admin-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -10,18 +10,22 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ja_JP",
     siteName: "よりそい",
-    title: "よりそい | 相手の心理診断",
-    description: "今の状況をAIと一緒に整理する、登録不要の恋愛相談。",
+    title: "よりそい | ふたりの今を整理する",
+    description:
+      "返信や距離感に迷ったら。ふたりの今と次の一歩を整理する、登録不要の恋愛相談。",
     images: ["/opengraph-image"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "よりそい | 相手の心理診断",
+    title: "よりそい | ふたりの今を整理する",
     images: ["/opengraph-image"],
   },
-  title: { default: "よりそい | 相手の心理診断", template: "%s | よりそい" },
+  title: {
+    default: "よりそい | ふたりの今を整理する",
+    template: "%s | よりそい",
+  },
   description:
-    "相手の気持ちが分からない。今の状況をAIと一緒に整理してみませんか。約3分、登録不要の恋愛相談。",
+    "相手の気持ちが分からない。ふたりの今と次の一歩を整理してみませんか。約3分、登録不要の恋愛相談。",
   robots: { index: false, follow: false },
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
