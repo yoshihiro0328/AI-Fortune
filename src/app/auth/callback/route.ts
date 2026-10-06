@@ -1,28 +1,30 @@
 import { NextResponse } from "next/server";
-import { authClient, identity, event } from "@/lib/http";
-import { db, checked } from "@/lib/supabase/admin";
+import { authClient } from "@/lib/http";
+import { claimDiagnoses, setRecovery } from "@/lib/auth";
 import { appUrl } from "@/lib/config";
 export async function GET(req: Request) {
-  const code = new URL(req.url).searchParams.get("code");
-  if (!code) return NextResponse.redirect(appUrl() + "/account?error=auth");
-  const who = await identity();
-  const auth = await authClient();
-  const { data, error } = await auth.auth.exchangeCodeForSession(code);
-  if (error || !data.user)
-    return NextResponse.redirect(appUrl() + "/account?error=auth");
-  if (who.session)
-    checked(
-      await db()
-        .from("diagnoses")
-        .update({ user_id: data.user.id })
-        .eq("anonymous_session_id", who.session)
-        .is("user_id", null),
-    );
-  checked(
-    await db()
-      .from("profiles")
-      .upsert({ user_id: data.user.id }, { onConflict: "user_id" }),
-  );
-  await event("signup_completed");
-  return NextResponse.redirect(appUrl() + "/account");
+  const url = new URL(req.url),
+    code = url.searchParams.get("code");
+  const redirect = (path: string) =>
+    NextResponse.redirect(appUrl() + path, {
+      headers: {
+        "Cache-Control": "private, no-store",
+        "Referrer-Policy": "no-referrer",
+      },
+    });
+  if (!code) return redirect("/account?error=auth");
+  try {
+    const auth = await authClient();
+    const { data, error } = await auth.auth.exchangeCodeForSession(code);
+    if (error || !data.user?.email_confirmed_at)
+      return redirect("/account?error=auth");
+    if (url.searchParams.get("next") === "recovery") {
+      await setRecovery(data.user.id);
+      return redirect("/account?mode=update");
+    }
+    await claimDiagnoses(data.user);
+    return redirect("/account?verified=1");
+  } catch {
+    return redirect("/account?error=auth");
+  }
 }

@@ -1,5 +1,5 @@
 import "server-only";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import { db, checked } from "../supabase/admin";
 import { HttpError } from "../http";
 import { runAI } from "./run";
@@ -16,7 +16,7 @@ import analyze from "./prompts/analyze";
 import free from "./prompts/free-report";
 import paid from "./prompts/paid-report";
 import { version } from "./prompts/base";
-import { riskPattern } from "../security";
+import { triageRisk } from "../risk";
 import { required } from "../config";
 export async function lock<T>(key: string, fn: () => Promise<T>) {
   const token = randomUUID();
@@ -59,7 +59,8 @@ export async function analyzeDiagnosis(id: string) {
       await db()
         .from("diagnosis_answers")
         .select("question_key,question_text,answer_text,is_follow_up")
-        .eq("diagnosis_id", id),
+        .eq("diagnosis_id", id)
+        .order("question_key"),
     );
     if (
       questions!.some(
@@ -71,31 +72,22 @@ export async function analyzeDiagnosis(id: string) {
       )
     )
       throw new HttpError(400, "未回答の質問があります。");
-    if (riskPattern.test(answers!.map((a) => a.answer_text).join("\n"))) {
-      checked(
-        await db()
-          .from("diagnoses")
-          .update({
-            status: "safety",
-            classification_json: {
-              risk_detected: true,
-              risk_type: "other",
-              severity: "high",
-            },
-          })
-          .eq("id", id),
-      );
-      return { status: "safety" };
-    }
+    const inputHash = createHash("sha256")
+      .update(JSON.stringify(answers))
+      .digest("hex");
     let classification = d.classification_json;
-    if (!classification) {
-      classification = await runAI(
+    if (!classification || classification.input_hash !== inputHash) {
+      const result = await runAI(
         id,
         "classify",
         classify,
         classificationSchema,
-        answers,
+        {
+          answers,
+          triage: triageRisk(answers!.map((a) => a.answer_text).join("\n")),
+        },
       );
+      classification = { ...result, input_hash: inputHash };
       checked(
         await db()
           .from("diagnoses")

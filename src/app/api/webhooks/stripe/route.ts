@@ -1,3 +1,4 @@
+import { boundedText, HttpError } from "@/lib/http";
 import { createHash } from "node:crypto";
 import { after } from "next/server";
 import type Stripe from "stripe";
@@ -8,7 +9,15 @@ import { db, checked } from "@/lib/supabase/admin";
 import { generatePaid } from "@/lib/ai/pipeline";
 export const maxDuration = 300;
 export async function POST(req: Request) {
-  const raw = await req.text();
+  let raw: string;
+  try {
+    raw = await boundedText(req, 300000);
+  } catch (e) {
+    return Response.json(
+      { error: "Invalid request" },
+      { status: e instanceof HttpError ? e.status : 400 },
+    );
+  }
   let e: Stripe.Event;
   try {
     e = stripe().webhooks.constructEvent(

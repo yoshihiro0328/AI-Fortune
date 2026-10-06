@@ -1,4 +1,5 @@
 "use client";
+import ProgressNote from "./progress-note";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -24,7 +25,10 @@ export default function DiagnosisFlow() {
         if (!active) return;
         setQuestions(qs);
         track("page_view");
-        const saved = localStorage.getItem("yorisoi_diagnosis");
+        const params = new URLSearchParams(location.search);
+        const saved = params.has("new")
+          ? null
+          : (params.get("resume") ?? localStorage.getItem("yorisoi_diagnosis"));
         if (saved) {
           try {
             const d = await request<Diagnosis>("/api/diagnoses/" + saved);
@@ -138,7 +142,7 @@ export default function DiagnosisFlow() {
           </h1>
           <p>約10問・約3分。必要に応じて、最大3問の追加質問があります。</p>
           <p className="fine">
-            AIによる分析のため、回答内容を外部サービス（OpenAI）で処理します。氏名、住所、連絡先などは書かないでください。この端末のCookieを削除すると、会員登録前の診断には戻れなくなります。
+            AIによる分析のため、回答内容を外部サービス（OpenAI）で処理します。氏名・住所・電話番号・メールアドレスなど、個人を特定できる情報は入力しないでください。この端末のCookieを削除すると、会員登録前の診断には戻れなくなります。
           </p>
           <label className="choice">
             <input
@@ -247,10 +251,14 @@ export default function DiagnosisFlow() {
           </div>
         </>
       ) : null}
-      {busy && (
-        <p role="status">
-          <span className="loading" /> {busy}。画面を閉じずにお待ちください。
-        </p>
+      {busy.includes("AI") ? (
+        <ProgressNote label={busy} />
+      ) : (
+        busy && (
+          <p role="status">
+            <span className="loading" /> {busy}。画面を閉じずにお待ちください。
+          </p>
+        )
       )}
     </main>
   );

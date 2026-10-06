@@ -23,5 +23,3 @@ export function secureEqual(a: string, b: string) {
     bb = Buffer.from(b);
   return aa.length === bb.length && timingSafeEqual(aa, bb);
 }
-export const riskPattern =
-  /(殴|殺|自殺|死にたい|自傷|監禁|脅迫|ストー[カカ]ー|性的強要|暴力|レイプ|未成年.*(性|裸)|DV|suicid|kill myself|rape|stalk)/i;

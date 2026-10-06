@@ -416,3 +416,77 @@ textarea {
     font-size: 26px;
   }
 }
+
+.auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+.auth-links button {
+  font: inherit;
+  color: var(--ink, #31463d);
+  background: none;
+  border: 0;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0.3rem 0;
+}
+.history-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.2rem 0;
+  border-bottom: 1px solid #ddd;
+}
+.honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.panel form label:not(.choice),
+.panel > label:not(.choice) {
+  display: block;
+  margin-top: 1rem;
+}
+input[type="password"] {
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font: inherit;
+}
+.auth-links button:disabled {
+  opacity: 0.5;
+}
+.history-row a {
+  overflow-wrap: anywhere;
+}
+
+.header-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+.panel {
+  overflow-wrap: anywhere;
+}
+.flow input {
+  max-width: 100%;
+}
+@media (max-width: 480px) {
+  .header-links {
+    gap: 0.5rem;
+    max-width: 55%;
+    font-size: 0.75rem;
+  }
+  .actions {
+    flex-wrap: wrap;
+  }
+  .actions .button {
+    flex: 1 1 150px;
+  }
+}

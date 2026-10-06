@@ -1,0 +1,104 @@
+"use client";
+import { useEffect, useState, useRef } from "react";
+import Link from "next/link";
+import { request } from "@/lib/client";
+export default function Contact() {
+  const startedAt = useRef(0);
+  const [busy, setBusy] = useState(false),
+    [error, setError] = useState(""),
+    [receipt, setReceipt] = useState("");
+  useEffect(() => {
+    startedAt.current = Date.now();
+  }, []);
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    const data = new FormData(e.currentTarget);
+    try {
+      const r = await request<{ id?: string }>("/api/contact", {
+        name: data.get("name"),
+        email: data.get("email"),
+        message: data.get("message"),
+        website: data.get("website"),
+        consent: data.get("consent") === "on",
+        startedAt: startedAt.current,
+      });
+      setReceipt(r.id ?? "受付済み");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <main id="main" className="flow">
+      <p className="eyebrow">CONTACT / お問い合わせ</p>
+      <h1>お困りのことを、お聞かせください。</h1>
+      <p>
+        診断や購入、データの取り扱いについてはこちらから。緊急の相談を受け付ける窓口ではありません。
+      </p>
+      {receipt ? (
+        <div className="panel" role="status">
+          <h2>お問い合わせを受け付けました。</h2>
+          <p>受付番号：{receipt}</p>
+          <p>
+            内容を保存しました。現在はテスト受付のため、自動返信メールは送信されません。返信体制は本番公開前に整備します。
+          </p>
+        </div>
+      ) : (
+        <form className="panel" onSubmit={submit}>
+          <label htmlFor="contact-name">お名前</label>
+          <input
+            id="contact-name"
+            name="name"
+            autoComplete="name"
+            required
+            maxLength={80}
+          />
+          <label htmlFor="contact-email">メールアドレス</label>
+          <input
+            id="contact-email"
+            name="email"
+            autoComplete="email"
+            type="email"
+            required
+            maxLength={254}
+          />
+          <label htmlFor="contact-message">お問い合わせ内容</label>
+          <textarea
+            id="contact-message"
+            name="message"
+            required
+            minLength={10}
+            maxLength={5000}
+          />
+          <p className="fine">
+            10〜5,000文字。パスワード・カード番号・第三者の個人情報は書かないでください。
+          </p>
+          <div className="honeypot" aria-hidden="true">
+            <label>
+              Website
+              <input name="website" tabIndex={-1} autoComplete="off" />
+            </label>
+          </div>
+          <label className="choice">
+            <input name="consent" type="checkbox" required />
+            <span>
+              <Link href="/legal/privacy">プライバシーポリシー</Link>
+              を確認し、問い合わせ対応のための情報の利用に同意します。
+            </span>
+          </label>
+          <button className="button" disabled={busy}>
+            {busy ? "送信しています…" : "問い合わせを送る"}
+          </button>
+          {error && (
+            <p role="alert" className="error">
+              {error}
+            </p>
+          )}
+        </form>
+      )}
+    </main>
+  );
+}

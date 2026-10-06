@@ -7,6 +7,7 @@ export async function POST(req: Request) {
     csrf(req);
     const who = await identity(true);
     await rate("start:" + who.session, 5, 86400);
+    await rate("starts:global", 100, 86400);
     const ip = process.env.VERCEL
       ? (req.headers.get("x-vercel-forwarded-for") ?? "unknown")
       : "local";
@@ -42,11 +43,13 @@ export async function GET(req: Request) {
     }
     const who = await identity();
     if (!who.session && !who.userId) return [];
+    const raw = new URL(req.url).searchParams.get("offset") ?? "0";
+    const offset = /^\d{1,6}$/.test(raw) ? Number(raw) : 0;
     let q = db()
       .from("diagnoses")
       .select("id,status,created_at")
       .order("created_at", { ascending: false })
-      .limit(10);
+      .range(offset, offset + 19);
     q = who.userId
       ? q.eq("user_id", who.userId)
       : q.eq("anonymous_session_id", who.session!).is("user_id", null);

@@ -7,6 +7,7 @@ export const classificationSchema = z.object({
   user_goal: text,
   emotional_intensity: z.enum(["low", "medium", "high"]),
   risk_detected: z.boolean(),
+  confidence: z.number().min(0).max(1),
   risk_type: z.enum([
     "none",
     "violence",

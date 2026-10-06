@@ -4,7 +4,6 @@ import {
   sessionHash,
   owns,
   sameOrigin,
-  riskPattern,
   secureEqual,
 } from "../src/lib/security";
 import { freeSchema, paidSchema, followupSchema } from "../src/lib/ai/schemas";
@@ -40,17 +39,6 @@ describe("CSRF and service auth", () => {
   });
 });
 describe("AI validation and risk", () => {
-  it("blocks unsafe topics before paid CTA", () => {
-    for (const s of [
-      "殴られた",
-      "死にたい",
-      "監禁されている",
-      "ストーカー被害",
-      "性的強要",
-      "未成年の裸",
-    ])
-      expect(riskPattern.test(s)).toBe(true);
-  });
   it("rejects malformed free output and out-of-range scores", () => {
     expect(freeSchema.safeParse({ summary: "x" }).success).toBe(false);
     expect(

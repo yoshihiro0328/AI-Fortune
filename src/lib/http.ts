@@ -30,7 +30,7 @@ export async function identity(create = false) {
   if (jar.getAll().some((c) => c.name.startsWith("sb-"))) {
     const auth = await authClient();
     const { data } = await auth.auth.getUser();
-    userId = data.user?.id ?? null;
+    userId = data.user?.email_confirmed_at ? data.user.id : null;
   }
   return {
     session: token ? sessionHash(token, required("SESSION_SECRET")) : null,
@@ -63,8 +63,7 @@ export function csrf(req: Request) {
     throw new HttpError(403, "このリクエストは許可されていません。");
 }
 export async function body<T>(req: Request, schema: z.ZodType<T>) {
-  const text = await req.text();
-  if (text.length > 30000) throw new HttpError(413, "入力が長すぎます。");
+  const text = await boundedText(req, 30000);
   try {
     return schema.parse(JSON.parse(text));
   } catch {
@@ -120,7 +119,10 @@ export async function api(fn: () => Promise<unknown>) {
     });
   } catch (e) {
     if (e instanceof HttpError)
-      return Response.json({ error: e.message }, { status: e.status });
+      return Response.json(
+        { error: e.message },
+        { status: e.status, headers: { "Cache-Control": "private, no-store" } },
+      );
     console.error("request_failed", {
       type: e instanceof Error ? e.name : "unknown",
     });
@@ -129,7 +131,45 @@ export async function api(fn: () => Promise<unknown>) {
         error:
           "ただいま処理を完了できませんでした。時間をおいて再度お試しください。",
       },
-      { status: 503 },
+      { status: 503, headers: { "Cache-Control": "private, no-store" } },
     );
   }
+}
+
+export async function rateIP(
+  req: Request,
+  namespace: string,
+  limit: number,
+  seconds: number,
+) {
+  const ip = process.env.VERCEL
+    ? (req.headers.get("x-vercel-forwarded-for") ?? "unknown")
+    : "local";
+  await rate(
+    namespace + ":ip:" + sessionHash(ip, required("SESSION_SECRET")),
+    limit,
+    seconds,
+  );
+}
+
+export async function boundedText(req: Request, maxBytes: number) {
+  const reader = req.body?.getReader();
+  if (!reader) return "";
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new HttpError(413, "入力が長すぎます。");
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }

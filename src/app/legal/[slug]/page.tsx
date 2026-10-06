@@ -1,3 +1,5 @@
+import Link from "next/link";
+import { operator } from "@/lib/operator";
 import { notFound } from "next/navigation";
 const pages: Record<string, { title: string; sections: [string, string][] }> = {
   terms: {
@@ -12,8 +14,12 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
         "第三者の氏名・住所・連絡先などを入力しないでください。不正アクセス、権利侵害、相手への嫌がらせや操作を目的とした利用を禁止します。",
       ],
       [
+        "匿名利用と会員登録",
+        "無料診断は会員登録不要です。回答は匿名のブラウザ識別子とともに保存され、同じブラウザで再開できます。任意でメールアドレスとパスワードを登録し、メール認証後に診断をアカウントへ保存できます。共有端末では他の方の診断を保存しないでください。Cookieを削除した場合、未登録の診断を復元できないことがあります。",
+      ],
+      [
         "有料レポート",
-        "購入は任意です。AI詳細恋愛診断は1回1,980円（税込）、自動更新はありません。現在はStripeのテスト環境のみで提供しており、実際の支払いは受け付けていません。",
+        "購入は任意です。AI詳細恋愛診断は1回1,980円（税込）、自動更新はありません。関係・行動の分析、連絡の提案、LINE案3種類、7日・30日プラン等13項目を提供します。現在はStripeのテスト環境のみで提供しており、実際の支払いは受け付けていません。",
       ],
       [
         "提供と変更",
@@ -26,15 +32,15 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
     sections: [
       [
         "取り扱う情報",
-        "診断回答、分析結果、匿名セッション識別子、登録時のメールアドレス、決済の識別情報、利用イベントを取り扱います。カード番号は本サービスでは保存せずStripeが処理します。",
+        "診断回答、分析結果、匿名セッション識別子、登録時のメールアドレス、決済の識別情報、利用イベント、お問い合わせの氏名・メールアドレス・内容・対応状況を取り扱います。パスワードはSupabase Authが管理し、本サービスの診断DBには保存しません。カード番号は本サービスでは保存せずStripeが処理します。",
       ],
       [
         "利用目的",
-        "診断・レポートの提供、購入確認、不正利用防止、障害対応、個人を特定しない利用状況集計のために使用します。相談内容をSNSへ投稿しません。",
+        "診断・レポートの提供、メール認証、診断履歴の保存、購入確認、問い合わせ対応、不正利用防止、障害対応、個人を特定しない利用状況集計のために使用します。相談内容をSNSへ投稿しません。",
       ],
       [
         "外部サービスへの送信",
-        "回答はAI分析のためOpenAIへ送信し、保存処理にSupabase、配信にVercel、決済にStripeを利用します。各サービスの所在地や処理地域により国外で処理される場合があります。AIリクエストはstore:falseで送信しますが、提供事業者の安全監視等の保持方針も適用されます。",
+        "AIによる分析のため、回答内容を外部サービス（OpenAI）で処理します。保存と認証にSupabase、配信にVercel、決済にStripeを利用します。各サービスの所在地や処理地域により国外で処理される場合があります。AIリクエストはstore:falseで送信しますが、提供事業者の安全監視等の保持方針も適用されます。",
       ],
       [
         "Cookieと分析",
@@ -42,7 +48,8 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
       ],
       [
         "保存・削除・問い合わせ",
-        "保存期間、削除請求窓口、管理責任者は本番公開前に確定する必要があります。【要設定】現在はテスト公開のため、実在する人の個人情報や機微情報を入力しないでください。",
+        operator.retention +
+          " 開示・訂正・削除のご相談は問い合わせフォームへ。本人確認後に対応します。現在はテスト公開のため、診断には実在する人の個人情報や機微情報を入力しないでください。",
       ],
     ],
   },
@@ -51,11 +58,11 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
     sections: [
       [
         "販売事業者・運営責任者",
-        "【要設定】実在する運営者名を本番公開前に登録してください。",
+        operator.name + " / " + operator.representative,
       ],
       [
         "所在地・電話番号・メールアドレス",
-        "【要設定】事業者の実情報と問い合わせ窓口を本番公開前に登録してください。",
+        operator.address + " / " + operator.phone + " / " + operator.email,
       ],
       [
         "販売価格・追加費用",
@@ -92,7 +99,11 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
       ],
       [
         "連絡先と返金後の閲覧",
-        "【要設定】問い合わせ先、申請期限、対応期限。返金を受け付けたレポートは閲覧できなくなります。",
+        "問い合わせフォームから、診断の識別番号と状況をお知らせください。" +
+          operator.refundDeadline +
+          "。" +
+          operator.responseTime +
+          "。返金を受け付けたレポートは閲覧できなくなります。",
       ],
     ],
   },
@@ -141,6 +152,17 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
     ],
   },
 };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  return {
+    title: pages[slug]?.title ?? "ページが見つかりません",
+    alternates: { canonical: "/legal/" + slug },
+  };
+}
 export default async function Legal({
   params,
 }: {
@@ -154,6 +176,11 @@ export default async function Legal({
       <h1>{p.title}</h1>
       <p className="notice">
         テスト公開用の暫定内容です。運営者情報が未設定のため、本番販売は開始していません。
+      </p>
+      <p>
+        <Link href="/contact">
+          お問い合わせ・データの取り扱いに関するご相談
+        </Link>
       </p>
       {p.sections.map(([t, s]) => (
         <section key={t}>

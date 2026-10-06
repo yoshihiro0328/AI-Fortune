@@ -1,3 +1,10 @@
+export const metadata = {
+  alternates: { canonical: "/" },
+  robots: {
+    index: process.env.PUBLIC_INDEXING_ENABLED === "true",
+    follow: process.env.PUBLIC_INDEXING_ENABLED === "true",
+  },
+};
 import Link from "next/link";
 export default function Home() {
   return (
@@ -110,7 +117,7 @@ export default function Home() {
         <details>
           <summary>回答は公開されますか？</summary>
           <p>
-            診断内容は公開されません。AIによる分析のため、回答内容を外部サービス（OpenAI）で処理します。氏名、住所、連絡先など個人を特定する情報は入力しないでください。
+            診断内容は公開されません。AIによる分析のため、回答内容を外部サービス（OpenAI）で処理します。氏名・住所・電話番号・メールアドレスなど、個人を特定できる情報は入力しないでください。
           </p>
         </details>
         <details>

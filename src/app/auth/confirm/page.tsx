@@ -1,8 +1,8 @@
-import Account from "@/components/account";
+import Confirm from "@/components/auth-confirm";
 export const metadata = {
-  title: "マイページ",
+  title: "メール確認",
   robots: { index: false, follow: false },
 };
 export default function Page() {
-  return <Account />;
+  return <Confirm />;
 }
