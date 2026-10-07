@@ -51,6 +51,14 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
         operator.retention +
           " 開示・訂正・削除のご相談は問い合わせフォームへ。本人確認後に対応します。現在はテスト公開のため、診断には実在する人の個人情報や機微情報を入力しないでください。",
       ],
+      [
+        "診断データの削除・退会",
+        "問い合わせフォームに「診断データの削除」または「退会」と記載し、登録メールアドレスと、分かれば診断番号をお知らせください。匿名で利用した方は、診断したブラウザを保持したままご連絡ください。診断番号だけでは本人確認になりません。パスワードやカード番号、本人確認書類をフォームに送らないでください。本人確認と対象範囲の確認後、回答・分析・レポート・関連するAI生成履歴を削除し、退会の場合はプロフィールと認証アカウントも削除します。",
+      ],
+      [
+        "削除の対象外となる場合",
+        "決済・返金の処理中、法令上の保存義務や不正利用の調査等により必要な情報は、目的と期間を確認し、必要最小限に限定して保持する場合があります。診断本文を会計記録と一緒に残すことはしません。保存する情報・理由・期間は対応時にご案内します。外部サービスの記録やバックアップは、各提供事業者の削除・保持手順も確認します。法定の保存期間は一律には断定せず、本番販売前に運営者が確認します。",
+      ],
     ],
   },
   commerce: {
@@ -161,6 +169,10 @@ export async function generateMetadata({
   return {
     title: pages[slug]?.title ?? "ページが見つかりません",
     alternates: { canonical: "/legal/" + slug },
+    robots: {
+      index: process.env.PUBLIC_INDEXING_ENABLED === "true",
+      follow: process.env.PUBLIC_INDEXING_ENABLED === "true",
+    },
   };
 }
 export default async function Legal({
@@ -172,7 +184,7 @@ export default async function Legal({
   if (!p) notFound();
   return (
     <main id="main" className="legal">
-      <p className="eyebrow">INFORMATION / 2026年10月6日</p>
+      <p className="eyebrow">INFORMATION / 2026年10月7日</p>
       <h1>{p.title}</h1>
       <p className="notice">
         テスト公開用の暫定内容です。運営者情報が未設定のため、本番販売は開始していません。

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
+import SaveResultNote from "./save-result-note";
 import { request, track } from "@/lib/client";
 import type { PaidReport } from "@/lib/ai/schemas";
 export default function Report({ id }: { id: string }) {
@@ -87,10 +88,10 @@ export default function Report({ id }: { id: string }) {
             {error
               ? "レポートを表示できませんでした"
               : status === "waiting"
-              ? "お支払いの確認を待っています"
-              : status === "failed"
-                ? "レポートを再生成できます"
-                : "レポートを準備しています"}
+                ? "お支払いの確認を待っています"
+                : status === "failed"
+                  ? "レポートを再生成できます"
+                  : "レポートを準備しています"}
           </h2>
           <p>
             {error
@@ -119,6 +120,7 @@ export default function Report({ id }: { id: string }) {
           <p className="fine">
             回答に基づく可能性の整理です。相手の気持ちや未来を保証するものではありません。
           </p>
+          <SaveResultNote />
           {[
             [
               "1. 現在の関係分析",

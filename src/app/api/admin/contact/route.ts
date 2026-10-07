@@ -5,6 +5,7 @@ import { allowedOperator, mailConfig } from "@/lib/mail-config";
 import { dispatchMail } from "@/lib/mail";
 import { db, checked } from "@/lib/supabase/admin";
 import { lock } from "@/lib/ai/pipeline";
+import { contactUpdate, externalReply } from "@/lib/contact-operations";
 export const maxDuration = 60;
 async function operator() {
   const { data } = await (await authClient()).auth.getUser();
@@ -19,13 +20,18 @@ export async function GET(req: Request) {
       0,
       Math.min(10000, Number(new URL(req.url).searchParams.get("offset")) || 0),
     );
+    const status = new URL(req.url).searchParams.get("status") ?? "open";
+    if (!["all", "open", "in_progress", "resolved", "spam"].includes(status))
+      throw new HttpError(400, "対応状況を選んでください。");
+    let query = db()
+      .from("contact_messages")
+      .select(
+        "id,name,email,message,status,admin_note,created_at,first_response_at,replied_at,resolved_at,updated_at,contact_mail(id,kind,status,attempts,provider_id,created_at)",
+      );
+    if (status !== "all") query = query.eq("status", status);
     const messages = checked(
-      await db()
-        .from("contact_messages")
-        .select(
-          "id,name,email,message,status,admin_note,created_at,resolved_at,contact_mail(id,kind,status,attempts,provider_id,created_at)",
-        )
-        .order("created_at", { ascending: false })
+      await query
+        .order("created_at", { ascending: true })
         .range(offset, offset + 19),
     );
     return { messages, mailConfigured: !!mailConfig() };
@@ -45,6 +51,7 @@ const inputSchema = z.discriminatedUnion("action", [
     message: z.string().trim().min(1).max(5000),
   }),
   z.object({ action: z.literal("retry"), id: z.uuid() }),
+  z.object({ action: z.literal("external_reply"), id: z.uuid() }),
 ]);
 export async function POST(req: Request) {
   return api(async () => {
@@ -56,7 +63,7 @@ export async function POST(req: Request) {
       const contact = checked(
         await db()
           .from("contact_messages")
-          .select("id,email,status")
+          .select("id,email,status,first_response_at,replied_at,resolved_at")
           .eq("id", input.id)
           .maybeSingle(),
       );
@@ -65,12 +72,21 @@ export async function POST(req: Request) {
         checked(
           await db()
             .from("contact_messages")
-            .update({
-              status: input.status,
-              admin_note: input.note,
-              resolved_at:
-                input.status === "resolved" ? new Date().toISOString() : null,
-            })
+            .update(
+              contactUpdate(
+                contact,
+                input.status,
+                input.note,
+                new Date().toISOString(),
+              ),
+            )
+            .eq("id", input.id),
+        );
+      } else if (input.action === "external_reply") {
+        checked(
+          await db()
+            .from("contact_messages")
+            .update(externalReply(contact, new Date().toISOString()))
             .eq("id", input.id),
         );
       } else {

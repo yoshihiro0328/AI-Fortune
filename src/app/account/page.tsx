@@ -4,5 +4,5 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 export default function Page() {
-  return <Account />;
+  return <Account testEmailOnly={process.env.AUTH_EMAIL_MODE !== "custom"} />;
 }

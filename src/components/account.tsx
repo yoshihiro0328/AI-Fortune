@@ -11,7 +11,11 @@ const labels: Record<Mode, string> = {
   reset: "パスワード再設定メールを送る",
   update: "新しいパスワードを保存",
 };
-export default function Account() {
+export default function Account({
+  testEmailOnly = false,
+}: {
+  testEmailOnly?: boolean;
+}) {
   const [mode, setMode] = useState<Mode>("login"),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
@@ -105,6 +109,11 @@ export default function Account() {
       <p className="eyebrow">MY PAGE / 診断の保存</p>
       <h1>診断を、あとから振り返る。</h1>
       <p>無料診断は登録なしで使えます。登録はいつでも、ご希望のときに。</p>
+      {testEmailOnly && (
+        <p className="notice">
+          現在テスト公開中です。メールを使う登録・再設定は、招待されたテスト参加者のみ利用できます。メールは英語で届きますが、リンク先では日本語で手続きできます。
+        </p>
+      )}
       {boot ? (
         <p role="status">アカウントを確認しています…</p>
       ) : (
@@ -184,7 +193,9 @@ export default function Account() {
                     />
                     {mode !== "login" && (
                       <>
-                        <p className="fine">英字と数字を含む12〜128文字</p>
+                        <p className="fine">
+                          英大文字・英小文字・数字・記号を含む12〜128文字。他のサービスと使い回さず、パスワード管理ツールで作ることをおすすめします。
+                        </p>
                         <label htmlFor="password-confirm">
                           パスワード（確認）
                         </label>
@@ -285,6 +296,9 @@ export default function Account() {
           )}
           <p>
             <Link href="/diagnosis/partner-mind?new=1">新しく無料診断する</Link>
+          </p>
+          <p>
+            <Link href="/contact">診断データの削除・退会を依頼する</Link>
           </p>
         </>
       )}

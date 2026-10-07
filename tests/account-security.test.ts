@@ -6,6 +6,29 @@ import {
 } from "../src/lib/auth-validation";
 import { contactSchema } from "../src/lib/contact-validation";
 describe("auth input and account privacy", () => {
+  it("matches the hosted four-character-class password requirements", () => {
+    expect(passwordSchema.safeParse("TestLongPassword123!").success).toBe(true);
+    for (const value of [
+      "testlongpassword123!",
+      "TESTLONGPASSWORD123!",
+      "TestLongPassword123",
+      "TestLongPassword!!",
+    ])
+      expect(passwordSchema.safeParse(value).success).toBe(false);
+    // Login still accepts older passwords; strength rules only govern new credentials.
+    expect(
+      authSchema.safeParse({
+        action: "login",
+        email: "test@example.com",
+        password: "old",
+      }).success,
+    ).toBe(true);
+  });
+  it("explains standard SMTP recipient restrictions without claiming delivery", () => {
+    expect(authMessage("email_address_not_authorized")).toContain(
+      "テスト参加者",
+    );
+  });
   it("rejects signup without explicit consent", () =>
     expect(
       authSchema.safeParse({

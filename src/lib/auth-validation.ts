@@ -3,8 +3,10 @@ export const passwordSchema = z
   .string()
   .min(12)
   .max(128)
-  .regex(/[a-zA-Z]/)
-  .regex(/[0-9]/);
+  .regex(/[a-z]/)
+  .regex(/[A-Z]/)
+  .regex(/[0-9]/)
+  .regex(/[!@#$%^&*()_+\-=\[\]{};'\\:"|<>?,./`~]/);
 const email = z
   .email()
   .max(254)
@@ -36,7 +38,9 @@ export function authMessage(code?: string) {
   if (code?.includes("rate_limit"))
     return "送信回数が多くなっています。時間をおいてお試しください。";
   if (code === "weak_password")
-    return "パスワードは英字と数字を含む12文字以上で設定してください。";
+    return "パスワードは英大文字・英小文字・数字・記号を含む12文字以上で設定してください。他のサービスと同じものは避けてください。";
+  if (code === "email_address_not_authorized")
+    return "現在、メールを使う登録・再設定は招待されたテスト参加者のみ利用できます。無料診断は登録せずに利用できます。";
   if (code === "same_password")
     return "現在とは異なるパスワードを設定してください。";
   if (code === "otp_expired")

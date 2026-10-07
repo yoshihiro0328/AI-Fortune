@@ -16,3 +16,5 @@
 npmの自動修正案はeslint-config-nextを14.2.35へ戻すmajor変更。アプリのNext.js 16.3.8と世代が違うため採用しない。bracesの公開latestは3.0.3で、advisory対象（<=3.0.3）のまま。安全な修正版のない状態でaudit fix --forceや架空のoverrideを使わない。今回は依存バージョンを変更せず、lint/typecheck/単体テスト/buildを再実施する。
 
 根拠： https://github.com/advisories/GHSA-vfj7-8cjw-p6xm
+
+今回の公開前再監査でも production=0 / development high=5、braces latest=3.0.3を確認。修正版なしのためバージョン変更なし。本番コードにはbracesの直接利用・動的globへの回答転送はなく、開発/CI側のリスクを継続記録する。

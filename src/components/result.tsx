@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import SaveResultNote from "./save-result-note";
 import { request, track, type Diagnosis } from "@/lib/client";
 export default function Result({ id }: { id: string }) {
   const [d, setD] = useState<Diagnosis | null>(null),
@@ -137,6 +138,7 @@ export default function Result({ id }: { id: string }) {
             <p className="fine">
               1回のお支払い・自動更新なし。現在はテスト決済です。
             </p>
+            <SaveResultNote />
             {d.payment_status === "paid" ? (
               <Link className="button" href={"/report/" + id}>
                 購入したレポートを見る

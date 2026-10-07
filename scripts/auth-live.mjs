@@ -35,7 +35,7 @@ class BrowserSession {
 }
 const a = new BrowserSession(),
   b = new BrowserSession();
-const password = "Test" + randomBytes(20).toString("hex") + "9";
+const password = "Test" + randomBytes(20).toString("hex") + "9!";
 const email = "yorisoi-auth-" + randomUUID() + "@example.com";
 function ok(label, condition) {
   assert.ok(condition, label);
