@@ -93,3 +93,7 @@ GitHubブランチ `codex/partner-mind-mvp` をVercel Previewへ接続。Preview
 - プロンプト注入への完全な保証はありません。外部ツール実行は許可せず、スキーマ・所有権・決済の制御はAIに任せません。
 - 匿名Cookie消失時の購入復旧は未実装。購入後は会員保存を案内。
 - 自動生成が5回失敗したときは運営確認が必要。無期限にAI費用を発生させません。
+
+## 無料範囲での公開前準備
+
+2026-10-07の最新状況は [公開前検証](docs/prelaunch-verification.md) を参照。標準SMTPの制限と本人の受信テストは [運用手順](docs/prelaunch-operations.md)、削除・退会は [データ削除](docs/data-deletion.md)、将来の本番決済は [Stripe移行準備](docs/stripe-live-preparation.md) に整理。現在は検索非公開・Sandbox専用を維持する。
