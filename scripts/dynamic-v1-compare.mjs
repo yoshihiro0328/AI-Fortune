@@ -2,7 +2,12 @@ import { createClient } from "@supabase/supabase-js";
 import { randomBytes, createHmac } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 const base = process.env.TEST_BASE_URL ?? "http://127.0.0.1:3100",
-  origin = new URL(process.env.NEXT_PUBLIC_APP_URL).origin;
+  origin = new URL(
+    process.env.TEST_ORIGIN ??
+      (process.env.TEST_BASE_URL?.startsWith("https://")
+        ? base
+        : process.env.NEXT_PUBLIC_APP_URL),
+  ).origin;
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY,

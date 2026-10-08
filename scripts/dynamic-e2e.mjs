@@ -1,6 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 const base = process.env.TEST_BASE_URL ?? "http://127.0.0.1:3100";
-const origin = new URL(process.env.NEXT_PUBLIC_APP_URL).origin;
+const origin = new URL(
+  process.env.TEST_ORIGIN ??
+    (process.env.TEST_BASE_URL?.startsWith("https://")
+      ? base
+      : process.env.NEXT_PUBLIC_APP_URL),
+).origin;
 const dir = "../../work/dynamic-e2e";
 await mkdir(dir, { recursive: true });
 const catalog = JSON.parse(

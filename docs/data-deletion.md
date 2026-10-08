@@ -14,7 +14,7 @@
 | --- | --- |
 | profiles / auth.users | 退会時に削除。先に関連データとセッションを処理。Authの管理APIを使う |
 | diagnoses | 回答と関連データを処理してから削除。payments/paid_reports等の外部キーがあり、単独DELETEを先に実行しない |
-| diagnosis_answers / diagnosis_analyses / free_reports | 診断削除でCASCADE。本文・分析・無料結果が対象 |
+| diagnosis_answers / diagnosis_selected_questions / diagnosis_analyses / free_reports | 診断削除でCASCADE。本文・質問スナップショット・選択理由・履歴回答・分析・無料結果が対象 |
 | paid_reports | 有料結果本文、生成中状態、関連ジョブを削除。先に生成を停止し再作成されないことを確認 |
 | ai_calls | 原稿・編集結果・旧文章バックアップを含むoutput_jsonとinput_hashも削除。診断本文のコピーを残さない |
 | conversations / conversation_messages | 現在機能未提供でも対象に含める。messages→conversationsの順 |
