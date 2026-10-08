@@ -1,3 +1,4 @@
+import { getPublicFlow } from "@/lib/questions/engine";
 import { api, csrf, owned, rate, HttpError } from "@/lib/http";
 import { db, checked } from "@/lib/supabase/admin";
 import { generatePaid } from "@/lib/ai/pipeline";
@@ -8,7 +9,9 @@ export async function GET(
 ) {
   return api(async () => {
     const { id } = await params;
-    await owned(id);
+    const d = await owned(id);
+    if (d.status === "safety")
+      return { status: "safety", report: null, attempts: 0 };
     const p = checked(
       await db()
         .from("payments")
@@ -31,7 +34,19 @@ export async function GET(
         .maybeSingle(),
     );
     return {
-      status: r?.status ?? "queued",
+      questions:
+        d.question_flow_version === "v2" ? await getPublicFlow(id, true) : [],
+      answers: checked(
+        await db()
+          .from("diagnosis_answers")
+          .select("question_key,answer_text")
+          .eq("diagnosis_id", id),
+      ),
+      status:
+        d.question_flow_json?.paid_followup_needed &&
+        !d.question_flow_json?.paid_completed
+          ? "paid_followup"
+          : (r?.status ?? "queued"),
       report: r?.status === "ready" ? r.report_json : null,
       attempts: r?.attempts ?? 0,
     };

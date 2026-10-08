@@ -1,14 +1,22 @@
 "use client";
+import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
+import PaidFollowup from "./paid-followup";
+import type { Question } from "@/lib/client";
 import SaveResultNote from "./save-result-note";
 import { request, track } from "@/lib/client";
 import type { PaidReport } from "@/lib/ai/schemas";
 export default function Report({ id }: { id: string }) {
+  const router = useRouter();
   const [report, setReport] = useState<PaidReport | null>(null),
     [status, setStatus] = useState("waiting"),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
+    [questions, setQuestions] = useState<Question[]>([]),
+    [answers, setAnswers] = useState<
+      { question_key: string; answer_text: string }[]
+    >([]),
     [attempts, setAttempts] = useState(0);
   const tracked = useRef(false);
   const load = useCallback(async () => {
@@ -17,7 +25,15 @@ export default function Report({ id }: { id: string }) {
         status: string;
         report: PaidReport | null;
         attempts: number;
+        questions?: Question[];
+        answers?: { question_key: string; answer_text: string }[];
       }>("/api/diagnoses/" + id + "/report");
+      if (r.status === "safety") {
+        router.push("/result/" + id);
+        return;
+      }
+      setQuestions(r.questions ?? []);
+      setAnswers(r.answers ?? []);
       setStatus(r.status);
       setAttempts(r.attempts);
       setReport(r.report);
@@ -26,7 +42,7 @@ export default function Report({ id }: { id: string }) {
       setReport(null);
       setError((e as Error).message);
     }
-  }, [id]);
+  }, [id, router]);
   useEffect(() => {
     let n = 0;
     const initial = setTimeout(() => void load(), 0);
@@ -82,7 +98,14 @@ export default function Report({ id }: { id: string }) {
           {error}
         </p>
       )}
-      {!report ? (
+      {status === "paid_followup" && questions.length ? (
+        <PaidFollowup
+          id={id}
+          questions={questions}
+          answers={answers}
+          onComplete={retry}
+        />
+      ) : !report ? (
         <section className="panel">
           <h2>
             {error

@@ -1,3 +1,4 @@
+import { getPublicFlow } from "@/lib/questions/engine";
 import { api, owned } from "@/lib/http";
 import { db, checked } from "@/lib/supabase/admin";
 export async function GET(
@@ -26,6 +27,9 @@ export async function GET(
     return {
       id,
       status: d.status,
+      question_flow_version: d.question_flow_version,
+      questions:
+        d.question_flow_version === "v2" ? await getPublicFlow(id) : undefined,
       answers: checked(a),
       free_report: checked(f)?.report_json ?? null,
       payment_status: checked(p)?.status ?? null,

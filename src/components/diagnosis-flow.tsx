@@ -1,4 +1,5 @@
 "use client";
+import { phaseLabels } from "@/lib/questions/labels";
 import ProgressNote from "./progress-note";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -11,6 +12,7 @@ export default function DiagnosisFlow() {
     [answers, setAnswers] = useState<Record<string, string>>({}),
     [index, setIndex] = useState(0),
     [started, setStarted] = useState(false),
+    [v2, setV2] = useState(false),
     [follow, setFollow] = useState(false),
     [busy, setBusy] = useState(""),
     [error, setError] = useState(""),
@@ -21,7 +23,7 @@ export default function DiagnosisFlow() {
     let active = true;
     (async () => {
       try {
-        const qs = await request<Question[]>("/api/questions");
+        const qs = await request<Question[]>("/api/questions?flow=v2");
         if (!active) return;
         setQuestions(qs);
         track("page_view");
@@ -43,12 +45,22 @@ export default function DiagnosisFlow() {
                 d.answers.map((a) => [a.question_key, a.answer_text]),
               ),
             );
-            const list = d.followup.length ? d.followup : qs;
+            setV2(d.question_flow_version === "v2");
+            const list =
+              d.question_flow_version === "v2"
+                ? (d.questions ?? [])
+                : d.followup.length
+                  ? d.followup
+                  : await request<Question[]>("/api/questions");
             setQuestions(list);
             setFollow(!!d.followup.length);
             setIndex(
               Math.max(
-                0,
+                list.every((q) =>
+                  d.answers.some((a) => a.question_key === q.question_key),
+                )
+                  ? list.length - 1
+                  : 0,
                 list.findIndex(
                   (q) =>
                     !d.answers.some((a) => a.question_key === q.question_key),
@@ -85,6 +97,9 @@ export default function DiagnosisFlow() {
         "",
         "/diagnosis/partner-mind?resume=" + d.id,
       );
+      const state = await request<Diagnosis>("/api/diagnoses/" + d.id);
+      setQuestions(state.questions ?? questions);
+      setV2(state.question_flow_version === "v2");
       setId(d.id);
       setStarted(true);
     } catch (e) {
@@ -102,11 +117,32 @@ export default function DiagnosisFlow() {
     setError("");
     setBusy("回答を保存しています");
     try {
-      await request("/api/diagnoses/" + id + "/answers", {
-        key: q.question_key,
-        answer: answers[q.question_key],
-      });
-      if (index < questions.length - 1) {
+      const saved = await request<{ status?: string }>(
+        "/api/diagnoses/" + id + "/answers",
+        {
+          key: q.question_key,
+          answer: answers[q.question_key],
+        },
+      );
+      if (saved.status === "safety") {
+        router.push("/result/" + id);
+        return;
+      }
+      if (v2) {
+        const d = await request<Diagnosis>("/api/diagnoses/" + id);
+        const list = d.questions ?? [];
+        setQuestions(list);
+        setAnswers(
+          Object.fromEntries(
+            d.answers.map((a) => [a.question_key, a.answer_text]),
+          ),
+        );
+        if (index < list.length - 1) {
+          setIndex(index + 1);
+          return;
+        }
+      }
+      if (!v2 && index < questions.length - 1) {
         setIndex(index + 1);
         return;
       }
@@ -117,9 +153,17 @@ export default function DiagnosisFlow() {
       );
       if (result.status === "followup") {
         const d = await request<Diagnosis>("/api/diagnoses/" + id);
-        setQuestions(d.followup);
+        const list = v2 ? (d.questions ?? []) : d.followup;
+        setQuestions(list);
         setFollow(true);
-        setIndex(0);
+        setIndex(
+          Math.max(
+            0,
+            list.findIndex(
+              (q) => !d.answers.some((a) => a.question_key === q.question_key),
+            ),
+          ),
+        );
       } else router.push("/result/" + id);
     } catch (e) {
       setError((e as Error).message);
@@ -128,6 +172,26 @@ export default function DiagnosisFlow() {
     }
   }
   const q = questions[index];
+  useEffect(() => {
+    if (id && v2 && q)
+      void request("/api/diagnoses/" + id + "/question-view", {
+        key: q.question_key,
+      }).catch(() => {});
+  }, [id, v2, q]);
+  useEffect(() => {
+    if (!id || !started) return;
+    const abandon = () => {
+      if (document.visibilityState === "hidden")
+        void fetch("/api/events", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "diagnosis_abandoned", id }),
+          keepalive: true,
+        }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", abandon);
+    return () => document.removeEventListener("visibilitychange", abandon);
+  }, [id, started]);
   return (
     <main id="main" className="flow">
       <div className="eyebrow">PARTNER MIND / 相手の心理診断</div>
@@ -145,7 +209,9 @@ export default function DiagnosisFlow() {
             <br />
             聞かせてください。
           </h1>
-          <p>約10問・約3分。必要に応じて、最大3問の追加質問があります。</p>
+          <p>
+            ふたりの状況に合わせて、必要なことだけ聞いていきます。目安は12〜18問ほどです。分からないことは、そのまま教えてください。
+          </p>
           <p className="fine">
             AIによる分析のため、回答内容を外部サービス（OpenAI）で処理します。氏名・住所・電話番号・メールアドレスなど、個人を特定できる情報は入力しないでください。この端末のCookieを削除すると、会員登録前の診断には戻れなくなります。
           </p>
@@ -170,12 +236,24 @@ export default function DiagnosisFlow() {
       ) : q ? (
         <>
           <div className="meta">
-            {follow ? "追加の質問" : "質問"} {index + 1} / {questions.length}
+            {v2
+              ? phaseLabels[q.phase ?? "common"]
+              : follow
+                ? "最終確認"
+                : "基本情報"}
           </div>
           <progress
             className="progress"
-            max={questions.length}
-            value={index + 1}
+            max={4}
+            value={
+              v2
+                ? ["common", "relationship", "concern", "ai_followup"].indexOf(
+                    q.phase ?? "common",
+                  ) + 1
+                : follow
+                  ? 4
+                  : 1
+            }
             aria-label="診断の進捗"
           />
           <div className="panel">
@@ -245,9 +323,11 @@ export default function DiagnosisFlow() {
                 戻る
               </button>
               <button className="button" disabled={!!busy} onClick={next}>
-                {index === questions.length - 1
-                  ? "回答を保存して分析"
-                  : "保存して次へ"}
+                {v2
+                  ? "保存して次へ"
+                  : index === questions.length - 1
+                    ? "回答を保存して分析"
+                    : "保存して次へ"}
               </button>
             </div>
             <p className="fine">

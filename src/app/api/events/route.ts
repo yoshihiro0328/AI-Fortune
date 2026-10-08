@@ -8,6 +8,7 @@ export async function POST(req: Request) {
       z.object({
         name: z.enum([
           "page_view",
+          "diagnosis_abandoned",
           "free_report_viewed",
           "paid_cta_clicked",
           "paid_report_viewed",

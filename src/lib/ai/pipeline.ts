@@ -1,3 +1,10 @@
+import {
+  advanceFlow,
+  preparePaidQuestions,
+  selectedQuestions,
+  dynamicAnswers,
+} from "../questions/engine";
+import { organizeAnswers } from "../questions/model";
 import "server-only";
 import { randomUUID, createHash } from "node:crypto";
 import { db, checked } from "../supabase/admin";
@@ -50,12 +57,20 @@ export async function analyzeDiagnosis(id: string) {
         .maybeSingle(),
     );
     if (existing) return { status: "free_result_ready" };
+    const isV2 = d.question_flow_version === "v2";
+    if (isV2 && !(await advanceFlow(id, options))) {
+      const current = checked(
+        await db().from("diagnoses").select("status").eq("id", id).single(),
+      );
+      return { status: current?.status === "safety" ? "safety" : "followup" };
+    }
     const questions = checked(
       await db()
         .from("diagnosis_questions")
         .select("*")
         .eq("diagnosis_type_id", d.diagnosis_type_id)
-        .eq("is_active", true),
+        .eq("is_active", true)
+        .eq("flow_version", "v1"),
     );
     const answers = checked(
       await db()
@@ -65,6 +80,7 @@ export async function analyzeDiagnosis(id: string) {
         .order("question_key"),
     );
     if (
+      !isV2 &&
       questions!.some(
         (q) =>
           q.required &&
@@ -74,6 +90,9 @@ export async function analyzeDiagnosis(id: string) {
       )
     )
       throw new HttpError(400, "未回答の質問があります。");
+    const grouped = isV2
+      ? organizeAnswers(answers!, await selectedQuestions(id))
+      : {};
     const inputHash = createHash("sha256")
       .update(JSON.stringify(answers))
       .digest("hex");
@@ -86,6 +105,7 @@ export async function analyzeDiagnosis(id: string) {
         classificationSchema,
         {
           answers,
+          ...grouped,
           triage: triageRisk(answers!.map((a) => a.answer_text).join("\n")),
         },
         options,
@@ -104,7 +124,7 @@ export async function analyzeDiagnosis(id: string) {
       );
       return { status: "safety" };
     }
-    let follow = d.followup_json;
+    let follow = isV2 ? { questions: [] } : d.followup_json;
     if (!follow) {
       follow = await runAI(
         id,
@@ -172,6 +192,7 @@ export async function analyzeDiagnosis(id: string) {
           {
             classification,
             answers,
+            ...grouped,
           },
           options,
         );
@@ -191,7 +212,7 @@ export async function analyzeDiagnosis(id: string) {
         "free_report",
         free,
         freeSchema,
-        analysis,
+        { analysis, answers, ...grouped },
         options,
       );
       const report = await editForReader(
@@ -220,6 +241,17 @@ export async function analyzeDiagnosis(id: string) {
           })
           .eq("id", id),
       );
+      checked(
+        await db()
+          .from("analytics_events")
+          .insert({
+            event_name: "diagnosis_completed",
+            metadata: {
+              diagnosis_id: id,
+              version: d.question_flow_version ?? "v1",
+            },
+          }),
+      );
       return { status: "free_result_ready" };
     } catch (e) {
       await db().from("diagnoses").update({ status: "failed" }).eq("id", id);
@@ -229,6 +261,10 @@ export async function analyzeDiagnosis(id: string) {
 }
 export async function generatePaid(id: string) {
   const options = { deadline: Date.now() + 265000 };
+  const ready = await lock("diagnosis:" + id, () =>
+    preparePaidQuestions(id, options),
+  );
+  if (!ready) return;
   const token = randomUUID();
   const claimed = checked(
     await db().rpc("claim_report", { p_diagnosis: id, p_token: token }),
@@ -256,6 +292,10 @@ export async function generatePaid(id: string) {
       {
         analysis: a!.analysis_json,
         answers,
+        ...organizeAnswers(
+          await dynamicAnswers(id),
+          await selectedQuestions(id),
+        ),
       },
       options,
     );

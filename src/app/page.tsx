@@ -31,7 +31,7 @@ export default function Home() {
           無料で今の状況を整理する
         </Link>
         <div className="meta">
-          約3分 <span>／</span> 登録不要
+          あなたのペースで <span>／</span> 登録不要
         </div>
         <p className="fine">
           相手の気持ちを決めつけず、あなたが次の一歩を選ぶために。
@@ -75,7 +75,7 @@ export default function Home() {
             [
               "01",
               "今の関係を振り返る",
-              "約10問で、最近のやり取りやあなたの気持ちを教えてください。うまく説明できなくても大丈夫です。",
+              "ふたりの状況に合わせた質問で、最近のやり取りやあなたの気持ちを教えてください。うまく説明できなくても大丈夫です。",
             ],
             [
               "02",
@@ -176,7 +176,7 @@ export default function Home() {
         <Link className="button" href={start}>
           無料で今の状況を整理する
         </Link>
-        <p className="fine">約3分・登録不要</p>
+        <p className="fine">あなたのペースで・登録不要</p>
       </section>
     </main>
   );

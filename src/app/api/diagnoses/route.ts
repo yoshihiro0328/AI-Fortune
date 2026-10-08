@@ -1,3 +1,4 @@
+import { initializeFlow } from "@/lib/questions/engine";
 import { api, csrf, identity, rate, event, owned } from "@/lib/http";
 import { db, checked } from "@/lib/supabase/admin";
 import { sessionHash } from "@/lib/security";
@@ -26,10 +27,12 @@ export async function POST(req: Request) {
           anonymous_session_id: who.session,
           user_id: who.userId,
           diagnosis_type_id: type!.id,
+          question_flow_version: "v2",
         })
         .select("id")
         .single(),
     );
+    await initializeFlow(d!.id, type!.id);
     await event("diagnosis_started", d!.id);
     return d;
   });

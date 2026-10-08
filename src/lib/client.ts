@@ -32,6 +32,7 @@ export function track(name: string, id?: string) {
 }
 export type Question = {
   id?: string;
+  phase?: import("./questions/labels").Phase;
   question_key: string;
   question_text: string;
   question_type: string;
@@ -44,6 +45,8 @@ export type Diagnosis = {
   status: string;
   answers: { question_key: string; answer_text: string }[];
   followup: Question[];
+  question_flow_version?: string;
+  questions?: Question[];
   free_report: import("./ai/schemas").FreeReport | null;
   payment_status: string | null;
 };

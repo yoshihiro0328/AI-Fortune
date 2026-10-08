@@ -55,7 +55,7 @@ export function mergeText<T>(
 export function styleIssues(leaves: TextLeaf[]) {
   const issues: string[] = [];
   const banned =
-    /相談者|ユーザー|面会|接触|対話|相手方|当該|意思疎通|静観|推察|考察|示唆|見受けられ|関係性を構築|コミュニケーションを(?:図|取)/;
+    /相談者|ユーザー|面会|接触|対話|相手方|当該|行動傾向|心理状態|コミュニケーション頻度|意思疎通|静観|推察|考察|示唆|見受けられ|関係性を構築|コミュニケーションを(?:図|取)/;
   for (const { path, text } of leaves) {
     if (banned.test(text))
       issues.push(`${path}: 堅い表現 ${text.match(banned)?.[0]}`);

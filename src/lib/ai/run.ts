@@ -43,7 +43,8 @@ export async function runAI<T>(
     );
     if (cached?.output_json) return schema.parse(cached.output_json);
   }
-  const attempts = options.attempts ?? 1;
+  let attempts = options.attempts ?? 1;
+  let transientRetried = false;
   for (let attempt = 0; attempt < attempts; attempt++) {
     const remaining = (options.deadline ?? Date.now() + 120000) - Date.now();
     if (remaining < 5000)
@@ -106,6 +107,17 @@ export async function runAI<T>(
       );
       return data;
     } catch (e) {
+      const providerError = e as {
+        name?: string;
+        status?: number;
+        code?: string;
+      };
+      console.error("ai_stage_failed", {
+        stage,
+        type: providerError.name,
+        status: providerError.status,
+        code: providerError.code,
+      });
       await db()
         .from("ai_calls")
         .update({
@@ -117,6 +129,21 @@ export async function runAI<T>(
           success: false,
         })
         .eq("id", callId);
+      const transient =
+        providerError.status === 429 ||
+        (providerError.status !== undefined && providerError.status >= 500) ||
+        ["APIConnectionError", "APIConnectionTimeoutError"].includes(
+          providerError.name ?? "",
+        );
+      if (
+        transient &&
+        !transientRetried &&
+        (options.deadline ?? Date.now() + 120000) - Date.now() > 15000
+      ) {
+        transientRetried = true;
+        attempts = Math.max(attempts, attempt + 2);
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+      }
       if (attempt === attempts - 1) throw e;
     }
   }

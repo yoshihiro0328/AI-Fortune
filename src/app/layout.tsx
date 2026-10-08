@@ -25,7 +25,7 @@ export const metadata: Metadata = {
     template: "%s | よりそい",
   },
   description:
-    "相手の気持ちが分からない。ふたりの今と次の一歩を整理してみませんか。約3分、登録不要の恋愛相談。",
+    "相手の気持ちが分からない。ふたりの今と次の一歩を整理してみませんか。あなたのペースで話せる、登録不要の恋愛相談。",
   robots: { index: false, follow: false },
 };
 export default function Layout({ children }: { children: React.ReactNode }) {

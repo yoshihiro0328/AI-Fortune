@@ -88,3 +88,34 @@ it("expired budget never starts another provider call", async () => {
   ).rejects.toThrow("budget");
   expect(mocks.parse).not.toHaveBeenCalled();
 });
+it("transient provider overload retries once, without retrying indefinitely", async () => {
+  vi.useFakeTimers();
+  const overloaded = Object.assign(new Error("overloaded"), { status: 503 });
+  mocks.parse
+    .mockRejectedValueOnce(overloaded)
+    .mockResolvedValueOnce({ output_parsed: { ok: true } });
+  const pending = runAI(
+    "fixture",
+    "classify",
+    "prompt",
+    z.object({ ok: z.boolean() }),
+    {},
+  );
+  await vi.runAllTimersAsync();
+  await expect(pending).resolves.toEqual({ ok: true });
+  expect(mocks.parse).toHaveBeenCalledTimes(2);
+  vi.useRealTimers();
+});
+it("provider overload is still bounded when both attempts fail", async () => {
+  vi.useFakeTimers();
+  mocks.parse.mockRejectedValue(
+    Object.assign(new Error("overloaded"), { status: 503 }),
+  );
+  const pending = expect(
+    runAI("fixture", "classify", "prompt", z.object({ ok: z.boolean() }), {}),
+  ).rejects.toThrow("overloaded");
+  await vi.runAllTimersAsync();
+  await pending;
+  expect(mocks.parse).toHaveBeenCalledTimes(2);
+  vi.useRealTimers();
+});
