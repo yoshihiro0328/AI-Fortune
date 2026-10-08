@@ -1,6 +1,6 @@
 # データ削除・退会の運用
 
-2026-10-07時点。今回、既存利用者の情報の削除・退会は実行していない。大量削除や不可逆な変更を公開前準備と一緒に実行しない。
+2026-10-09更新。今回、既存利用者の情報の削除・退会は実行していない。大量削除や不可逆な変更を公開前準備と一緒に実行しない。
 
 ## 受付と本人確認
 
@@ -17,6 +17,9 @@
 | diagnosis_answers / diagnosis_selected_questions / diagnosis_analyses / free_reports | 診断削除でCASCADE。本文・質問スナップショット・選択理由・履歴回答・分析・無料結果が対象 |
 | paid_reports | 有料結果本文、生成中状態、関連ジョブを削除。先に生成を停止し再作成されないことを確認 |
 | ai_calls | 原稿・編集結果・旧文章バックアップを含むoutput_jsonとinput_hashも削除。診断本文のコピーを残さない |
+| consultation_subjects / consultation_threads / consultation_turns / subject_diagnoses | 自分の相談は画面から相手・履歴単位で本文と記憶を削除可能。生成中は削除不可。回数を再獲得できないよう本文を含まない台帳を利用期間末まで保持し、cronで清掃。診断の紐付けを消しても元の購入記録は削除しない |
+| consultation_ai_calls | 本文を保存しない原価ログ。退会ではuser_id/turn_idがNULLになる。識別不要な集計だけ残す範囲を確認 |
+| billing_customers / subscriptions / subscription_invoices | 退会前にStripe契約の終了・解約予約、未払い/返金を確認。必要な会計項目を分離してからinvoices→subscriptions→billing_customersを処理。外部キーは意図的にAuthユーザーの先行削除を拒否。Stripe側の顧客/決済手段の扱いも確認 |
 | conversations / conversation_messages | 現在機能未提供でも対象に含める。messages→conversationsの順 |
 | contact_messages / contact_mail | 問い合わせ本文・宛先・返信payload・内部メモを含む。確認中依頼は完了まで最小限保持し、送信キューを止めてから削除/匿名化。user_id解除だけではメール本文は消えない |
 | payments | 金額・通貨・状態・決済/返金時刻・必要な決済識別子に限定し、保持根拠と期限を運営者が判断。診断本文を保持しない |
@@ -32,15 +35,15 @@ paymentsは診断IDにNOT NULLの外部キーを持つ。会計記録を残す�
 
 1. 運営者が対象本人と範囲を確認、受付番号に対応を記録。必要な返金と進行中生成/メール処理を止める。
 2. 対象を限定した件数確認。必要な決済保持内容だけ分離。削除対象本文のバックアップを新しく作らない。
-3. 関連するmailジョブ・contact、affiliate、analytics、conversation_messages→conversations、paid_reports→ai_calls→payments→diagnoses→profilesの依存関係を確認し、承認されたDB削除を1取引で実行。診断にCASCADEするanswers/analyses/freeも結果確認する。
+3. 関連するmailジョブ・contact、affiliate、analytics、consultation_subjects（スレッド・本文・紐付けはCASCADE）、conversation_messages→conversations、paid_reports→ai_calls→payments→diagnoses、subscription_invoices→subscriptions→billing_customers→profilesの依存関係を確認し、承認されたDB削除を1取引で実行。診断にCASCADEするanswers/analyses/freeも結果確認する。
 4. 退会はAuthの全セッションを失効させ、管理APIでユーザーを削除。DBとの二段階処理は成功した段階を記録し、失敗を隠さず再実行する。削除だけでは発行済みJWTがただちに無効にならない点に注意し、保護APIのgetUserとRLSを再検証する。
 5. 件数0、履歴から消えたこと、以前のURL・匿名Cookie・ログインで本文を再取得できないこと、Webhook/再試行が本文を再生成しないことを確認。残した最小限記録の理由・期限を本人に案内する。
 6. Stripe、OpenAI、メールサービス、Vercel/Supabaseログ・バックアップに別保存がある場合は、各サービスの保持条件・削除依頼の可否を確認する。即時完全消去を約束しない。
 
 ## 保存期限の運用
 
-本番の正式期間は運営者確認待ち。テスト段階も無期限に放置せず、毎月、作成後30日以上の診断/AI出力と、完了後30日以上の問い合わせを削除要否のレビュー対象とする。30日は**レビュー時期**であり、法定期間や自動削除期限ではない。不要と判断したものを対象確認・承認後に削除する。
+現在の公開DATA_RETENTION_POLICYは「診断・相談データは最終利用から1年を目安に保存、削除依頼時は必要な決済・不正防止情報等を除き削除」。この方針に合わせ、テスト段階も無期限に放置せず、毎月、作成後30日以上の診断/AI出力と、完了後30日以上の問い合わせを削除要否のレビュー対象とする。30日は**レビュー時期**であり、法定期間や自動削除期限ではない。不要と判断したものを対象確認・承認後に削除する。
 
-本番前には「匿名未完了」「無料/有料結果」「生成履歴」「問い合わせ本文」「決済記録」「セキュリティログ」「外部バックアップ」それぞれに、起算日・期限・例外理由・実行担当を決め、DATA_RETENTION_POLICYと自動清掃を一致させる。期間未確定のまま一般販売へ進めない。今回、期間を捏造した自動消去は入れない。
+本番前には「匿名未完了」「無料/有料結果」「生成履歴」「問い合わせ本文」「決済記録」「セキュリティログ」「外部バックアップ」それぞれに、起算日・期限・例外理由・実行担当を決め、DATA_RETENTION_POLICYと自動清掃を一致させる。運営者設定の1年目安は上記レビューに使用する。今回の自動清掃は削除済み相談の最小台帳だけであり、1年経過した未削除データの一括消去は行わない。
 
 参考: [Supabase user management](https://supabase.com/docs/guides/auth/managing-user-data)、[個人情報保護委員会Q&A](https://www.ppc.go.jp/personalinfo/faq/APPI_QA/)。個別の法定保存期間は事業形態・対象記録に応じて運営者が確認する。
