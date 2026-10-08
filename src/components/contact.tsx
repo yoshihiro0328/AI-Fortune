@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { request } from "@/lib/client";
-export default function Contact() {
+export default function Contact({ responseTime }: { responseTime: string }) {
   const startedAt = useRef(0);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
@@ -43,6 +43,7 @@ export default function Contact() {
       <p>
         診断や購入、データの取り扱いについてはこちらから。緊急の相談を受け付ける窓口ではありません。
       </p>
+      <p className="fine">お問い合わせへの回答目安：{responseTime}</p>
       {receipt ? (
         <div className="panel" role="status">
           <h2>お問い合わせを受け付けました。</h2>

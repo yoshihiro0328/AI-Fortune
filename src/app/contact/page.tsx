@@ -1,4 +1,5 @@
 import Contact from "@/components/contact";
+import { operator } from "@/lib/operator";
 export const metadata = {
   title: "お問い合わせ",
   robots: {
@@ -8,5 +9,5 @@ export const metadata = {
   alternates: { canonical: "/contact" },
 };
 export default function Page() {
-  return <Contact />;
+  return <Contact responseTime={operator.responseTime} />;
 }

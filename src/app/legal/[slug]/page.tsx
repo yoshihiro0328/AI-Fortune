@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { operator } from "@/lib/operator";
+import { operator, operatorInfoComplete } from "@/lib/operator";
 import { notFound } from "next/navigation";
 const pages: Record<string, { title: string; sections: [string, string][] }> = {
   terms: {
@@ -44,7 +44,7 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
       ],
       [
         "Cookieと分析",
-        "ログインと匿名診断の継続にCookieを使用します。IPはレート制限のため不可逆の識別値へ変換します。利用集計には回答本文を含めません。GA4は未設定で、現状は送信しません。",
+        "ログインと匿名診断の継続にCookieを使用します。IPはレート制限のため不可逆の識別値へ変換します。利用集計には回答本文を含めません。Google Analyticsは利用していません。",
       ],
       [
         "保存・削除・問い合わせ",
@@ -86,7 +86,8 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
       ],
       [
         "返品・キャンセル",
-        "提供開始前のキャンセル、提供不能、重複課金等の対応は返金・キャンセルポリシーをご確認ください。申込期限がある場合は購入画面に明示します。",
+        operator.refundPolicy +
+          "。提供不能・重複課金等への対応は返金・キャンセルポリシーをご確認ください。",
       ],
     ],
   },
@@ -94,22 +95,22 @@ const pages: Record<string, { title: string; sections: [string, string][] }> = {
     title: "返金・キャンセルポリシー",
     sections: [
       [
-        "現在はテスト提供です",
-        "実際の代金の請求はありません。以下は本番提供に向けた暫定案であり、運営者・問い合わせ先・対応期限を設定してから販売を開始します。",
+        "現在の決済について",
+        "現在はテスト決済のみで実請求は発生しません。以下は実際の代金をお支払いいただく場合の返金・キャンセル方針です。",
       ],
       [
         "生成に失敗した場合",
         "再購入せず、同じ診断の画面から追加料金なしで再生成してください。システム障害で提供できない場合や重複課金が確認された場合は、運営確認のうえ返金します。",
       ],
       [
-        "提供後のキャンセル",
-        "個別に生成するデジタルコンテンツの性質上、提供後のお客様都合のキャンセルは原則受け付けません。ただし適用法令上の権利を制限するものではありません。",
+        "お客様都合のキャンセル・返金",
+        operator.refundPolicy +
+          "。ただし適用法令上の権利を制限するものではありません。",
       ],
       [
         "連絡先と返金後の閲覧",
         "問い合わせフォームから、診断の識別番号と状況をお知らせください。" +
-          operator.refundDeadline +
-          "。" +
+          "回答の目安：" +
           operator.responseTime +
           "。返金を受け付けたレポートは閲覧できなくなります。",
       ],
@@ -184,16 +185,20 @@ export default async function Legal({
   if (!p) notFound();
   return (
     <main id="main" className="legal">
-      <p className="eyebrow">INFORMATION / 2026年10月7日</p>
+      <p className="eyebrow">INFORMATION / 2026年10月8日</p>
       <h1>{p.title}</h1>
-      <p className="notice">
-        テスト公開用の暫定内容です。運営者情報が未設定のため、本番販売は開始していません。
-      </p>
+      {!operatorInfoComplete && (
+        <p className="notice">
+          テスト公開用の内容です。運営者情報に未設定の項目があるため、本番販売は開始していません。
+        </p>
+      )}
+      <p className="fine">現在はテスト決済のみで実請求は発生しません。</p>
       <p>
         <Link href="/contact">
           お問い合わせ・データの取り扱いに関するご相談
         </Link>
       </p>
+      <p>お問い合わせへの回答目安：{operator.responseTime}</p>
       {p.sections.map(([t, s]) => (
         <section key={t}>
           <h2>{t}</h2>
