@@ -7,3 +7,5 @@ Refresh the `codex/partner-mind-mvp` Preview through the existing Git integratio
 This change updates documentation only. Application code, dependencies, database schema, cron configuration and product behavior remain unchanged. Production deployment, live payments and merging into main are outside this update.
 
 Verification target: https://partner-mind-vdiordna-2059.vercel.app
+
+The existing Vercel project is now connected to `yoshihiro0328/AI-Fortune`. Production branch tracking remains `main`; this documentation-only push targets the Preview branch above.
