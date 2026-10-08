@@ -788,3 +788,28 @@ button:disabled {
     letter-spacing: 0.035em;
   }
 }
+
+.mobile-subject-toggle {
+  display: none;
+}
+@media (max-width: 700px) {
+  .consult-heading {
+    flex-direction: column;
+    gap: 0;
+  }
+  .consult-heading h1 {
+    margin-bottom: 8px;
+  }
+  .consult-heading > a {
+    white-space: nowrap;
+  }
+  .mobile-subject-toggle {
+    display: block;
+    margin: 0;
+    width: 100%;
+    text-align: left;
+  }
+  .subject-picker:not(.open) {
+    display: none;
+  }
+}

@@ -4,6 +4,7 @@ import { member } from "@/lib/consultation/access";
 import { db, checked } from "@/lib/supabase/admin";
 import { stripe } from "@/lib/stripe/client";
 import { offer } from "@/lib/stripe/catalog";
+import { serviceSettings } from "@/lib/service-settings";
 import { lock } from "@/lib/ai/pipeline";
 import { appUrl } from "@/lib/config";
 import { syncSubscription } from "@/lib/stripe/subscriptions";
@@ -117,6 +118,7 @@ export async function POST(req: Request) {
           "月額料金と自動更新・解約方法をご確認ください。",
         );
       const { price, row } = await offer("plus");
+      const limits = await serviceSettings();
       if (!customer) {
         const c = await s.customers.create(
           { metadata: { app: "yorisoi", user_id: user } },
@@ -155,6 +157,11 @@ export async function POST(req: Request) {
       const session = await s.checkout.sessions.create(
         {
           mode: "subscription",
+          custom_text: {
+            submit: {
+              message: `継続相談は請求期間ごとに${limits.plus_limit}回まで。詳細診断は別料金です。Sandboxテスト専用で実請求は発生しません。`,
+            },
+          },
           customer: customer.stripe_customer_id,
           line_items: [{ price: price.id, quantity: 1 }],
           subscription_data: {

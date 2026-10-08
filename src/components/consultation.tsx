@@ -22,6 +22,7 @@ export default function Consultation() {
     [threadId, setThreadId] = useState(""),
     [turns, setTurns] = useState<Turn[]>([]),
     [more, setMore] = useState(false),
+    [sidebarOpen, setSidebarOpen] = useState(false),
     [text, setText] = useState(""),
     [nickname, setNickname] = useState(""),
     [busy, setBusy] = useState(false),
@@ -57,6 +58,7 @@ export default function Consultation() {
     }>("/api/consultations?thread=" + id);
     if (seq !== generation.current) return;
     setThreadId(id);
+    setSidebarOpen(false);
     setSubjectId(d.subject.id);
     setTurns(d.turns);
     setMore(d.hasMore);
@@ -154,6 +156,7 @@ export default function Consultation() {
         });
         id = t.id;
         setThreadId(id);
+        setSidebarOpen(false);
       }
       if (turn) {
         pending.current = {
@@ -241,90 +244,111 @@ export default function Consultation() {
           )}
           <div className="consult-grid">
             <aside className="consult-sidebar" aria-label="相談相手と履歴">
-              <h2>相談相手</h2>
-              <div className="subject-tabs">
-                {home.subjects.map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    className={
-                      "subject-tab " + (subjectId === s.id ? "selected" : "")
-                    }
-                    disabled={busy}
-                    aria-pressed={subjectId === s.id}
-                    onClick={() => selectSubject(s)}
-                  >
-                    {s.nickname}
-                  </button>
-                ))}
-              </div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void createSubject();
-                }}
+              <button
+                className="mobile-subject-toggle text-button"
+                aria-expanded={sidebarOpen || !subject}
+                aria-controls="subject-picker"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
               >
-                <label htmlFor="nickname">呼び名を追加（実名は不要です）</label>
-                <input
-                  id="nickname"
-                  maxLength={40}
-                  required
-                  value={nickname}
-                  onChange={(e) => setNickname(e.target.value)}
-                  placeholder="今の恋人、気になる人 など"
-                />
-                <button className="button secondary" disabled={busy}>
-                  相談相手を追加
-                </button>
-              </form>
-              {subject && (
-                <>
-                  <h3>{subject.nickname}との相談履歴</h3>
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() =>
-                      act(async () => {
-                        const t = await request<{ id: string }>(
-                          "/api/consultations",
-                          { action: "create_thread", subject: subjectId },
-                        );
-                        await load();
-                        await open(t.id);
-                      })
-                    }
-                  >
-                    新しい相談を始める
+                {sidebarOpen || !subject
+                  ? "相談相手と履歴"
+                  : "相手・相談履歴を選ぶ"}
+              </button>
+              <div
+                id="subject-picker"
+                className={
+                  sidebarOpen || !subject
+                    ? "subject-picker open"
+                    : "subject-picker"
+                }
+              >
+                <h2>相談相手</h2>
+                <div className="subject-tabs">
+                  {home.subjects.map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className={
+                        "subject-tab " + (subjectId === s.id ? "selected" : "")
+                      }
+                      disabled={busy}
+                      aria-pressed={subjectId === s.id}
+                      onClick={() => selectSubject(s)}
+                    >
+                      {s.nickname}
+                    </button>
+                  ))}
+                </div>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void createSubject();
+                  }}
+                >
+                  <label htmlFor="nickname">
+                    呼び名を追加（実名は不要です）
+                  </label>
+                  <input
+                    id="nickname"
+                    maxLength={40}
+                    required
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder="今の恋人、気になる人 など"
+                  />
+                  <button className="button secondary" disabled={busy}>
+                    相談相手を追加
                   </button>
-                  <ul className="thread-list">
-                    {home.threads
-                      .filter((t) => t.subject_id === subjectId)
-                      .map((t) => (
-                        <li key={t.id}>
-                          <button
-                            disabled={busy}
-                            aria-current={
-                              t.id === threadId ? "page" : undefined
-                            }
-                            onClick={() => act(() => open(t.id))}
-                          >
-                            {t.title}
-                            <small>{date(t.updated_at)}</small>
-                          </button>
-                        </li>
+                </form>
+                {subject && (
+                  <>
+                    <h3>{subject.nickname}との相談履歴</h3>
+                    <button
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() =>
+                        act(async () => {
+                          const t = await request<{ id: string }>(
+                            "/api/consultations",
+                            { action: "create_thread", subject: subjectId },
+                          );
+                          await load();
+                          await open(t.id);
+                        })
+                      }
+                    >
+                      新しい相談を始める
+                    </button>
+                    <ul className="thread-list">
+                      {home.threads
+                        .filter((t) => t.subject_id === subjectId)
+                        .map((t) => (
+                          <li key={t.id}>
+                            <button
+                              disabled={busy}
+                              aria-current={
+                                t.id === threadId ? "page" : undefined
+                              }
+                              onClick={() => act(() => open(t.id))}
+                            >
+                              {t.title}
+                              <small>{date(t.updated_at)}</small>
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                    {home.links
+                      .filter((l) => l.subject_id === subjectId)
+                      .map((l) => (
+                        <p key={l.diagnosis_id}>
+                          <Link href={"/result/" + l.diagnosis_id}>
+                            紐づけた診断・詳細レポートを見る
+                          </Link>
+                        </p>
                       ))}
-                  </ul>
-                  {home.links
-                    .filter((l) => l.subject_id === subjectId)
-                    .map((l) => (
-                      <p key={l.diagnosis_id}>
-                        <Link href={"/result/" + l.diagnosis_id}>
-                          紐づけた診断・詳細レポートを見る
-                        </Link>
-                      </p>
-                    ))}
-                </>
-              )}
+                  </>
+                )}
+              </div>
             </aside>
             <section className="chat-panel" aria-label="相談チャット">
               <h2>
