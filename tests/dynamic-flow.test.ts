@@ -6,6 +6,7 @@ import {
   organizeAnswers,
   publicQuestion,
   relationships,
+  selectionSchemaFor,
   concerns,
   type Candidate,
   type Selected,
@@ -138,4 +139,19 @@ describe("v2 catalog and bounded selection", () => {
     expect(publicQuestion(q)).not.toHaveProperty("selected_reason");
     expect(publicQuestion(q)).not.toHaveProperty("condition_json");
   });
+});
+
+it("new relationship and concern tags can be configured in DB without changing enum code", () => {
+  const schema = selectionSchemaFor([
+    {
+      ...catalog[0],
+      relationship_types: ["engaged"],
+      concern_types: ["distance"],
+    },
+  ]);
+  expect(schema.shape.relationship_type.parse("engaged")).toBe("engaged");
+  expect(schema.shape.primary_concern.parse("distance")).toBe("distance");
+  expect(schema.shape.relationship_type.safeParse("invented").success).toBe(
+    false,
+  );
 });

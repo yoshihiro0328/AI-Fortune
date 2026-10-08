@@ -13,7 +13,7 @@ import {
   selectKnown,
   organizeAnswers,
   publicQuestion,
-  selectionSchema,
+  selectionSchemaFor,
   finalSelectionSchema,
   paidSelectionSchema,
   type Candidate,
@@ -147,7 +147,7 @@ export async function advanceFlow(
       id,
       "dynamic_select",
       selectionPrompt,
-      selectionSchema,
+      selectionSchemaFor(all),
       {
         answers: organizeAnswers(answers, selected),
         catalog: eligible(all, answers, selected).filter((q) =>

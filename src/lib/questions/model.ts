@@ -89,6 +89,22 @@ export const paidSelectionSchema = z.object({
   questions: z.array(choice).max(5),
   risk_detected: z.boolean(),
 });
+export function selectionSchemaFor(catalog: Candidate[]) {
+  // New DB taxonomy tags become valid structured-output values without a code release.
+  const relationTags = [
+    ...new Set([
+      ...relationships,
+      ...catalog.flatMap((q) => q.relationship_types),
+    ]),
+  ];
+  const concernTags = [
+    ...new Set([...concerns, ...catalog.flatMap((q) => q.concern_types)]),
+  ];
+  return selectionSchema.extend({
+    relationship_type: z.enum(relationTags as [string, ...string[]]),
+    primary_concern: z.enum(concernTags as [string, ...string[]]),
+  });
+}
 export function eligible(
   catalog: Candidate[],
   answers: Answer[],
