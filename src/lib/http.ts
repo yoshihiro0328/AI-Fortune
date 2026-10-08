@@ -95,7 +95,11 @@ export async function rate(key: string, limit: number, seconds: number) {
   )
     throw new HttpError(429, "時間をおいて、もう一度お試しください。");
 }
-export async function event(name: string, diagnosisId?: string) {
+export async function event(
+  name: string,
+  diagnosisId?: string,
+  metadata: Record<string, string> = {},
+) {
   try {
     const who = await identity();
     checked(
@@ -105,7 +109,11 @@ export async function event(name: string, diagnosisId?: string) {
           event_name: name,
           anonymous_session_id: who.session,
           user_id: who.userId,
-          metadata: diagnosisId ? { diagnosis_id: diagnosisId } : {},
+          metadata: {
+            ...metadata,
+            ...(diagnosisId ? { diagnosis_id: diagnosisId } : {}),
+          },
+          is_test: true,
         }),
     );
   } catch {

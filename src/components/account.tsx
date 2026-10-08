@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { request } from "@/lib/client";
+import ConsultationSummary from "./consultation-summary";
 type Mode = "login" | "signup" | "resend" | "reset" | "update";
 type Row = { id: string; status: string; created_at: string };
 const labels: Record<Mode, string> = {
@@ -106,8 +107,8 @@ export default function Account({
   }
   return (
     <main id="main" className="flow">
-      <p className="eyebrow">MY PAGE / 診断の保存</p>
-      <h1>診断を、あとから振り返る。</h1>
+      <p className="eyebrow">MY PAGE / 相談の続き</p>
+      <h1>前の話の、その続きから。</h1>
       <p>無料診断は登録なしで使えます。登録はいつでも、ご希望のときに。</p>
       {testEmailOnly && (
         <p className="notice">
@@ -261,6 +262,7 @@ export default function Account({
               </p>
             </div>
           )}
+          {user && mode !== "update" && <ConsultationSummary />}
           <h2>{user ? "保存した診断" : "このブラウザの診断"}</h2>
           {rows.length === 0 ? (
             <p>まだ診断はありません。</p>
@@ -279,6 +281,11 @@ export default function Account({
                     ? "を続ける"
                     : "を見る"}
                 </Link>
+                {user && (
+                  <Link href={"/consult?diagnosis=" + r.id}>
+                    この診断から相談する
+                  </Link>
+                )}
                 {["paid", "report_generating", "report_ready"].includes(
                   r.status,
                 ) && <Link href={"/report/" + r.id}>詳細レポート</Link>}

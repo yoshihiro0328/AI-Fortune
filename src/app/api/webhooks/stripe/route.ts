@@ -7,6 +7,10 @@ import { paidSession } from "@/lib/stripe/verify";
 import { required } from "@/lib/config";
 import { db, checked } from "@/lib/supabase/admin";
 import { generatePaid } from "@/lib/ai/pipeline";
+import {
+  subscriptionFromEvent,
+  syncSubscription,
+} from "@/lib/stripe/subscriptions";
 export const maxDuration = 300;
 export async function POST(req: Request) {
   let raw: string;
@@ -31,6 +35,15 @@ export async function POST(req: Request) {
   if (e.livemode)
     return Response.json({ error: "Live mode disabled" }, { status: 400 });
   try {
+    const subscription = await subscriptionFromEvent(e);
+    if (subscription) {
+      await syncSubscription(subscription, {
+        id: e.id,
+        type: e.type,
+        hash: createHash("sha256").update(raw).digest("hex"),
+      });
+      return Response.json({ received: true });
+    }
     let session: string | null = null,
       intent: string | null = null,
       payment: string | null = null,
@@ -70,6 +83,16 @@ export async function POST(req: Request) {
       state = "refunded";
     } else return Response.json({ received: true });
     if (!payment && !intent) return Response.json({ received: true });
+    if (!payment) {
+      const known = checked(
+        await db()
+          .from("payments")
+          .select("id")
+          .eq("stripe_payment_intent_id", intent!)
+          .maybeSingle(),
+      );
+      if (!known) return Response.json({ received: true });
+    }
     checked(
       await db().rpc("apply_stripe_event", {
         p_event: e.id,

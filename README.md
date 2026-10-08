@@ -1,6 +1,6 @@
 # よりそい — 相手の心理診断 MVP
 
-無料診断 → OpenAI分析 → 無料結果 → Stripe Sandbox 1,980円 → 署名検証済みWebhook → 有料AIレポートのNext.jsアプリ。
+無料診断から相手別の継続相談へ進めるNext.jsアプリ。無料月3回、Plus月額980円・請求期間30回、単発詳細診断980円。Stripe Sandbox専用。過去の1,980円購入は金額と閲覧権限を維持。
 
 ## 状態
 
@@ -27,7 +27,7 @@ npm run dev
 - `SUPABASE_SERVICE_ROLE_KEY`: サーバー専用のSupabase secret/service role。
 - `OPENAI_API_KEY`, `OPENAI_MODEL`: Structured Outputs対応モデル。モデル名は運営が選択。
 - `OPENAI_INPUT_USD_PER_MILLION`, `OPENAI_OUTPUT_USD_PER_MILLION`: 任意。価格未設定時の原価はnull（ゼロとは記録しない）。
-- `STRIPE_SECRET_KEY`: Sandboxのみ。`STRIPE_PAID_DIAGNOSIS_PRICE_ID`: JPY 1,980の一回価格。
+- `STRIPE_SECRET_KEY`: Sandboxのみ。新規価格はDBの`price_versions`で管理。`STRIPE_PAID_DIAGNOSIS_PRICE_ID`は旧購入の参考設定として残り、新規Checkoutには使用しません。
 - `STRIPE_WEBHOOK_SECRET`: この配置先Webhookの署名シークレット。
 - `SESSION_SECRET`: 十分なランダム値。匿名Cookieのハッシュ用。変更すると匿名診断へアクセスできなくなります。
 - `CRON_SECRET`: ジョブ再実行エンドポイント用。
@@ -87,7 +87,7 @@ GitHubブランチ `codex/partner-mind-mvp` をVercel Previewへ接続。Preview
 1画面1質問、DB保存と再開、最大3追加質問、無料結果、危険相談の分岐、Checkout、Webhook、有料13項目、再生成、任意のメール＋パスワード認証、診断履歴、問い合わせDB保存、法務7ページ、DBイベント。
 
 - Previewの正式な運営情報・保存方針・返金方針・回答目安は環境変数から表示。8項目が揃うと未設定の注意文を非表示にします。
-- GA4、継続相談、サブスク、広告推薦、n8n自動配信はMVP後。対応テーブル・格納先のみ。
+- 継続相談・Sandboxサブスク・管理者集計を実装済み。GA4、広告推薦、n8n自動配信は未導入。詳細は[継続相談の検証](docs/continuation-verification.md)を参照。
 - レート制限はセッション+Vercel提供IPのハッシュ。CAPTCHA・より厳密な不正利用対策は公開量に応じ追加。
 - 保存済み回答のみ復帰。入力中でまだ「保存」していない本文は保存しません。
 - プロンプト注入への完全な保証はありません。外部ツール実行は許可せず、スキーマ・所有権・決済の制御はAIに任せません。

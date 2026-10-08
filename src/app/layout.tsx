@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Visit from "@/components/visit";
 import "./globals.css";
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -43,11 +44,15 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Link className="nav-link" href="/account">
               マイページ
             </Link>
+            <Link className="nav-link" href="/plans">
+              料金
+            </Link>
             <Link className="nav-link" href="/legal/ai">
               AI診断について
             </Link>
           </nav>
         </header>
+        <Visit />
         {children}
         <footer>
           <div className="brand">
@@ -68,6 +73,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
             <Link href="/contact">お問い合わせ</Link>
+            <Link href="/guides">恋愛相談の読みもの</Link>
+            <Link href="/plans">料金・プラン</Link>
+            <Link href="/safety">危険やつらさを感じるとき</Link>
           </nav>
           <small>テスト公開中。医療・心理療法の診断ではありません。</small>
         </footer>

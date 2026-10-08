@@ -6,6 +6,7 @@ import { z } from "zod";
 import { required } from "../config";
 import { db, checked } from "../supabase/admin";
 import { base, version } from "./prompts/base";
+import { estimateCost } from "./cost";
 export type RunOptions = {
   deadline?: number;
   attempts?: number;
@@ -60,6 +61,7 @@ export async function runAI<T>(
         prompt_version: version,
         input_hash: inputHash,
         success: false,
+        is_test: true,
       }),
     );
     const client = new OpenAI({
@@ -85,8 +87,6 @@ export async function runAI<T>(
       const data = schema.parse(r.output_parsed);
       const it = r.usage?.input_tokens ?? 0,
         ot = r.usage?.output_tokens ?? 0;
-      const a = process.env.OPENAI_INPUT_USD_PER_MILLION,
-        b = process.env.OPENAI_OUTPUT_USD_PER_MILLION;
       checked(
         await db()
           .from("ai_calls")
@@ -98,8 +98,15 @@ export async function runAI<T>(
             prompt_version: version,
             input_tokens: it,
             output_tokens: ot,
-            estimated_cost:
-              a && b ? (it * Number(a) + ot * Number(b)) / 1e6 : null,
+            estimated_cost: r.usage
+              ? estimateCost(model, r.usage).estimated_usd
+              : null,
+            pricing_source: r.usage
+              ? estimateCost(model, r.usage).pricing_source
+              : null,
+            cached_tokens: r.usage?.input_tokens_details.cached_tokens,
+            cache_write_tokens:
+              r.usage?.input_tokens_details.cache_write_tokens,
             execution_time: Date.now() - start,
             success: true,
           })

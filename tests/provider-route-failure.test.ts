@@ -1,6 +1,7 @@
 import { it, expect, vi, beforeEach, afterEach } from "vitest";
 const mocks = vi.hoisted(() => ({
   from: vi.fn(),
+  insert: vi.fn(),
   retrieve: vi.fn(),
   rpc: vi.fn(),
 }));
@@ -67,16 +68,22 @@ it("a Supabase insert failure never returns a successful contact receipt", async
   expect(JSON.stringify(data)).not.toContain("private database");
 });
 it("a Stripe outage returns a retryable error without creating a payment", async () => {
-  vi.stubEnv("STRIPE_PAID_DIAGNOSIS_PRICE_ID", "price_fixture");
-  mocks.from.mockReturnValue({
-    select: () => ({
-      eq: () => ({
-        maybeSingle: async () => ({
-          data: { id: "free_fixture" },
-          error: null,
-        }),
-      }),
-    }),
+  mocks.insert.mockReset();
+  mocks.from.mockImplementation((table: string) => {
+    const data =
+      table === "free_reports"
+        ? { id: "free_fixture" }
+        : table === "price_versions"
+          ? { stripe_price_id: "price_fixture", amount: 980, is_test: true }
+          : null;
+    const query = {
+      select: () => query,
+      eq: () => query,
+      maybeSingle: async () => ({ data, error: null }),
+      single: async () => ({ data, error: null }),
+      insert: mocks.insert,
+    };
+    return query;
   });
   mocks.retrieve.mockRejectedValue(new Error("private stripe detail"));
   const r = await checkout(
@@ -84,9 +91,8 @@ it("a Stripe outage returns a retryable error without creating a payment", async
     { params: Promise.resolve({ id: "fixture" }) },
   );
   expect(r.status).toBe(503);
-  expect(mocks.from.mock.calls.map(([table]) => table)).toEqual([
-    "free_reports",
-  ]);
+  expect(mocks.retrieve).toHaveBeenCalledWith("price_fixture");
+  expect(mocks.insert).not.toHaveBeenCalled();
   const data = await r.json();
   expect(data.url).toBeUndefined();
   expect(data.error).toContain("再度お試しください");

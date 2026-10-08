@@ -5,7 +5,7 @@ do $$ declare did uuid;pid uuid;tid uuid;token uuid=gen_random_uuid();n int; beg
  insert into public.diagnoses(anonymous_session_id,diagnosis_type_id) values('test_session',tid) returning id into did;
  insert into public.diagnosis_answers(diagnosis_id,question_key,question_text,answer_text) values(did,'test','test','test');
  select count(*) into n from public.diagnosis_answers where diagnosis_id=did;assert n=1,'answer save';
- insert into public.payments(diagnosis_id) values(did) returning id into pid;
+ insert into public.payments(diagnosis_id,amount) values(did,1980) returning id into pid;
  select count(*) into n from public.claim_report(did,token);assert n=0,'unpaid must not generate';
  perform public.apply_stripe_event('evt_test','checkout.session.completed','hash','cs_test','pi_test',pid,1980,'jpy','paid');
  assert (select status='paid' from public.payments where id=pid),'paid transition';

@@ -5,7 +5,7 @@
 ## 運営者の明示承認後に行う順序
 
 1. Stripe本番アカウントの本人確認、販売主体・責任者・住所・連絡先・入金先・明細表示名を運営者が確定。提出・契約同意は本人が行う。法務ページと整合させる。
-2. 本番Product/Priceを別に用意。1回1980円JPY、自動更新なしを検証。SandboxのIDを流用しない。
+2. 本番Product/Priceを別に用意。単発980円JPY（自動更新なし）と月額980円JPY（自動更新・期間末解約）を検証。SandboxのIDを流用しない。
 3. 最小権限の本番用APIキー（必要な権限を持つrestricted keyを優先）と本番Webhook Secretを本番環境だけにSecret登録。テスト環境、GitHub、ブラウザbundle、ログへ入れない。既存Sandbox鍵・Webhook Secretを上書きしない。
 4. 本番DBとテストDBを分離するか、別途レビューした環境識別・一意制約・Webhook検証で混在を防止する。現在のpaymentsにlivemode列はなく、同一DBで無計画に混用しない。
 5. 本番Webhook URLは正式URLの `/api/webhooks/stripe`。現在の候補は https://partner-mind-vdiordna-2059.vercel.app/api/webhooks/stripe 。本番とSandboxの送信先・署名鍵を区別する。リダイレクト先画面だけで支払済みにしない。

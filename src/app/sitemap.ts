@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { guides } from "@/lib/guides";
 const appUrl = () =>
   process.env.NEXT_PUBLIC_APP_URL ||
   "https://partner-mind-vdiordna-2059.vercel.app";
@@ -7,6 +8,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ? [
         "/",
         "/contact",
+        "/plans",
+        "/guides",
+        ...guides.map((g) => "/guides/" + g.slug),
         ...[
           "terms",
           "privacy",

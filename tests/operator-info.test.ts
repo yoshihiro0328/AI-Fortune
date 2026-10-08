@@ -3,6 +3,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getOperatorConfig } from "../src/lib/operator";
 
+vi.mock("@/lib/service-settings", () => ({
+  serviceSettings: async () => ({ free_limit: 3, plus_limit: 30 }),
+}));
 const env = {
   OPERATOR_NAME: "テスト運営会社",
   OPERATOR_REPRESENTATIVE: "テスト責任者",

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { pricing } from "@/lib/pricing";
 import Link from "next/link";
 import SaveResultNote from "./save-result-note";
 import { request, track, type Diagnosis } from "@/lib/client";
@@ -133,7 +134,8 @@ export default function Result({ id }: { id: string }) {
               ))}
             </ul>
             <div className="price">
-              1,980<span>円（税込）</span>
+              {pricing.report.toLocaleString("ja-JP")}
+              <span>円（税込）</span>
             </div>
             <p className="fine">
               1回のお支払い・自動更新なし。現在はテスト決済です。

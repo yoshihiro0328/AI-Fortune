@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { pricing } from "@/lib/pricing";
+import ServiceShare from "@/components/service-share";
 export const metadata = {
   alternates: { canonical: "/" },
   robots: {
@@ -13,9 +15,9 @@ export default function Home() {
       <section className="hero">
         <div className="eyebrow">ふたりのことを、ひとつずつ。</div>
         <h1>
-          相手の気持ちが
+          返信が遅くなった。
           <br />
-          分からない。
+          今、LINEしていい？
         </h1>
         <p className="lead">
           返信が遅くなった。前より距離を感じる。
@@ -28,14 +30,27 @@ export default function Home() {
           次にどうするか、一緒に整理してみませんか。
         </p>
         <Link className="button" href={start}>
-          無料で今の状況を整理する
+          無料で相談してみる
         </Link>
         <div className="meta">
-          あなたのペースで <span>／</span> 登録不要
+          初回診断無料 <span>／</span> 登録不要
         </div>
         <p className="fine">
           相手の気持ちを決めつけず、あなたが次の一歩を選ぶために。
         </p>
+      </section>
+      <section className="wrap panel">
+        <p className="eyebrow">恋愛で迷ったとき、前の話の続きから。</p>
+        <h2>毎回、最初から話さなくて大丈夫。</h2>
+        <p>
+          「昨日、相手からLINEが来た」「前より会う回数が増えた」。新しくあったことを話しながら、次の一歩を一緒に考えられます。会員登録すると、相手ごとに相談の履歴と記憶を残せます。
+        </p>
+        <div className="actions">
+          <Link className="button secondary" href="/consult">
+            前回の続きから相談する
+          </Link>
+          <Link href="/plans">無料・Plus・単発の違いを見る</Link>
+        </div>
       </section>
       <section className="intro wrap">
         <div>
@@ -120,7 +135,8 @@ export default function Home() {
         <div>
           <p>あなたの回答に合わせた詳細レポート</p>
           <div className="price">
-            1,980<span>円（税込）</span>
+            {pricing.report.toLocaleString("ja-JP")}
+            <span>円（税込）</span>
           </div>
           <p className="fine">
             購入は任意・1回のお支払い
@@ -137,7 +153,7 @@ export default function Home() {
         {[
           [
             "本当に無料ですか？",
-            "はい。今の状況、良い兆候や気になる点、簡単なアドバイスは無料で読めます。詳細レポートは1,980円（税込）の任意購入です。現在はテスト決済のみです。",
+            "はい。今の状況、良い兆候や気になる点、簡単なアドバイスは無料で読めます。詳細レポートは980円（税込）の任意購入です。現在はテスト決済のみです。",
           ],
           [
             "会員登録は必要ですか？",
@@ -174,9 +190,15 @@ export default function Home() {
           まずは今のことから。
         </h2>
         <Link className="button" href={start}>
-          無料で今の状況を整理する
+          無料で相談してみる
         </Link>
         <p className="fine">あなたのペースで・登録不要</p>
+      </section>
+      <section className="wrap">
+        <h2>今の悩みに近い読みもの</h2>
+        <p>返信、距離感、復縁。答えを急ぐ前に、整理できることがあります。</p>
+        <Link href="/guides">恋愛相談の読みものを見る</Link>
+        <ServiceShare />
       </section>
     </main>
   );

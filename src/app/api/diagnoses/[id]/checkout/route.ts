@@ -2,7 +2,8 @@ import { api, csrf, owned, rate, event, HttpError } from "@/lib/http";
 import { db, checked } from "@/lib/supabase/admin";
 import { stripe } from "@/lib/stripe/client";
 import { lock } from "@/lib/ai/pipeline";
-import { required, appUrl } from "@/lib/config";
+import { appUrl } from "@/lib/config";
+import { offer } from "@/lib/stripe/catalog";
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
@@ -26,17 +27,6 @@ export async function POST(
       throw new HttpError(409, "先に無料診断を完了してください。");
     return lock("checkout:" + id, async () => {
       const s = stripe();
-      const price = await s.prices.retrieve(
-        required("STRIPE_PAID_DIAGNOSIS_PRICE_ID"),
-      );
-      if (
-        price.livemode ||
-        !price.active ||
-        price.unit_amount !== 1980 ||
-        price.currency !== "jpy" ||
-        price.type !== "one_time"
-      )
-        throw new Error("Invalid price");
       let p = checked(
         await db()
           .from("payments")
@@ -44,11 +34,18 @@ export async function POST(
           .eq("diagnosis_id", id)
           .maybeSingle(),
       );
+      if (p?.status === "paid") return { url: appUrl() + "/report/" + id };
+      const { price } = await offer("report");
       if (!p)
         p = checked(
           await db()
             .from("payments")
-            .insert({ diagnosis_id: id, user_id: d.user_id })
+            .insert({
+              diagnosis_id: id,
+              user_id: d.user_id,
+              amount: price.unit_amount,
+              is_test: true,
+            })
             .select("*")
             .single(),
         );
@@ -62,13 +59,25 @@ export async function POST(
         const previous = await s.checkout.sessions.retrieve(
           p.stripe_checkout_session_id,
         );
-        if (previous.status === "open" && previous.url)
-          return { url: previous.url };
+        if (previous.status === "open" && previous.url) {
+          if (previous.amount_total === price.unit_amount)
+            return { url: previous.url };
+          await s.checkout.sessions.expire(previous.id);
+        }
         if (previous.status === "complete")
           throw new HttpError(
             409,
             "決済を確認しています。結果画面でお待ちください。",
           );
+      }
+      if (p.amount !== price.unit_amount) {
+        checked(
+          await db()
+            .from("payments")
+            .update({ amount: price.unit_amount })
+            .eq("id", p.id)
+            .in("status", ["pending", "failed"]),
+        );
       }
       const session = await s.checkout.sessions.create(
         {

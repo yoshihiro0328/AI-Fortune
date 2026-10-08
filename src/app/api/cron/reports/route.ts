@@ -2,6 +2,7 @@ import { db, checked } from "@/lib/supabase/admin";
 import { generatePaid } from "@/lib/ai/pipeline";
 import { required } from "@/lib/config";
 import { secureEqual } from "@/lib/security";
+import { syncSubscription } from "@/lib/stripe/subscriptions";
 export const maxDuration = 300;
 export async function GET(req: Request) {
   if (
@@ -11,6 +12,24 @@ export async function GET(req: Request) {
     )
   )
     return new Response("Unauthorized", { status: 401 });
+  checked(await db().rpc("prune_deleted_consultations"));
+  const subscriptions = checked(
+    await db()
+      .from("subscriptions")
+      .select("id")
+      .in("status", ["active", "past_due", "unpaid", "incomplete"])
+      .order("updated_at")
+      .limit(10),
+  );
+  for (const subscription of subscriptions ?? []) {
+    try {
+      await syncSubscription(subscription.id);
+    } catch {
+      console.error("subscription_reconciliation_failed", {
+        id: subscription.id,
+      });
+    }
+  }
   const jobs = checked(
     await db()
       .from("paid_reports")

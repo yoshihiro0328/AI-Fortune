@@ -24,7 +24,7 @@ const config: NextConfig = {
         ],
       },
       {
-        source: "/:section(account|result|report|admin)/:path*",
+        source: "/:section(account|consult|result|report|admin)/:path*",
         headers: [
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
           { key: "Cache-Control", value: "private, no-store" },
