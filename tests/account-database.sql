@@ -1,0 +1,42 @@
+begin;
+do $$
+declare a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); c uuid:=gen_random_uuid(); d uuid:=gen_random_uuid(); s text:=gen_random_uuid()::text; n integer; p uuid;
+begin
+ insert into auth.users(id,email,email_confirmed_at) values(a,a::text||'@example.com',now()),(b,b::text||'@example.com',now()),(c,c::text||'@example.com',null);
+ insert into public.diagnoses(id,anonymous_session_id,diagnosis_type_id) values(d,s,(select id from public.diagnosis_types limit 1));
+ insert into public.diagnosis_answers(diagnosis_id,question_key,question_text,answer_text) values(d,'test','test','test');
+ insert into public.free_reports(diagnosis_id,report_json,model,prompt_version) values(d,'{}','test','test');
+ insert into public.payments(diagnosis_id,status) values(d,'paid') returning id into p;
+ insert into public.paid_reports(diagnosis_id,payment_id,status,report_json) values(d,p,'ready','{}');
+ execute 'set local role service_role';
+ select public.claim_anonymous_diagnoses(a,s) into n;
+ execute 'reset role';
+ assert n=1,'first claim';
+ select public.claim_anonymous_diagnoses(b,s) into n;
+ assert n=0,'other user cannot claim owned diagnosis';
+ assert (select user_id=a from public.diagnoses where id=d),'owner unchanged';
+ assert (select user_id=a from public.payments where id=p),'payment claimed with diagnosis';
+ assert exists(select 1 from public.profiles where user_id=a),'profile created';
+ assert not has_function_privilege('anon','public.claim_anonymous_diagnoses(uuid,text)','EXECUTE'),'anonymous RPC denied';
+ assert not has_function_privilege('authenticated','public.claim_anonymous_diagnoses(uuid,text)','EXECUTE'),'authenticated RPC denied';
+ assert not has_table_privilege('anon','public.contact_messages','SELECT'),'contact anonymous denied';
+ assert not has_table_privilege('authenticated','public.contact_messages','SELECT'),'contact user denied';
+ perform set_config('request.jwt.claims',json_build_object('sub',b,'role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ assert (select count(*)=0 from public.diagnoses where id=d),'RLS other user denied';
+ assert (select count(*)=0 from public.diagnosis_answers where diagnosis_id=d),'other user answers denied';
+ assert (select count(*)=0 from public.free_reports where diagnosis_id=d),'other user free report denied';
+ assert (select count(*)=0 from public.payments where diagnosis_id=d),'other user payment denied';
+ assert (select count(*)=0 from public.paid_reports where diagnosis_id=d),'other user paid report denied';
+ execute 'reset role';
+ perform set_config('request.jwt.claims',json_build_object('sub',a,'role','authenticated')::text,true);
+ execute 'set local role authenticated';
+ assert (select count(*)=1 from public.diagnoses where id=d),'RLS owner permitted';
+ assert (select count(*)=1 from public.diagnosis_answers where diagnosis_id=d),'owner answers permitted';
+ assert (select count(*)=1 from public.free_reports where diagnosis_id=d),'owner free report permitted';
+ assert (select count(*)=1 from public.payments where diagnosis_id=d),'owner payment permitted';
+ assert (select count(*)=1 from public.paid_reports where diagnosis_id=d),'owner paid report permitted';
+ execute 'reset role';
+
+end $$;
+rollback;
