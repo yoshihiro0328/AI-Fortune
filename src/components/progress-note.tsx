@@ -12,7 +12,7 @@ export default function ProgressNote({ label }: { label: string }) {
         <span className="loading" /> {label}
       </p>
       <p>
-        回答を丁寧に読み解いています。通常は1〜3分ほどかかります。あなたは少し肩の力を抜いて、お待ちください。
+        回答をもとに状況を整理しています。通常は1〜3分ほどかかります。しばらくお待ちください。
       </p>
       <p className="fine" aria-live="off">
         経過 {seconds}秒

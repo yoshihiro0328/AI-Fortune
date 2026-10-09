@@ -6,6 +6,11 @@
   --green: #31594b;
   --line: #dbdfd6;
   --accent: #dfe8df;
+  --content-width: 1050px;
+  --reading-width: 760px;
+  --gutter: clamp(16px, 4vw, 40px);
+  --section-space: clamp(36px, 5vw, 64px);
+  --card-space: clamp(18px, 3vw, 32px);
 }
 * {
   box-sizing: border-box;
@@ -15,7 +20,9 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: Arial, "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
-  line-height: 1.85;
+  font-size: 16px;
+  line-height: 1.9;
+  overflow-wrap: anywhere;
 }
 a {
   color: inherit;
@@ -42,9 +49,10 @@ button:disabled {
   cursor: wait;
 }
 header {
-  max-width: 1200px;
+  max-width: var(--content-width);
   margin: auto;
-  padding: 25px 44px;
+  padding: 24px var(--gutter);
+  gap: 16px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -66,18 +74,18 @@ header {
   color: var(--muted);
 }
 .nav-link {
-  font-size: 12px;
+  font-size: 14px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   text-decoration: none;
 }
 .hero {
-  max-width: 900px;
-  margin: auto;
   text-align: center;
-  padding: 62px 24px 65px;
 }
 .eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.2em;
+  font-size: 12px;
+  letter-spacing: 0.12em;
   color: var(--muted);
 }
 .pill {
@@ -95,17 +103,18 @@ h2 {
   line-height: 1.65;
 }
 h1 {
-  font-size: clamp(36px, 5.6vw, 62px);
-  letter-spacing: 0.07em;
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: 0.035em;
   margin: 20px 0;
 }
 h2 {
-  font-size: 29px;
-  margin: 12px 0 25px;
+  font-size: clamp(23px, 3vw, 29px);
+  margin: 0 0 20px;
 }
 h3 {
   font-size: 18px;
   font-weight: 600;
+  margin: 24px 0 8px;
 }
 .lead {
   color: var(--muted);
@@ -116,7 +125,10 @@ h3 {
   align-items: center;
   justify-content: center;
   min-height: 54px;
-  padding: 12px 32px;
+  padding: 12px 24px;
+  max-width: 100%;
+  text-align: center;
+  line-height: 1.6;
   border: 1px solid var(--green);
   border-radius: 6px;
   background: var(--green);
@@ -127,7 +139,7 @@ h3 {
 }
 .hero .button {
   margin-top: 18px;
-  min-width: 285px;
+  width: min(100%, 300px);
 }
 .button:hover {
   filter: brightness(1.1);
@@ -146,14 +158,59 @@ h3 {
 }
 .fine,
 small {
-  font-size: 12px;
+  font-size: 14px;
   color: var(--muted);
 }
+/* Containers own width and centering; panels own their inner spacing only. */
 .wrap {
-  max-width: 1050px;
-  margin: auto;
-  padding: 56px 40px;
+  width: 100%;
+  max-width: var(--content-width);
+  margin-inline: auto;
+  padding: var(--section-space) var(--gutter);
 }
+.home-sections > section {
+  max-width: var(--content-width);
+}
+.hero h1 {
+  font-size: clamp(28px, 4.4vw, 60px);
+}
+.hero > p {
+  max-width: 42rem;
+  margin-inline: auto;
+}
+.continuation-card {
+  padding: var(--card-space);
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.continuation-card > p {
+  max-width: 42rem;
+}
+p {
+  margin: 0 0 1em;
+}
+p:last-child {
+  margin-bottom: 0;
+}
+ul,
+ol {
+  padding-left: 1.4em;
+  list-style: revert;
+}
+li + li {
+  margin-top: 0.5em;
+}
+section,
+article,
+main,
+form {
+  min-width: 0;
+}
+:focus-visible {
+  outline: 2px solid var(--green);
+}
+
 .intro {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -162,7 +219,7 @@ small {
   border-bottom: 1px solid var(--line);
 }
 .intro p {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--muted);
 }
 .steps {
@@ -176,7 +233,7 @@ small {
   color: #809586;
 }
 .steps article p {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--muted);
 }
 .offer {
@@ -192,7 +249,7 @@ small {
   border-left: 1px solid #c9d4c7;
 }
 .offer li {
-  font-size: 14px;
+  font-size: 16px;
 }
 .price {
   font-family: serif;
@@ -210,21 +267,21 @@ summary {
   cursor: pointer;
 }
 .faq p {
-  font-size: 14px;
+  font-size: 16px;
   color: var(--muted);
 }
 footer {
-  max-width: 1150px;
+  max-width: var(--content-width);
   margin: 45px auto 0;
   border-top: 1px solid var(--line);
-  padding: 35px 40px;
+  padding: 32px var(--gutter);
 }
 footer nav {
   display: flex;
   flex-wrap: wrap;
   gap: 16px;
   margin: 20px 0;
-  font-size: 11px;
+  font-size: 14px;
 }
 .skip {
   position: absolute;
@@ -237,14 +294,15 @@ footer nav {
   max-width: 690px;
   min-height: 60vh;
   margin: 35px auto 70px;
-  padding: 0 24px;
+  padding: 0 var(--gutter);
 }
 .panel {
   background: #fff;
-  padding: 32px;
+  padding: var(--card-space);
   border: 1px solid var(--line);
   border-radius: 12px;
-  margin: 20px 0;
+  margin-block: 24px;
+  overflow-wrap: anywhere;
 }
 .progress {
   width: 100%;
@@ -272,6 +330,8 @@ footer nav {
   accent-color: var(--green);
 }
 textarea,
+input:not([type]),
+input[type="password"],
 input[type="email"],
 input[type="text"],
 input[type="number"],
@@ -290,16 +350,17 @@ textarea {
 }
 .actions {
   display: flex;
-  justify-content: space-between;
-  gap: 14px;
-  margin-top: 25px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-top: 24px;
 }
 .error {
   background: #fff2ec;
   color: #813f27;
   border-left: 3px solid #a85836;
   padding: 15px;
-  font-size: 14px;
+  font-size: 16px;
 }
 .notice {
   background: #e9eee6;
@@ -328,15 +389,45 @@ textarea {
   display: block;
 }
 .score span {
-  font-size: 11px;
+  font-size: 14px;
 }
 .legal {
-  max-width: 760px;
-  padding: 30px 24px;
+  max-width: var(--reading-width);
+  padding: var(--section-space) var(--gutter);
   margin: auto;
 }
 .legal h1 {
-  font-size: 32px;
+  font-size: clamp(26px, 4vw, 34px);
+}
+.legal section {
+  margin-top: 36px;
+}
+.legal section h2 {
+  margin-bottom: 16px;
+}
+.legal section li {
+  margin-block: 10px;
+}
+.legal-toc {
+  padding: 20px;
+  background: #eef2ea;
+  border-radius: 8px;
+  margin-block: 24px;
+}
+.legal-toc a {
+  display: inline-block;
+  padding-block: 4px;
+}
+.legal dl {
+  margin-block: 20px;
+}
+.legal dt {
+  font-weight: 600;
+  margin-top: 20px;
+}
+.legal dd {
+  margin: 4px 0 0;
+  white-space: pre-line;
 }
 .legal h2 {
   font-size: 23px;
@@ -367,26 +458,18 @@ textarea {
 }
 @media (max-width: 700px) {
   header {
-    padding: 18px 22px;
-  }
-  .hero {
-    padding: 40px 20px;
+    padding: 16px var(--gutter);
+    flex-wrap: wrap;
   }
   .hero .fine {
     max-width: 300px;
     margin: auto;
-  }
-  .wrap {
-    padding: 36px 24px;
   }
   .intro,
   .steps,
   .offer {
     grid-template-columns: 1fr;
     gap: 20px;
-  }
-  .offer {
-    margin: 0 16px;
   }
   .offer > div:nth-child(2) {
     border-left: 0;
@@ -397,23 +480,14 @@ textarea {
     border-top: 1px solid var(--line);
     padding-top: 15px;
   }
-  .panel {
-    padding: 22px;
-  }
   .scores {
     gap: 8px;
   }
   .score strong {
     font-size: 25px;
   }
-  footer {
-    padding: 25px;
-  }
   .flow {
     margin-top: 25px;
-  }
-  h2 {
-    font-size: 26px;
   }
 }
 
@@ -451,13 +525,6 @@ textarea {
   display: block;
   margin-top: 1rem;
 }
-input[type="password"] {
-  width: 100%;
-  padding: 1rem;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  font: inherit;
-}
 .auth-links button:disabled {
   opacity: 0.5;
 }
@@ -471,17 +538,14 @@ input[type="password"] {
   justify-content: flex-end;
   gap: 1rem;
 }
-.panel {
-  overflow-wrap: anywhere;
-}
 .flow input {
   max-width: 100%;
 }
 @media (max-width: 480px) {
   .header-links {
     gap: 0.5rem;
-    max-width: 55%;
-    font-size: 0.75rem;
+    justify-content: flex-start;
+    column-gap: 16px;
   }
   .actions {
     flex-wrap: wrap;
@@ -510,9 +574,9 @@ input[type="password"] {
 }
 /* Continuing consultations retain the existing calm, readable palette. */
 .consult-wrap {
-  max-width: 1160px;
+  max-width: var(--content-width);
   margin: 40px auto 80px;
-  padding: 0 24px;
+  padding: 0 var(--gutter);
 }
 .consult-heading {
   display: flex;
@@ -525,7 +589,7 @@ input[type="password"] {
 }
 .consult-grid {
   display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   gap: 28px;
   margin-top: 28px;
 }
@@ -672,6 +736,21 @@ input[type="password"] {
 .consult-wrap label {
   display: block;
 }
+.plan-card ul {
+  margin-bottom: 24px;
+}
+.plan-card > .button {
+  margin-top: 8px;
+}
+.panel > section + section {
+  margin-top: 32px;
+}
+.organize button:not(.text-button) {
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  min-height: 44px;
+}
 .consultation-summary .history-row {
   display: flex;
   flex-wrap: wrap;
@@ -691,19 +770,23 @@ input[type="password"] {
 .plan-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
   gap: 20px;
 }
 .plan-card {
   border: 1px solid #d9ded4;
   border-radius: 22px;
-  padding: 28px;
+  padding: 24px;
   background: #faf9f4;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
 }
 .plan-card h2 {
   font-size: 1.35rem;
 }
 .plan-card .price {
-  font-size: 2.5rem;
+  font-size: 2rem;
 }
 .guide-grid {
   display: grid;
@@ -743,10 +826,10 @@ button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .consult-wrap {
     margin-top: 24px;
-    padding: 0 16px;
+    padding: 0 var(--gutter);
   }
   .consult-grid {
     grid-template-columns: 1fr;
@@ -779,13 +862,6 @@ button:disabled {
   .consultation-summary .button {
     width: 100%;
     text-align: center;
-  }
-}
-
-@media (max-width: 420px) {
-  .hero h1 {
-    font-size: 32px;
-    letter-spacing: 0.035em;
   }
 }
 

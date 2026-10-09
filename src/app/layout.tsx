@@ -40,7 +40,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <Link className="brand" href="/">
             よりそい<span>YORISOI</span>
           </Link>
-          <nav className="header-links">
+          <nav className="header-links" aria-label="メインメニュー">
             <Link className="nav-link" href="/account">
               マイページ
             </Link>
@@ -58,7 +58,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="brand">
             よりそい<span>あなたのペースで、一歩ずつ。</span>
           </div>
-          <nav>
+          <nav aria-label="ご利用案内">
             {[
               ["terms", "利用規約"],
               ["privacy", "プライバシー"],

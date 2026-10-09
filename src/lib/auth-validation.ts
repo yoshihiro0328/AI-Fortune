@@ -34,7 +34,7 @@ export function authMessage(code?: string) {
   if (code === "invalid_credentials")
     return "メールアドレスまたはパスワードをご確認ください。";
   if (code === "email_not_confirmed")
-    return "メール認証がまだ完了していません。確認メールを開くか、再送してください。";
+    return "メールアドレスの確認がまだ完了していません。確認メールのリンクを開くか、メールを再送してください。";
   if (code?.includes("rate_limit"))
     return "送信回数が多くなっています。時間をおいてお試しください。";
   if (code === "weak_password")
@@ -45,5 +45,5 @@ export function authMessage(code?: string) {
     return "現在とは異なるパスワードを設定してください。";
   if (code === "otp_expired")
     return "リンクの有効期限が切れています。メールを再送してください。";
-  return "認証を完了できませんでした。入力内容を確認し、時間をおいてお試しください。";
+  return "ログイン・登録の手続きを完了できませんでした。入力内容を確認し、時間をおいてお試しください。";
 }

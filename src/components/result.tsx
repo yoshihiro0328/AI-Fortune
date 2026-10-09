@@ -94,9 +94,9 @@ export default function Result({ id }: { id: string }) {
           <section className="panel">
             <div className="scores">
               {[
-                ["relationship_stability", "関係安定度"],
+                ["relationship_stability", "関係の安定"],
                 ["communication", "コミュニケーション"],
-                ["improvement_potential", "改善可能性"],
+                ["improvement_potential", "関係を見直す余地"],
               ].map(([k, t]) => (
                 <div className="score" key={k}>
                   <span>{t}</span>
@@ -125,9 +125,9 @@ export default function Result({ id }: { id: string }) {
             <h2>もう少し、具体的に整理したい方へ。</h2>
             <ul>
               {[
-                "詳細な関係分析・相手の行動分析",
-                "今連絡すべきか、次に送るLINE案3種類",
-                "やらない方がいいこと・次に会ったときの対応",
+                "ふたりの関係や、相手の行動について考えられる理由",
+                "連絡のタイミングと、送るLINE文面3案",
+                "避けたい行動と、次に会うときのヒント",
                 "7日・30日の行動プラン",
               ].map((x) => (
                 <li key={x}>{x}</li>
@@ -138,7 +138,7 @@ export default function Result({ id }: { id: string }) {
               <span>円（税込）</span>
             </div>
             <p className="fine">
-              1回のお支払い・自動更新なし。現在はテスト決済です。
+              1回のお支払いで、自動更新はありません。現在はテスト決済のみで実請求は発生しません。
             </p>
             <SaveResultNote />
             {d.payment_status === "paid" ? (

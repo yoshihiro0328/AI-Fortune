@@ -7,7 +7,10 @@ import { newSession, sessionHash, secureEqual } from "./security";
 import { required } from "./config";
 export async function claimDiagnoses(user: User) {
   if (!user.email_confirmed_at)
-    throw new HttpError(403, "メール認証を完了してください。");
+    throw new HttpError(
+      403,
+      "確認メールのリンクを開き、メールアドレスの確認を完了してください。",
+    );
   const who = await identity();
   return checked(
     await db().rpc("claim_anonymous_diagnoses", {

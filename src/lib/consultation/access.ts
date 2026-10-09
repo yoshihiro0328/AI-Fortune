@@ -7,7 +7,7 @@ export async function member() {
   if (!who.userId)
     throw new HttpError(
       401,
-      "継続相談にはメール認証済みのアカウントでログインしてください。",
+      "続きから相談するにはログインしてください。新規登録した方は、確認メールの手続きも必要です。",
     );
   return who.userId;
 }

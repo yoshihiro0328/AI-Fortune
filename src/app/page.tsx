@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { pricing } from "@/lib/pricing";
+import { pricing, yen } from "@/lib/pricing";
 import ServiceShare from "@/components/service-share";
 export const metadata = {
   alternates: { canonical: "/" },
@@ -11,8 +11,8 @@ export const metadata = {
 const start = "/diagnosis/partner-mind";
 export default function Home() {
   return (
-    <main id="main">
-      <section className="hero">
+    <main id="main" className="home-sections">
+      <section className="wrap hero">
         <div className="eyebrow">ふたりのことを、ひとつずつ。</div>
         <h1>
           返信が遅くなった。
@@ -39,17 +39,19 @@ export default function Home() {
           相手の気持ちを決めつけず、あなたが次の一歩を選ぶために。
         </p>
       </section>
-      <section className="wrap panel">
-        <p className="eyebrow">恋愛で迷ったとき、前の話の続きから。</p>
-        <h2>毎回、最初から話さなくて大丈夫。</h2>
-        <p>
-          「昨日、相手からLINEが来た」「前より会う回数が増えた」。新しくあったことを話しながら、次の一歩を一緒に考えられます。会員登録すると、相手ごとに相談の履歴と記憶を残せます。
-        </p>
-        <div className="actions">
-          <Link className="button secondary" href="/consult">
-            前回の続きから相談する
-          </Link>
-          <Link href="/plans">無料・Plus・単発の違いを見る</Link>
+      <section className="wrap">
+        <div className="continuation-card">
+          <p className="eyebrow">恋愛で迷ったとき、前の話の続きから。</p>
+          <h2>毎回、最初から話さなくて大丈夫。</h2>
+          <p>
+            「昨日、相手からLINEが来た」「前より会う回数が増えた」。新しくあったことを話しながら、次の一歩を一緒に考えられます。会員登録すると、相手ごとにこれまで話したことを振り返れます。
+          </p>
+          <div className="actions">
+            <Link className="button secondary" href="/consult">
+              前回の続きから相談する
+            </Link>
+            <Link href="/plans">料金とプランを見る</Link>
+          </div>
         </div>
       </section>
       <section className="intro wrap">
@@ -153,11 +155,11 @@ export default function Home() {
         {[
           [
             "本当に無料ですか？",
-            "はい。今の状況、良い兆候や気になる点、簡単なアドバイスは無料で読めます。詳細レポートは980円（税込）の任意購入です。現在はテスト決済のみです。",
+            `はい。診断結果と簡単なアドバイスは無料で読めます。詳細レポートは1回${yen(pricing.report)}（税込）で、ご希望の場合に購入できます。自動更新はありません。現在はテスト決済のみで実請求は発生しません。`,
           ],
           [
             "会員登録は必要ですか？",
-            "無料の相談は登録せずに始められます。同じブラウザから結果を見返せます。別の端末でも見返したい場合は、メール認証後に診断をアカウントへ保存できます。",
+            "初回の無料診断は登録せずに始められます。続きから話せるチャット相談には会員登録が必要です。同じブラウザから結果を見返せます。別の端末でも見返したい場合は、メールアドレスの確認後に、診断をアカウントへ保存してください。",
           ],
           [
             "相手に知られますか？",
@@ -165,7 +167,7 @@ export default function Home() {
           ],
           [
             "入力した内容はどう扱われますか？",
-            "診断内容は公開されません。AIによる分析のため、回答内容を外部サービス（OpenAI）で処理します。氏名・住所・電話番号・メールアドレスなど、個人を特定できる情報は入力しないでください。詳しくはプライバシーポリシーをご確認ください。",
+            "診断内容は公開されません。AIが回答を作るため、入力内容をOpenAIに送信します。氏名・住所・電話番号・メールアドレスなど、個人を特定できる情報は入力しないでください。詳しくはプライバシーポリシーをご確認ください。",
           ],
           [
             "AIが相手の気持ちを断定するのですか？",
@@ -182,7 +184,7 @@ export default function Home() {
           </details>
         ))}
       </section>
-      <section className="hero closing">
+      <section className="wrap hero closing">
         <div className="eyebrow">あなたのペースで、一歩ずつ。</div>
         <h2>
           答えを急がず、

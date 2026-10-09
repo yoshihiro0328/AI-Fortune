@@ -1,13 +1,16 @@
+import { pricing, yen } from "@/lib/pricing";
 import Plans from "@/components/plans";
 import { serviceSettings } from "@/lib/service-settings";
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "料金・プラン",
-  description:
-    "初回診断無料、継続相談は無料月3回。Plus月額980円、単発詳細診断980円。現在はテスト決済のみです。",
-  alternates: { canonical: "/plans" },
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata() {
+  const s = await serviceSettings();
+  return {
+    title: "料金・プラン",
+    description: `初回診断は無料。会員登録後は月${s.free_limit}回まで無料で相談できます。Plusは月額${yen(pricing.plus)}、単発の詳細診断は${yen(pricing.report)}（税込）。現在はテスト決済のみです。`,
+    alternates: { canonical: "/plans" },
+    robots: { index: false, follow: false },
+  };
+}
 export default async function Page() {
   const s = await serviceSettings();
   return (

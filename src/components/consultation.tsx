@@ -234,11 +234,11 @@ export default function Consultation() {
                       target: subjectId,
                     });
                     setDiagnosis("");
-                    setNotice("診断を相談相手に保存しました。");
+                    setNotice("この相手の相談に診断を追加しました。");
                   })
                 }
               >
-                選んだ相手に診断を保存
+                この相手の相談に診断を追加
               </button>
             </section>
           )}
@@ -342,7 +342,7 @@ export default function Consultation() {
                       .map((l) => (
                         <p key={l.diagnosis_id}>
                           <Link href={"/result/" + l.diagnosis_id}>
-                            紐づけた診断・詳細レポートを見る
+                            この相手についての診断を見る
                           </Link>
                         </p>
                       ))}
@@ -360,7 +360,7 @@ export default function Consultation() {
                 <details className="memory-panel">
                   <summary>覚えていること・最近の出来事</summary>
                   <p className="fine">
-                    あなたが話した内容と以前の提案です。引用した時点の情報として扱います。
+                    これまで話したことや、AIが提案したことをまとめたメモです。今の状況と違う場合は修正できます。
                   </p>
                   {!memoryEdit ? (
                     <>
@@ -374,7 +374,9 @@ export default function Consultation() {
                           </li>
                         ))}
                       </ul>
-                      {!subject.memory.length && <p>まだ記憶はありません。</p>}
+                      {!subject.memory.length && (
+                        <p>次の相談に引き継ぐメモは、まだありません。</p>
+                      )}
                       <button
                         className="text-button"
                         disabled={busy}
@@ -385,7 +387,7 @@ export default function Consultation() {
                           setMemoryEdit(true);
                         }}
                       >
-                        記憶を修正・削除
+                        引き継ぐメモを修正・削除
                       </button>
                     </>
                   ) : (
@@ -400,7 +402,7 @@ export default function Consultation() {
                         rows={7}
                       />
                       <p className="fine">
-                        保存後は、このメモと新しい会話から相談を続けます。過去の会話の表示は残りますが、以前の本文をAIの回答には使いません。空欄で保存すると記憶を削除します。
+                        保存後は、このメモと新しい会話から相談を続けます。過去の会話の表示は残りますが、以前の本文をAIの回答には使いません。空欄で保存すると、引き継ぐメモを削除します。
                       </p>
                       <button
                         className="button secondary"
@@ -414,11 +416,11 @@ export default function Consultation() {
                                 .filter(Boolean),
                             });
                             setMemoryEdit(false);
-                            setNotice("記憶を更新しました。");
+                            setNotice("引き継ぐメモを更新しました。");
                           })
                         }
                       >
-                        記憶を保存
+                        メモを保存
                       </button>
                     </>
                   )}
@@ -475,7 +477,7 @@ export default function Consultation() {
                             disabled={busy}
                             onClick={() => send(false, t)}
                           >
-                            回答をもう一度考える（回数は減りません）
+                            回答をもう一度考える（追加の回数は使いません）
                           </button>
                         )}
                       </div>
@@ -483,11 +485,11 @@ export default function Consultation() {
                       <div className="notice">
                         <p>
                           {t.status === "pending"
-                            ? "回答の作成中、または通信が中断されました。少し待って再試行できます。"
+                            ? "回答の作成中、または通信が中断されました。少し待ってから、もう一度お試しください。"
                             : "回答を作成できませんでした。相談回数は使っていません。"}
                         </p>
                         <button disabled={busy} onClick={() => send(false, t)}>
-                          この相談を再試行
+                          この相談をもう一度送る
                         </button>
                       </div>
                     )}
@@ -536,11 +538,11 @@ export default function Consultation() {
                   )}
                 </div>
                 <p className="fine">
-                  AIによる回答のため、必要な相談内容を外部サービスで処理します。氏名・住所・電話番号は書かないでください。
+                  AIが回答を作るため、必要な相談内容を外部のAIサービスに送信します。氏名・住所・電話番号は書かないでください。
                   <Link href="/legal/privacy">データの扱い</Link>
                 </p>
                 <p className="fine">
-                  回答が届いた1往復を1回と数えます。失敗・再送・再生成では追加消費しません。
+                  相談を送って回答が届くまでを1回と数えます。失敗した場合や、同じ相談・回答をやり直した場合は、追加の回数は使いません。
                   <Link href="/safety">
                     危険やつらさを感じるとき（回数制限なし）
                   </Link>
@@ -610,7 +612,7 @@ export default function Consultation() {
                           ))}
                       </select>
                       <p className="fine">
-                        この相談を移動し、両方の相手の要約記憶を消去します。その後の回答は移動先の履歴だけを使います。
+                        この相談を選んだ相手の履歴へ移します。移動元と移動先の両方で、引き継ぐメモを消去します。その後の回答には、移動先にある相談履歴だけを使います。
                       </p>
                       <button
                         disabled={busy || !moveTarget}
@@ -634,7 +636,7 @@ export default function Consultation() {
                           onClick={() => {
                             if (
                               confirm(
-                                "この相談本文と関連する記憶を削除します。取り消せません。利用回数と決済記録は残ります。",
+                                "この相談の会話と関連するメモを削除します。取り消せません。利用回数と支払いの記録は残ります。",
                               )
                             )
                               void act(async () => {
@@ -655,7 +657,7 @@ export default function Consultation() {
                     onClick={() => {
                       if (
                         confirm(
-                          "この相手の相談本文・記憶・診断の紐づけを削除します。購入済み診断と決済記録は残ります。取り消せません。",
+                          "この相手の会話とメモを削除し、相談に追加した診断を外します。購入済みの診断と支払いの記録は残ります。この操作は取り消せません。",
                         )
                       )
                         void act(async () => {

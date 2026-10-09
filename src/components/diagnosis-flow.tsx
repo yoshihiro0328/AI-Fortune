@@ -194,7 +194,7 @@ export default function DiagnosisFlow() {
   }, [id, started]);
   return (
     <main id="main" className="flow">
-      <div className="eyebrow">PARTNER MIND / 相手の心理診断</div>
+      <div className="eyebrow">無料診断 · ふたりの今を整理する</div>
       {error && (
         <p role="alert" className="error">
           {error}
@@ -213,7 +213,7 @@ export default function DiagnosisFlow() {
             ふたりの状況に合わせて、必要なことだけ聞いていきます。目安は12〜18問ほどです。分からないことは、そのまま教えてください。
           </p>
           <p className="fine">
-            AIによる分析のため、回答内容を外部サービス（OpenAI）で処理します。氏名・住所・電話番号・メールアドレスなど、個人を特定できる情報は入力しないでください。この端末のCookieを削除すると、会員登録前の診断には戻れなくなります。
+            AIが回答を作るため、入力内容をOpenAIに送信します。氏名・住所・電話番号・メールアドレスなど、個人を特定できる情報は入力しないでください。ブラウザの保存情報（Cookie）を削除すると、アカウントに保存していない診断は開けなくなります。
           </p>
           <label className="choice">
             <input
@@ -331,7 +331,7 @@ export default function DiagnosisFlow() {
               </button>
             </div>
             <p className="fine">
-              「保存して次へ」で回答を保存。途中で閉じても、このブラウザから再開できます。
+              「保存して次へ」を押すと回答が保存されます。途中で閉じても、このブラウザから再開できます。
             </p>
           </div>
         </>

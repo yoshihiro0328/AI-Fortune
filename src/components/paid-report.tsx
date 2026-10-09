@@ -87,7 +87,7 @@ export default function Report({ id }: { id: string }) {
   );
   return (
     <main id="main" className="flow report">
-      <div className="eyebrow">YOUR NEXT STEP / 詳細レポート</div>
+      <div className="eyebrow">あなたのための詳細レポート</div>
       <h1>
         あなたのペースで、
         <br />
@@ -113,7 +113,7 @@ export default function Report({ id }: { id: string }) {
               : status === "waiting"
                 ? "お支払いの確認を待っています"
                 : status === "failed"
-                  ? "レポートを再生成できます"
+                  ? "レポートの作成をやり直せます"
                   : "レポートを準備しています"}
           </h2>
           <p>
@@ -128,13 +128,13 @@ export default function Report({ id }: { id: string }) {
             attempts < 5 && (
               <p>
                 <button className="button" onClick={retry} disabled={busy}>
-                  {busy ? "生成中…" : "生成を再開する（追加料金なし）"}
+                  {busy ? "作成しています…" : "作成をやり直す（追加料金なし）"}
                 </button>
               </p>
             )}
           {attempts >= 5 && (
             <p>
-              自動再試行の上限に達しました。運営への確認が必要です。決済の再実行はしないでください。
+              繰り返し試しましたが、レポートを作成できませんでした。再購入せず、お問い合わせフォームからご連絡ください。
             </p>
           )}
         </section>
@@ -146,14 +146,17 @@ export default function Report({ id }: { id: string }) {
           <SaveResultNote />
           {[
             [
-              "1. 現在の関係分析",
+              "1. 今のふたりの関係",
               <p key="a">{report.relationship_analysis}</p>,
             ],
             [
               "2. 相手の行動パターン",
               <p key="b">{report.behavior_patterns}</p>,
             ],
-            ["3. 距離が変化した理由の可能性", list(report.distance_reasons)],
+            [
+              "3. 距離が変わった理由として考えられること",
+              list(report.distance_reasons),
+            ],
             [
               "4. 良い兆候",
               list(
@@ -161,14 +164,17 @@ export default function Report({ id }: { id: string }) {
               ),
             ],
             [
-              "5. 注意すべき兆候",
+              "5. 気に留めたいこと",
               list(
                 report.attention_signals.map((s) => s.signal + "：" + s.reason),
               ),
             ],
             ["6. あなたが見直せること", list(report.improvement_points)],
             ["7. やらない方がいいこと", list(report.avoid_actions)],
-            ["8. 今、連絡するべきか", <p key="c">{report.contact_advice}</p>],
+            [
+              "8. 今、連絡するか迷ったら",
+              <p key="c">{report.contact_advice}</p>,
+            ],
             [
               "9. 次に送るメッセージ案",
               <div key="d">
@@ -184,7 +190,10 @@ export default function Report({ id }: { id: string }) {
                 ))}
               </div>,
             ],
-            ["10. 次に会ったときの対応", <p key="e">{report.next_meeting}</p>],
+            [
+              "10. 次に会ったときのヒント",
+              <p key="e">{report.next_meeting}</p>,
+            ],
             [
               "11. 今後7日間",
               list(

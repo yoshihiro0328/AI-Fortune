@@ -2,6 +2,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { request } from "@/lib/client";
+import BillingTerms from "./billing-terms";
+import { testPaymentNotice } from "@/lib/display-copy";
 import { pricing, yen } from "@/lib/pricing";
 export default function Plans({ free, plus }: { free: number; plus: number }) {
   const [consent, setConsent] = useState(false),
@@ -35,8 +37,8 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             回、前の話の続きから相談できます。
           </p>
           <ul>
-            <li>初回の動的診断・無料結果</li>
-            <li>相談相手ごとの履歴と記憶</li>
+            <li>状況に合わせた無料診断と結果</li>
+            <li>相手ごとに前の話を引き継ぐ相談</li>
             <li>診断・相談履歴の閲覧</li>
           </ul>
           <Link className="button secondary" href="/diagnosis/partner-mind">
@@ -66,7 +68,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
               onChange={(e) => setConsent(e.target.checked)}
             />
             月額{yen(pricing.plus)}
-            、解約まで毎月自動更新すること、マイページから期間末で解約できることを確認しました（現在はテスト決済）。
+            （税込）で、解約するまで毎月自動更新します。マイページから次回の更新を停止できることを確認しました。現在はテスト決済のみで実請求は発生しません。
           </label>
           <button
             className="button"
@@ -76,7 +78,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             {busy ? "手続き画面を開いています…" : "Plusのテスト契約へ"}
           </button>
           <p className="fine">
-            メール認証済みアカウントが必要です。
+            登録後、メールアドレスの確認が必要です。
             <Link href="/account">ログイン・新規登録</Link>
           </p>
         </section>
@@ -109,18 +111,8 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
         </p>
       )}
       <section className="panel">
-        <h2>利用回数と契約について</h2>
-        <p>
-          正常に回答が届いた1往復を1回と数えます。初回診断は別枠です。失敗・同じ送信の再試行・回答の再生成は追加消費しません。再生成は1回答につき3回までです。
-        </p>
-        <p>
-          無料は日本時間の毎月1日に更新。Plusは契約の請求期間ごとに更新し、残り回数は繰り越しません。期間中の利用回数はマイページで確認できます。
-        </p>
-        <p>
-          Plusは申込時と毎月の更新日に決済します。解約はマイページまたは支払い管理から手続きでき、支払い済みの期間末まで利用できます。次の期間の支払いが確認できない場合、支払い済み期間の終了後は無料プランになります。上限後・契約終了後も履歴は読めます。
-        </p>
-        <p>安全に関わる案内は、プランや残り回数にかかわらず利用できます。</p>
-        <p>現在はテスト決済のみで実請求は発生しません。</p>
+        <BillingTerms free={free} plus={plus} />
+        <p>{testPaymentNotice}</p>
         <Link href="/legal/refund">返金・キャンセルの方針</Link>
       </section>
     </>

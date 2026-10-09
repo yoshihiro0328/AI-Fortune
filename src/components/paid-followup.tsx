@@ -65,8 +65,7 @@ export default function PaidFollowup({
     <section className="panel">
       <p>より具体的なアドバイスのため、あと少しだけ教えてください。</p>
       <p className="fine">
-        {index + 1}問目・あと{questions.length - index}
-        問です。追加料金はありません。
+        全{questions.length}問のうち{index + 1}問目です。追加料金はありません。
       </p>
       <h2 id="paid-question">{q.question_text}</h2>
       {error && (

@@ -51,7 +51,7 @@ export default function Account({
           );
         if (params.has("verified"))
           setMessage(
-            "メール認証が完了しました。下のボタンから、このブラウザの診断を保存できます。",
+            "メールアドレスの確認が完了しました。下のボタンから、このブラウザの診断を保存できます。",
           );
       })
       .catch(() =>
@@ -107,7 +107,7 @@ export default function Account({
   }
   return (
     <main id="main" className="flow">
-      <p className="eyebrow">MY PAGE / 相談の続き</p>
+      <p className="eyebrow">マイページ · 相談と契約の確認</p>
       <h1>前の話の、その続きから。</h1>
       <p>無料診断は登録なしで使えます。登録はいつでも、ご希望のときに。</p>
       {testEmailOnly && (
@@ -227,7 +227,7 @@ export default function Account({
                 )}
                 <p className="fine">
                   {mode === "login"
-                    ? "ログインすると、このブラウザの匿名診断をあなたのアカウントに保存します。共有端末ではご注意ください。"
+                    ? "ログインすると、このブラウザで登録前に行った診断をあなたのアカウントに保存します。共有端末ではご注意ください。"
                     : mode === "update"
                       ? "更新後は、すべての端末でログインし直してください。"
                       : "メールのリンクは、手続きを始めたブラウザで開いてください。"}
@@ -236,7 +236,7 @@ export default function Account({
                   {busy ? "手続きしています…" : labels[mode]}
                 </button>
               </form>
-              <nav className="auth-links" aria-label="認証メニュー">
+              <nav className="auth-links" aria-label="ログイン・登録のメニュー">
                 {(["login", "signup", "resend", "reset"] as Mode[])
                   .filter((x) => x !== mode)
                   .map((x) => (

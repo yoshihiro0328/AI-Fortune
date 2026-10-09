@@ -86,7 +86,10 @@ export async function POST(req: Request) {
       if (error) throw new HttpError(400, authMessage(error.code));
       if (!data.user.email_confirmed_at) {
         await auth.auth.signOut();
-        throw new HttpError(403, "メール認証を完了してください。");
+        throw new HttpError(
+          403,
+          "確認メールのリンクを開き、メールアドレスの確認を完了してください。",
+        );
       }
       await claimDiagnoses(data.user);
       return { ok: true };

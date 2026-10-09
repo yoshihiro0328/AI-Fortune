@@ -57,7 +57,7 @@ describe("auth input and account privacy", () => {
   it("does not expose provider internals", () =>
     expect(authMessage("database_error")).not.toContain("database"));
   it("localizes unconfirmed account", () =>
-    expect(authMessage("email_not_confirmed")).toContain("メール認証"));
+    expect(authMessage("email_not_confirmed")).toContain("メールアドレスの確認"));
 });
 describe("contact validation", () => {
   const valid = {

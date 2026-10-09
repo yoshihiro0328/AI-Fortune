@@ -113,13 +113,13 @@ export default function ConsultationSummary() {
                 onClick={() => {
                   if (
                     confirm(
-                      "期間末での解約を予約します。支払い済みの期間まではPlusを利用できます。",
+                      "次回の自動更新を停止します。表示された利用期限まではPlusを使えます。返金の申請とは別の手続きです。",
                     )
                   )
                     void billing("cancel");
                 }}
               >
-                期間末での解約を予約する
+                次回の自動更新を停止する
               </button>
             )}
         </div>
@@ -142,7 +142,7 @@ export default function ConsultationSummary() {
         </p>
       )}
       <p className="fine">
-        現在はテスト決済のみで実請求は発生しません。Plusと詳細診断は別商品です。
+        現在はテスト決済のみで実請求は発生しません。Plusには単発の詳細診断は含まれません。
       </p>
     </section>
   );

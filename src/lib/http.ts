@@ -60,7 +60,10 @@ export async function authClient() {
 }
 export function csrf(req: Request) {
   if (!sameOrigin(req.headers.get("origin"), appUrl()))
-    throw new HttpError(403, "このリクエストは許可されていません。");
+    throw new HttpError(
+      403,
+      "この操作を受け付けられませんでした。ページを開き直してお試しください。",
+    );
 }
 export async function body<T>(req: Request, schema: z.ZodType<T>) {
   const text = await boundedText(req, 30000);
@@ -75,7 +78,10 @@ export async function owned(id: string) {
     throw new HttpError(404, "診断が見つかりません。");
   const who = await identity();
   if (!who.session && !who.userId)
-    throw new HttpError(401, "このブラウザの診断セッションが見つかりません。");
+    throw new HttpError(
+      401,
+      "このブラウザでは診断を確認できません。診断に使ったブラウザ、または保存したアカウントで開いてください。",
+    );
   const d = checked(
     await db().from("diagnoses").select("*").eq("id", id).maybeSingle(),
   );
