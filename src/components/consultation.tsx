@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { exchangeExplanation } from "@/lib/display-copy";
 import { request } from "@/lib/client";
 import {
   memoryLabels,
@@ -206,10 +207,11 @@ export default function Consultation() {
         <>
           <p className="notice">
             {home.usage.plan === "plus" ? "Plus" : "無料プラン"} · 残り{" "}
-            <strong>{home.usage.remaining}回</strong> / {home.usage.limit}回 ·{" "}
-            {date(home.usage.period_end)}まで{" "}
+            <strong>{home.usage.remaining}往復</strong> / {home.usage.limit}往復
+            · {date(home.usage.period_end)}まで{" "}
             <Link href="/plans">プランの違い</Link>
           </p>
+          <p className="fine">{exchangeExplanation}</p>
           {error && (
             <p className="error" role="alert">
               {error}
@@ -360,8 +362,24 @@ export default function Consultation() {
                 <details className="memory-panel">
                   <summary>覚えていること・最近の出来事</summary>
                   <p className="fine">
-                    これまで話したことや、AIが提案したことをまとめたメモです。今の状況と違う場合は修正できます。
+                    前に話した内容を参考に、続きから相談できます。相談は相手ごとに分けて保存し、その相手のメモと最近の会話を使います。メモはいつでも確認・修正・削除できます。
                   </p>
+                  <details>
+                    <summary>メモと相談履歴の違い</summary>
+                    <p>
+                      メモを修正・削除すると、それまでの会話や追加済みの診断は、次の回答に使わなくなります。画面の相談履歴は残ります。
+                    </p>
+                    <p>
+                      相談履歴を削除すると、その会話の本文・回答と、その相手のメモが消えます。ほかの相談履歴は残り、以後の回答に使われることがあります。購入済みレポートと決済記録は消えません。
+                    </p>
+                    <p>
+                      退会や診断データの削除は
+                      <Link href="/contact">お問い合わせ</Link>
+                      から依頼できます。保存・削除の範囲は
+                      <Link href="/legal/privacy">プライバシーポリシー</Link>
+                      をご確認ください。
+                    </p>
+                  </details>
                   {!memoryEdit ? (
                     <>
                       <ul>

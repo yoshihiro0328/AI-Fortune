@@ -6,7 +6,7 @@ export async function generateMetadata() {
   const s = await serviceSettings();
   return {
     title: "料金・プラン",
-    description: `初回診断は無料。会員登録後は月${s.free_limit}回まで無料で相談できます。Plusは月額${yen(pricing.plus)}、単発の詳細診断は${yen(pricing.report)}（税込）。現在はテスト決済のみです。`,
+    description: `初回診断は無料。会員登録後はAIとのやり取りが月${s.free_limit}往復まで無料です。Plusは月額${yen(pricing.plus)}、単発の詳細診断は${yen(pricing.report)}（税込）。現在はテスト決済のみです。`,
     alternates: { canonical: "/plans" },
     robots: { index: false, follow: false },
   };

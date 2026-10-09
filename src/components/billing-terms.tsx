@@ -1,3 +1,4 @@
+import { exchangeExplanation } from "@/lib/display-copy";
 import { pricing, yen } from "@/lib/pricing";
 
 /** Shared public contract wording; does not determine billing or quota behavior. */
@@ -14,10 +15,11 @@ export default function BillingTerms({
         <h2>無料プラン・Plus・単発購入の違い</h2>
         <ul>
           <li>初回の無料診断は、会員登録なしで利用できます。</li>
-          <li>無料会員は、チャットで月{free}回まで相談できます。</li>
+          <li>無料会員は、AIとのやり取りが月{free}往復まで利用できます。</li>
           <li>
-            よりそい Plusは月額{yen(pricing.plus)}（税込）。チャットで月{plus}
-            回まで相談できます。解約するまで毎月自動更新します。
+            よりそい Plusは月額{yen(pricing.plus)}（税込）。AIとのやり取りが月
+            {plus}
+            往復まで利用できます。解約するまで毎月自動更新します。
           </li>
           <li>
             単発の詳細診断は1回{yen(pricing.report)}
@@ -28,16 +30,24 @@ export default function BillingTerms({
       </section>
       <section id="consultation-count">
         <h2>相談回数の数え方と更新日</h2>
+        <p>{exchangeExplanation}初回の無料診断は、この回数に含みません。</p>
         <p>
-          相談を送り、回答が届くまでを1回と数えます。初回の無料診断は、この回数に含みません。
+          AIが回答を作成できなかった場合は、回数を使いません。同じ送信を再試行しても、重複して数えません。「回答をもう一度考える」も追加の回数を使わず、1つの回答につき3回まで利用できます。
         </p>
         <p>
-          回答に失敗した場合や、同じ相談を送り直した場合は、回数は減りません。「回答をもう一度考える」も追加の回数を使わず、1つの回答につき3回まで利用できます。
+          通信が途中で切れても、回答が作成・保存されていれば1往復に数えます。まず履歴を確認し、画面の再試行から続けてください。
         </p>
         <p>
           無料プランは日本時間の毎月1日に、Plusは毎月の契約更新日に回数が戻ります。使わなかった回数は翌期間へ繰り越せません。残り回数と利用期間はマイページで確認できます。
         </p>
-        <p>安全に関わる案内は、プランや残り回数にかかわらず利用できます。</p>
+        <p>
+          月途中でPlusに加入した場合は、支払いが確認された契約期間から{plus}
+          往復を利用できます。加入前の無料利用分は、その期間の回数に含みません。無料プランへ戻ると、その月のPlus利用分も含めて月
+          {free}往復の上限が適用されます。
+        </p>
+        <p>
+          安全確保のための案内は回数に数えず、プランや残り回数にかかわらず利用できます。
+        </p>
       </section>
       <section id="renewal-and-cancellation">
         <h2>Plusの自動更新と解約方法</h2>

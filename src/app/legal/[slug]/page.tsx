@@ -346,7 +346,7 @@ export default async function Legal({
           テスト公開用の内容です。運営者情報に未設定の項目があるため、本番販売は開始していません。
         </p>
       )}
-      <p className="notice">{testPaymentNotice}</p>
+      <p className="fine legal-test-note">{testPaymentNotice}</p>
       <nav className="legal-toc" aria-label="このページの目次">
         <p>
           <strong>このページの内容</strong>

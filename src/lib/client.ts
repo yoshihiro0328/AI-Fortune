@@ -1,3 +1,14 @@
+export class RequestError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+export function isUnavailableDiagnosis(error: unknown) {
+  return error instanceof RequestError && [401, 404].includes(error.status);
+}
 export async function request<T>(url: string, data?: unknown): Promise<T> {
   let r: Response;
   try {
@@ -24,7 +35,8 @@ export async function request<T>(url: string, data?: unknown): Promise<T> {
       "ただいま処理を完了できません。少し時間をおいて再度お試しください。",
     );
   }
-  if (!r.ok) throw new Error(j.error ?? "通信に失敗しました。");
+  if (!r.ok)
+    throw new RequestError(r.status, j.error ?? "通信に失敗しました。");
   return j;
 }
 export function track(name: string, id?: string) {

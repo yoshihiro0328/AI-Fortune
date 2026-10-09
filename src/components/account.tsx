@@ -108,13 +108,8 @@ export default function Account({
   return (
     <main id="main" className="flow">
       <p className="eyebrow">マイページ · 相談と契約の確認</p>
-      <h1>前の話の、その続きから。</h1>
-      <p>無料診断は登録なしで使えます。登録はいつでも、ご希望のときに。</p>
-      {testEmailOnly && (
-        <p className="notice">
-          現在テスト公開中です。メールを使う登録・再設定は、招待されたテスト参加者のみ利用できます。メールは英語で届きますが、リンク先では日本語で手続きできます。
-        </p>
-      )}
+      <h1>{user ? "前の話の、その続きから。" : labels[mode]}</h1>
+      {!user && <p>無料診断は登録なしで使えます。</p>}
       {boot ? (
         <p role="status">アカウントを確認しています…</p>
       ) : (
@@ -154,7 +149,11 @@ export default function Account({
             </div>
           ) : (
             <div className="panel">
-              <h2>{labels[mode]}</h2>
+              {testEmailOnly && mode !== "login" && mode !== "update" && (
+                <p className="fine">
+                  現在、登録・再設定メールを受け取れる方は、運営チームに登録されたメールアドレスの方に限られます。
+                </p>
+              )}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -195,7 +194,7 @@ export default function Account({
                     {mode !== "login" && (
                       <>
                         <p className="fine">
-                          英大文字・英小文字・数字・記号を含む12〜128文字。他のサービスと使い回さず、パスワード管理ツールで作ることをおすすめします。
+                          英大文字・英小文字・数字・記号を含む12〜128文字。
                         </p>
                         <label htmlFor="password-confirm">
                           パスワード（確認）
@@ -227,7 +226,7 @@ export default function Account({
                 )}
                 <p className="fine">
                   {mode === "login"
-                    ? "ログインすると、このブラウザで登録前に行った診断をあなたのアカウントに保存します。共有端末ではご注意ください。"
+                    ? "ログイン時に、このブラウザの診断をアカウントへ保存します。共有端末では、他の方の診断がないかご確認ください。"
                     : mode === "update"
                       ? "更新後は、すべての端末でログインし直してください。"
                       : "メールのリンクは、手続きを始めたブラウザで開いてください。"}
@@ -256,6 +255,22 @@ export default function Account({
                     </button>
                   ))}
               </nav>
+              <details className="auth-help">
+                <summary>登録・メールが届かないときの案内</summary>
+                <p>
+                  登録後は、確認メールのリンクを開くとログインできます。リンクは手続きを始めたブラウザで開いてください。
+                </p>
+                {testEmailOnly && (
+                  <p>
+                    テスト公開中のため、メールの送信先は運営チームに登録済みのアドレスに限られます。通常の利用者登録だけでは送信対象になりません。メールは英語で届き、リンク先の手続きは日本語です。続けて送信すると一時的に制限されることがあります。
+                  </p>
+                )}
+                <p>
+                  届かない場合は迷惑メールをご確認ください。解決しない場合は
+                  <Link href="/contact">お問い合わせ</Link>
+                  へ。パスワードは送らないでください。
+                </p>
+              </details>
               <p className="fine">
                 <Link href="/legal/terms">利用規約</Link>・
                 <Link href="/legal/privacy">プライバシーポリシー</Link>

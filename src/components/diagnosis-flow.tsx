@@ -4,7 +4,13 @@ import ProgressNote from "./progress-note";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { request, track, type Question, type Diagnosis } from "@/lib/client";
+import {
+  request,
+  track,
+  isUnavailableDiagnosis,
+  type Question,
+  type Diagnosis,
+} from "@/lib/client";
 export default function DiagnosisFlow() {
   const router = useRouter();
   const [questions, setQuestions] = useState<Question[]>([]),
@@ -17,7 +23,8 @@ export default function DiagnosisFlow() {
     [busy, setBusy] = useState(""),
     [error, setError] = useState(""),
     [consent, setConsent] = useState(false),
-    [boot, setBoot] = useState(true);
+    [boot, setBoot] = useState(true),
+    [unavailable, setUnavailable] = useState(false);
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
     let active = true;
@@ -70,7 +77,13 @@ export default function DiagnosisFlow() {
             setStarted(true);
             setConsent(true);
           } catch (e) {
-            setError((e as Error).message);
+            if (!active) return;
+            if (isUnavailableDiagnosis(e)) {
+              // Clear only the inaccessible pointer, never the diagnosis or another tab's new pointer.
+              if (localStorage.getItem("yorisoi_diagnosis") === saved)
+                localStorage.removeItem("yorisoi_diagnosis");
+              setUnavailable(true);
+            } else setError((e as Error).message);
           }
         }
       } catch (e) {
@@ -102,6 +115,7 @@ export default function DiagnosisFlow() {
       setV2(state.question_flow_version === "v2");
       setId(d.id);
       setStarted(true);
+      setUnavailable(false);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -203,6 +217,23 @@ export default function DiagnosisFlow() {
         <p role="alert" className="error">
           {error}
         </p>
+      )}
+      {unavailable && (
+        <aside className="notice" aria-label="前の診断について">
+          <p>この診断は開けませんでした。新しく診断を始めることができます。</p>
+          <p className="fine">
+            保存済みの診断は、診断したときのブラウザか、保存したアカウントで確認してください。
+          </p>
+          <div className="actions">
+            <a
+              className="button secondary"
+              href="/diagnosis/partner-mind?new=1"
+            >
+              新しく診断を始める
+            </a>
+            <Link href="/account">ログインして確認する</Link>
+          </div>
+        </aside>
       )}
       {boot ? (
         <p role="status">質問を読み込んでいます…</p>

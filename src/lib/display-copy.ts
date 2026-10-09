@@ -7,3 +7,6 @@ export function sentence(value: string) {
 export function responseTimeLabel(value: string) {
   return "お問い合わせへの回答目安：" + value.trim().replace(/[。.]$/, "");
 }
+
+export const exchangeExplanation =
+  "メッセージを送り、AIから回答が届くと1往復として数えます。";

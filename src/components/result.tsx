@@ -40,6 +40,20 @@ export default function Result({ id }: { id: string }) {
           {error}
         </p>
       )}
+      {!d && error && (
+        <section className="panel">
+          <h1>この診断は開けませんでした</h1>
+          <p>
+            診断したときのブラウザ、または保存したアカウントで開いているかをご確認ください。新しく診断を始めることもできます。
+          </p>
+          <div className="actions">
+            <Link className="button" href="/diagnosis/partner-mind?new=1">
+              新しく診断を始める
+            </Link>
+            <Link href="/account">ログインして確認する</Link>
+          </div>
+        </section>
+      )}
       {!d && !error && <p role="status">診断を読み込んでいます…</p>}
       {d?.status === "safety" ? (
         <section className="panel">

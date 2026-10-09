@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { exchangeExplanation } from "@/lib/display-copy";
 import { request } from "@/lib/client";
 import type { ConsultationHome } from "@/lib/consultation/model";
 export default function ConsultationSummary() {
@@ -48,8 +49,9 @@ export default function ConsultationSummary() {
       </Link>
       <p>
         {data.usage.plan === "plus" ? "よりそい Plus" : "無料プラン"} · 残り
-        <strong>{data.usage.remaining}回</strong> / {data.usage.limit}回
+        <strong>{data.usage.remaining}往復</strong> / {data.usage.limit}往復
       </p>
+      <p className="fine">{exchangeExplanation}</p>
       <p className="fine">
         利用期間：
         {new Date(data.usage.period_start).toLocaleDateString("ja-JP")}〜

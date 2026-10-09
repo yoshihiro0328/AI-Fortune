@@ -3,7 +3,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { request } from "@/lib/client";
 import BillingTerms from "./billing-terms";
-import { testPaymentNotice } from "@/lib/display-copy";
+import { testPaymentNotice, exchangeExplanation } from "@/lib/display-copy";
 import { pricing, yen } from "@/lib/pricing";
 export default function Plans({ free, plus }: { free: number; plus: number }) {
   const [consent, setConsent] = useState(false),
@@ -25,6 +25,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
   }
   return (
     <>
+      <p>{exchangeExplanation}</p>
       <div className="plan-grid">
         <section className="plan-card">
           <p className="eyebrow">まずは、気軽に</p>
@@ -32,10 +33,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
           <p className="price">
             0<span>円</span>
           </p>
-          <p>
-            登録不要の初回診断。登録後は月{free}
-            回、前の話の続きから相談できます。
-          </p>
+          <p>初回診断は登録不要。登録後のAIとのやり取りは月{free}往復まで。</p>
           <ul>
             <li>状況に合わせた無料診断と結果</li>
             <li>相手ごとに前の話を引き継ぐ相談</li>
@@ -52,7 +50,9 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             {yen(pricing.plus)}
             <span> / 月（税込）</span>
           </p>
-          <p>月{plus}回、同じ相手の話を引き継ぎながら相談できます。</p>
+          <p>
+            AIとのやり取りは月{plus}往復まで。前の話の続きから相談できます。
+          </p>
           <ul>
             <li>以前の話を踏まえたAIチャット</li>
             <li>LINE返信文面の作成</li>
