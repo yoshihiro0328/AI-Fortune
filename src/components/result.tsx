@@ -34,7 +34,7 @@ export default function Result({ id }: { id: string }) {
   const r = d?.free_report;
   return (
     <main id="main" className="flow report">
-      <div className="eyebrow">YOUR RELATIONSHIP / 無料診断結果</div>
+      <div className="eyebrow">無料診断の結果</div>
       {error && (
         <p className="error" role="alert">
           {error}

@@ -111,7 +111,11 @@ export default function DiagnosisFlow() {
   async function next() {
     const q = questions[index];
     if (!answers[q.question_key]?.trim()) {
-      setError("回答を入力してください。");
+      setError(
+        ["radio", "select"].includes(q.question_type)
+          ? "回答を選んでください。"
+          : "回答を入力してください。",
+      );
       return;
     }
     setError("");
