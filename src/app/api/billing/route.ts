@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { exchangeExplanation } from "@/lib/display-copy";
 import { api, body, csrf, HttpError, rate, event } from "@/lib/http";
 import { member } from "@/lib/consultation/access";
 import { db, checked } from "@/lib/supabase/admin";
@@ -159,7 +160,7 @@ export async function POST(req: Request) {
           mode: "subscription",
           custom_text: {
             submit: {
-              message: `継続相談は請求期間ごとに${limits.plus_limit}回まで。詳細診断は別料金です。Sandboxテスト専用で実請求は発生しません。`,
+              message: `AIとのやり取りは契約期間ごとに${limits.plus_limit}往復まで。${exchangeExplanation}詳細診断は別料金です。現在はテスト決済のみで実請求は発生しません。`,
             },
           },
           customer: customer.stripe_customer_id,
