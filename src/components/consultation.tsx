@@ -560,7 +560,8 @@ export default function Consultation() {
                   <Link href="/legal/privacy">データの扱い</Link>
                 </p>
                 <p className="fine">
-                  相談を送って回答が届くまでを1回と数えます。失敗した場合や、同じ相談・回答をやり直した場合は、追加の回数は使いません。
+                  AIが回答を作れなかった場合や、同じ送信の再試行・回答の再生成は、追加の回数を使いません。通信が途切れたときは、まず履歴をご確認ください。
+                  <Link href="/plans#consultation-count">回数の数え方</Link>{" "}
                   <Link href="/safety">
                     危険やつらさを感じるとき（回数制限なし）
                   </Link>

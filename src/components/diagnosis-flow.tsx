@@ -239,11 +239,7 @@ export default function DiagnosisFlow() {
         <p role="status">質問を読み込んでいます…</p>
       ) : !started ? (
         <div className="panel">
-          <h1>
-            少しだけ、ふたりのことを
-            <br />
-            聞かせてください。
-          </h1>
+          <h1>ふたりのことを、聞かせてください。</h1>
           <p>
             ふたりの状況に合わせて、必要なことだけ聞いていきます。目安は12〜18問ほどです。分からないことは、そのまま教えてください。
           </p>
