@@ -93,7 +93,7 @@ SandboxとLiveは別のURL・Secretを使用する。Liveは正式Production URL
 
 ## 8. GitHub反映
 
-既存開発ブランチへ通常のGitで反映する。秘密ファイルは対象外。確定SHAは納品メッセージと`git log -1`で確認する。実DBが未適用のため、`vercel.json`の`git.deploymentEnabled`でこの開発ブランチだけ自動デプロイを停止する。設定根拠は[Vercel公式のブランチ別制御](https://vercel.com/docs/project-configuration/git-configuration#git.deploymentenabled)。GitHub CIの検証とVercel公開は別扱い。
+実装はローカルコミット `773b99b` に保存した。通常のGitで開発ブランチへのpushを試みたが、HTTPS用のユーザー認証を取得できず失敗した。リモートのHEADは `9d817551fd14d102ed6c1e49b97389dfe17eb538` のままで、GitHub反映は未完了。指示に従い別プラグインでの代替送信は行っていない。秘密ファイルはコミット対象外。最新のローカルSHAは納品メッセージと`git log -1`で確認できる。実DBが未適用のため、`vercel.json`の`git.deploymentEnabled`でこの開発ブランチだけ自動デプロイを停止する。設定根拠は[Vercel公式のブランチ別制御](https://vercel.com/docs/project-configuration/git-configuration#git.deploymentenabled)。GitHubへ未送信のため今回の変更についてGitHub CIは未実行。GitHub CIの検証とVercel公開は別扱い。
 
 ## 9. 実DBへ適用していない変更
 
@@ -143,4 +143,4 @@ OPENAI、運営情報、問い合わせ・メール関連設定も将来の本�
 - 販売開始時の公開文言・運営情報・集計の環境タグの最終監査。今回のUIはテスト公開表示を維持している。
 - 本番販売・Live Checkoutの最終試験はさらに別の明示承認が必要。検索公開・mainマージも別途扱う。
 
-今回の完了は「レビュー可能なローカル実装とGitHub保存」。本番販売開始や実Sandboxへの新コード反映完了を意味しない。
+今回完了したのは「レビュー可能なローカル実装・隔離検証・ローカルコミット保存」。GitHub反映はGit認証待ち。本番販売開始や実Sandboxへの新コード反映完了を意味しない。
