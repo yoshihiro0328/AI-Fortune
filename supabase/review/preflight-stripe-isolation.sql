@@ -1,13 +1,21 @@
 -- READ ONLY; run only after approval to access the external DB.
 select version,name from supabase_migrations.schema_migrations where name='stripe_environment_isolation';
 select table_name,column_name from information_schema.columns where table_schema='public' and
- ((table_name='payment_environment') or
+ ((table_name in ('payment_environment','payment_legacy_owner_exceptions')) or
  (table_name='payments' and column_name='price_version') or
  (table_name in ('billing_customers','stripe_events') and column_name='is_test') or
  (table_name='price_versions' and column_name='stripe_product_id')) order by table_name,column_name;
 select proname,pg_get_function_identity_arguments(oid) arguments from pg_proc where pronamespace='public'::regnamespace and proname in ('payment_is_test','protect_payment_environment','guard_payment_environment','guard_price_environment','apply_stripe_event_v2');
 select tgname,relname from pg_trigger join pg_class on pg_class.oid=tgrelid where not tgisinternal and tgname in ('protect_payment_environment','payments_environment','customers_environment','subscriptions_environment','invoices_environment','events_environment','price_environment');
 select count(*) total,count(*) filter(where not is_test) live from public.payments;
+-- Counts only: no purchaser identifiers. This is diagnosis-owner mismatch, not
+-- evidence that a Stripe charge exists. Investigate out-of-scope mismatches separately.
+select count(*) filter(where p.user_id is distinct from d.user_id) owner_mismatches,
+ count(*) filter(where p.user_id is null and d.user_id is not null and p.is_test and p.status='paid'
+  and p.stripe_checkout_session_id is null and p.stripe_payment_intent_id is null
+  and d.status='report_ready'
+  and exists(select 1 from public.paid_reports r where r.payment_id=p.id and r.diagnosis_id=d.id)) legacy_snapshot_candidates
+ from public.payments p join public.diagnoses d on d.id=p.diagnosis_id;
 select count(*) total,count(*) filter(where not is_test) live from public.subscriptions;
 select count(*) total,count(*) filter(where not is_test) live from public.subscription_invoices;
 select id,kind,amount,currency,stripe_price_id,active,is_test from public.price_versions;

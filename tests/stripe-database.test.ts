@@ -441,6 +441,13 @@ describe("isolated PostgreSQL migration and payment transactions", () => {
       expect(
         (
           await fresh.query(
+            "select to_regclass('public.payment_legacy_owner_exceptions') present",
+          )
+        ).rows[0],
+      ).toEqual({ present: null });
+      expect(
+        (
+          await fresh.query(
             "select to_regclass('public.payment_environment') present",
           )
         ).rows[0],

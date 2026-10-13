@@ -4,7 +4,7 @@ set local lock_timeout='5s';
 set local statement_timeout='60s';
 -- Fail visibly on full OR partial application; never hide drift with IF NOT EXISTS.
 do $$ begin
- if to_regclass('public.payment_environment') is not null or exists(
+ if to_regclass('public.payment_environment') is not null or to_regclass('public.payment_legacy_owner_exceptions') is not null or exists(
   select 1 from information_schema.columns where table_schema='public' and
   ((table_name='payments' and column_name='price_version') or
    (table_name='billing_customers' and column_name='is_test') or
@@ -59,6 +59,24 @@ insert into public.price_versions(id,kind,amount,stripe_price_id,stripe_product_
  ('report-live-2026-10-980','report',980,'price_1UOcC9IGjFw40K11jgxP3dpg','prod_VPR4SfWQ7uFLnf',false,false),
  ('plus-live-2026-10-980','plus',980,'price_1UOc3HIGjFw40K1178ivu0ee','prod_VPQvCUb8oZ87Zy',false,false);
 alter table public.payments add column price_version text references public.price_versions(id);
+-- Snapshot ONLY pre-existing unbound Sandbox purchases. Never backfill a purchaser.
+-- Block concurrent ownership/report changes while taking this one-time snapshot.
+lock table public.diagnoses,public.paid_reports in share mode;
+create table public.payment_legacy_owner_exceptions (
+ payment_id uuid primary key references public.payments(id) on delete cascade,
+ diagnosis_owner_id uuid not null,
+ payment_snapshot jsonb not null
+);
+insert into public.payment_legacy_owner_exceptions(payment_id,diagnosis_owner_id,payment_snapshot)
+ select p.id,d.user_id,to_jsonb(p)-'updated_at'
+ from public.payments p join public.diagnoses d on d.id=p.diagnosis_id
+ where p.user_id is null and d.user_id is not null and p.is_test and p.status='paid'
+   and p.stripe_checkout_session_id is null and p.stripe_payment_intent_id is null
+   and d.status='report_ready'
+   and exists(select 1 from public.paid_reports r where r.payment_id=p.id and r.diagnosis_id=d.id);
+alter table public.payment_legacy_owner_exceptions enable row level security;
+revoke all on public.payment_legacy_owner_exceptions from public,anon,authenticated,service_role;
+grant select on public.payment_legacy_owner_exceptions to service_role;
 -- Null price_version remains valid ONLY for legacy Sandbox purchases.
 create function public.guard_payment_environment() returns trigger language plpgsql security invoker set search_path='' as $$
 declare expected boolean; begin
@@ -69,7 +87,17 @@ declare expected boolean; begin
   if (new.user_id,new.stripe_customer_id) is distinct from (old.user_id,old.stripe_customer_id) then raise exception 'customer ownership immutable'; end if;
  elsif tg_table_name='payments' then
   if tg_op='UPDATE' and (new.diagnosis_id<>old.diagnosis_id or (old.user_id is not null and new.user_id is distinct from old.user_id) or (old.status in ('paid','refunded') and (new.amount,new.currency,new.price_version) is distinct from (old.amount,old.currency,old.price_version))) then raise exception 'purchase ownership or settled price immutable'; end if;
-  if not exists(select 1 from public.diagnoses d where d.id=new.diagnosis_id and d.user_id is not distinct from new.user_id) then raise exception 'diagnosis owner mismatch'; end if;
+  if not exists(select 1 from public.diagnoses d where d.id=new.diagnosis_id and d.user_id is not distinct from new.user_id) then
+   -- Only no-op / updated_at changes may use the frozen legacy exception.
+   -- INSERT, new mismatches, owner drift and financial/binding changes still fail.
+   if tg_op<>'UPDATE' then raise exception 'diagnosis owner mismatch'; end if;
+   if not exists(
+    select 1 from public.payment_legacy_owner_exceptions e
+    join public.diagnoses d on d.id=new.diagnosis_id and d.user_id=e.diagnosis_owner_id
+    where e.payment_id=old.id and e.payment_snapshot=to_jsonb(old)-'updated_at'
+      and e.payment_snapshot=to_jsonb(new)-'updated_at'
+   ) then raise exception 'diagnosis owner mismatch'; end if;
+  end if;
   if new.price_version is null and not new.is_test then raise exception 'Live price required'; end if;
   if new.price_version is not null and not exists(select 1 from public.price_versions v where v.id=new.price_version and v.is_test=new.is_test and v.kind='report' and v.amount=new.amount and v.currency=new.currency) then raise exception 'payment catalog mismatch'; end if;
  elsif tg_table_name='subscriptions' then
