@@ -9,6 +9,7 @@ const live = process.env.RUN_SUBSCRIPTION_LIVE === "1";
 it.skipIf(!live)(
   "Sandbox subscription payment, replay, renewal, failure, cancel and resubscribe",
   async () => {
+    expect(process.env.STRIPE_MODE).toBe("sandbox");
     const s = stripe();
     const admin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,

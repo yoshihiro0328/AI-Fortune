@@ -74,7 +74,7 @@ describe("Stripe fulfillment gate", () => {
     metadata: { payment_id: "test" },
   } as unknown as Stripe.Checkout.Session;
   it("accepts only correct sandbox purchase", () =>
-    expect(paidSession(s)).toBe(true));
+    expect(paidSession(s, "sandbox")).toBe(true));
   it.each([
     { livemode: true },
     { payment_status: "unpaid" },
@@ -83,9 +83,9 @@ describe("Stripe fulfillment gate", () => {
     { mode: "subscription" },
     { metadata: null },
   ])("rejects invalid payment %j", (patch) =>
-    expect(paidSession({ ...s, ...patch } as Stripe.Checkout.Session)).toBe(
-      false,
-    ),
+    expect(
+      paidSession({ ...s, ...patch } as Stripe.Checkout.Session, "sandbox"),
+    ).toBe(false),
   );
   it("verifies raw webhook and rejects forged signature", () => {
     const stripe = new Stripe("sk_test_fixture");

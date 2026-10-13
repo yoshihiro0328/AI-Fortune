@@ -1,3 +1,5 @@
+import { stripeEnvironment } from "./environment";
+import { assertStripeMode } from "./mode";
 import "server-only";
 import type Stripe from "stripe";
 import { stripe } from "./client";
@@ -11,19 +13,25 @@ export async function syncSubscription(
   event?: { id: string; type: string; hash: string },
 ) {
   return lock("stripe-subscription:" + id, async () => {
+    const environment = await stripeEnvironment();
     const s = await stripe().subscriptions.retrieve(id, {
       expand: ["latest_invoice"],
     });
-    if (s.livemode) throw new Error("Live subscriptions disabled");
+    assertStripeMode(s, environment.mode);
     const customer = stripeId(s.customer);
     const binding = checked(
       await db()
         .from("billing_customers")
-        .select("user_id")
+        .select("user_id,is_test")
         .eq("stripe_customer_id", customer!)
         .maybeSingle(),
     );
     if (!binding) return false; // Unrelated sandbox product/customer is never attached by client metadata.
+    if (
+      binding.is_test !== environment.isTest ||
+      (s.metadata.user_id && s.metadata.user_id !== binding.user_id)
+    )
+      throw new Error("Customer environment mismatch");
     const item = s.items.data[0];
     if (s.items.data.length !== 1 || !item)
       throw new Error("Unexpected subscription items");
@@ -40,7 +48,11 @@ export async function syncSubscription(
       item.quantity !== 1 ||
       item.price.currency !== "jpy" ||
       item.price.unit_amount !== version.amount ||
-      !version.is_test
+      version.is_test !== environment.isTest ||
+      item.price.livemode !== (environment.mode === "live") ||
+      item.price.product !== version.stripe_product_id ||
+      item.price.recurring?.interval !== "month" ||
+      item.price.recurring.interval_count !== 1
     )
       throw new Error("Subscription price mismatch");
     const invoices = await stripe().invoices.list({
@@ -48,10 +60,22 @@ export async function syncSubscription(
       limit: 24,
     });
     const rows = invoices.data.map((i) => {
-      const line =
-        i.lines.data.find(
-          (l) => l.pricing?.price_details?.price === item.price.id,
-        ) ?? i.lines.data[0];
+      const line = i.lines.data.find(
+        (l) => l.pricing?.price_details?.price === item.price.id,
+      );
+      assertStripeMode(i, environment.mode);
+      if (
+        stripeId(i.customer) !== customer ||
+        stripeId(i.parent?.subscription_details?.subscription) !== s.id ||
+        i.currency !== "jpy" ||
+        !line ||
+        i.lines.has_more ||
+        i.lines.data.length !== 1 ||
+        line.quantity !== 1 ||
+        (i.status === "paid" &&
+          (i.amount_paid !== version.amount || i.total !== version.amount))
+      )
+        throw new Error("Invoice mismatch");
       return {
         id: i.id,
         subscription_id: s.id,
@@ -64,7 +88,7 @@ export async function syncSubscription(
           : null,
         period_start: iso(line?.period.start ?? i.period_start),
         period_end: iso(line?.period.end ?? i.period_end),
-        is_test: true,
+        is_test: environment.isTest,
         created_at: iso(i.created),
       };
     });
@@ -93,7 +117,7 @@ export async function syncSubscription(
       canceled_at: s.canceled_at ? iso(s.canceled_at) : null,
       cancel_at_period_end: s.cancel_at_period_end || !!s.cancel_at,
       cancel_at: s.cancel_at ? iso(s.cancel_at) : null,
-      is_test: true,
+      is_test: environment.isTest,
       created_at: iso(s.created),
       updated_at: new Date().toISOString(),
     };
@@ -112,9 +136,15 @@ export async function syncSubscription(
 export async function subscriptionFromEvent(
   e: Stripe.Event,
 ): Promise<string | null> {
-  if (e.type.startsWith("customer.subscription."))
+  if (
+    [
+      "customer.subscription.created",
+      "customer.subscription.updated",
+      "customer.subscription.deleted",
+    ].includes(e.type)
+  )
     return (e.data.object as Stripe.Subscription).id;
-  if (e.type.startsWith("invoice."))
+  if (["invoice.paid", "invoice.payment_failed"].includes(e.type))
     return stripeId(
       (e.data.object as Stripe.Invoice).parent?.subscription_details
         ?.subscription,

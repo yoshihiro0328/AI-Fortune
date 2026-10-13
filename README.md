@@ -1,10 +1,10 @@
 # よりそい — 相手の心理診断 MVP
 
-無料診断から相手別の継続相談へ進めるNext.jsアプリ。無料月3回、Plus月額980円・請求期間30回、単発詳細診断980円。Stripe Sandbox専用。過去の1,980円購入は金額と閲覧権限を維持。
+無料診断から相手別の継続相談へ進めるNext.jsアプリ。無料月3回、Plus月額980円・請求期間30回、単発詳細診断980円。稼働中の公開環境はStripe Sandbox。過去の1,980円購入は金額と閲覧権限を維持。
 
 ## 状態
 
-実装・検証の最新状況は `docs/verification.md`。実決済は禁止しており、`sk_test_` / `rk_test_` 以外はサーバーが拒否します。Previewの運営情報は設定済みです。現在はテスト決済のみで実請求は発生しません。
+Stripe環境分離の最新状況は [実DB適用前レビュー](docs/stripe-isolation-review.md)。現在の作業はローカル検証・GitHub反映までで、実DB適用とPreview更新は承認待ちです。Sandboxはtestキーだけを受け付け、LiveはProduction・Live専用DB・アカウント等の一致と追加の明示スイッチが必要です。Previewの運営情報は設定済みです。現在はテスト決済のみで実請求は発生しません。
 
 ## Stack
 
@@ -27,7 +27,8 @@ npm run dev
 - `SUPABASE_SERVICE_ROLE_KEY`: サーバー専用のSupabase secret/service role。
 - `OPENAI_API_KEY`, `OPENAI_MODEL`: Structured Outputs対応モデル。モデル名は運営が選択。
 - `OPENAI_INPUT_USD_PER_MILLION`, `OPENAI_OUTPUT_USD_PER_MILLION`: 任意。価格未設定時の原価はnull（ゼロとは記録しない）。
-- `STRIPE_SECRET_KEY`: Sandboxのみ。新規価格はDBの`price_versions`で管理。`STRIPE_PAID_DIAGNOSIS_PRICE_ID`は旧購入の参考設定として残り、新規Checkoutには使用しません。
+- `STRIPE_MODE`, `STRIPE_ACCOUNT_ID`, `STRIPE_LIVE_CHECKOUT_ENABLED`: 環境・アカウントを明示。Previewはsandbox、Live Checkoutはfalse。
+- `STRIPE_SECRET_KEY`: 環境に一致するサーバー用キー。新規価格はDBの`price_versions`で管理。`STRIPE_PAID_DIAGNOSIS_PRICE_ID`は旧購入の参考設定として残り、新規Checkoutには使用しません。
 - `STRIPE_WEBHOOK_SECRET`: この配置先Webhookの署名シークレット。
 - `SESSION_SECRET`: 十分なランダム値。匿名Cookieのハッシュ用。変更すると匿名診断へアクセスできなくなります。
 - `CRON_SECRET`: ジョブ再実行エンドポイント用。
@@ -40,7 +41,7 @@ npm run dev
 
 `supabase/migrations` のDDL・初期10問を適用。管理する20テーブルでRLS有効。匿名ユーザーは256bit HttpOnly CookieでサーバーAPIだけにアクセス。DBにはHMACのみ保存。ユーザー入力で所有者IDを変更できません。会員には所有レコードのみの読み取りRLS。書き込み・決済更新・ジョブRPCはservice_role専用です。
 
-Supabase AuthのSite URLとRedirect URLsには公開URLと `/auth/callback`、`/auth/callback?next=recovery` を登録済み。メール＋パスワード登録、確認メール再送、ログイン、ログアウト、再設定に対応。確認済みユーザーへ匿名診断と支払いを一度だけ紐付けます。カスタムSMTPは未設定で、実際のメール到達は本番開始前に確認が必要です。
+Supabase AuthのSite URLとRedirect URLsには公開URLと `/auth/callback`、`/auth/callback?next=recovery` を登録済み。メール＋パスワード登録、確認メール再送、ログイン、ログアウト、再設定に対応。確認済みユーザーへ匿名診断と支払いを一度だけ紐付けます。カスタムSMTPは設定・メール到達確認済みという運営者の報告があります。今回のStripe作業ではAuth・SMTP設定を変更しません。
 
 質問は `diagnosis_questions` で管理。公開中の質問を途中で編集する場合は既存診断との整合性を確認してください。新規診断はv2として選択済み質問のスナップショットを保存し、既存v1はそのまま維持します。動的質問の仕組みは [動的診断](docs/dynamic-diagnosis.md) を参照。
 

@@ -1,3 +1,4 @@
+import { paymentEnvironment } from "../stripe/environment";
 import {
   advanceFlow,
   preparePaidQuestions,
@@ -260,6 +261,7 @@ export async function analyzeDiagnosis(id: string) {
   });
 }
 export async function generatePaid(id: string) {
+  await paymentEnvironment();
   const options = { deadline: Date.now() + 265000 };
   const ready = await lock("diagnosis:" + id, () =>
     preparePaidQuestions(id, options),

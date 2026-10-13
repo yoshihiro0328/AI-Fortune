@@ -1,3 +1,4 @@
+import { paymentEnvironment } from "../stripe/environment";
 import "server-only";
 import { identity, HttpError } from "@/lib/http";
 import { checked, db } from "@/lib/supabase/admin";
@@ -9,6 +10,7 @@ export async function member() {
       401,
       "続きから相談するにはログインしてください。新規登録した方は、確認メールの手続きも必要です。",
     );
+  await paymentEnvironment();
   return who.userId;
 }
 export async function ownThread(user: string, id: string) {

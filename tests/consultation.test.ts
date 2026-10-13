@@ -69,24 +69,33 @@ describe("continuing consultation boundaries", () => {
     };
     for (const amount_total of [980, 1980])
       expect(
-        paidSession({
-          ...session,
-          amount_total,
-        } as unknown as Stripe.Checkout.Session),
+        paidSession(
+          {
+            ...session,
+            amount_total,
+          } as unknown as Stripe.Checkout.Session,
+          "sandbox",
+        ),
       ).toBe(true);
     for (const amount_total of [0, 100, 1999])
       expect(
-        paidSession({
-          ...session,
-          amount_total,
-        } as unknown as Stripe.Checkout.Session),
+        paidSession(
+          {
+            ...session,
+            amount_total,
+          } as unknown as Stripe.Checkout.Session,
+          "sandbox",
+        ),
       ).toBe(false);
     expect(
-      paidSession({
-        ...session,
-        amount_total: 980,
-        mode: "subscription",
-      } as unknown as Stripe.Checkout.Session),
+      paidSession(
+        {
+          ...session,
+          amount_total: 980,
+          mode: "subscription",
+        } as unknown as Stripe.Checkout.Session,
+        "sandbox",
+      ),
     ).toBe(false);
   });
   it("never fabricates conversion rates when the denominator is absent", () => {

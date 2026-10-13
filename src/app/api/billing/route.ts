@@ -1,3 +1,7 @@
+import { assertCheckoutPrice } from "@/lib/stripe/checkout";
+import { stripeId } from "@/lib/stripe/subscriptions";
+import { stripeEnvironment } from "@/lib/stripe/environment";
+import { assertCheckoutEnabled, assertStripeMode } from "@/lib/stripe/mode";
 import { z } from "zod";
 import { exchangeExplanation } from "@/lib/display-copy";
 import { api, body, csrf, HttpError, rate, event } from "@/lib/http";
@@ -13,6 +17,7 @@ export async function GET() {
   return api(async () => {
     const user = await member();
     await rate("billing-read:" + user, 60, 3600);
+    await stripeEnvironment();
     const customer = checked(
       await db()
         .from("billing_customers")
@@ -67,6 +72,7 @@ export async function POST(req: Request) {
     );
     await rate("billing:" + user, 20, 3600);
     return lock("billing:" + user, async () => {
+      const environment = await stripeEnvironment();
       const s = stripe();
       let customer = checked(
         await db()
@@ -75,6 +81,13 @@ export async function POST(req: Request) {
           .eq("user_id", user)
           .maybeSingle(),
       );
+      if (customer) {
+        if (customer.is_test !== environment.isTest)
+          throw new Error("Customer environment mismatch");
+        const remote = await s.customers.retrieve(customer.stripe_customer_id);
+        if (remote.deleted) throw new Error("Customer deleted");
+        assertStripeMode(remote, environment.mode);
+      }
       if (input.action !== "checkout") {
         if (!customer) throw new HttpError(404, "契約が見つかりません。");
         if (input.action === "cancel") {
@@ -91,6 +104,7 @@ export async function POST(req: Request) {
               known?.some((k) => k.id === v.id) &&
               ["active", "past_due", "unpaid"].includes(v.status),
           )) {
+            assertStripeMode(sub, environment.mode);
             await s.subscriptions.update(sub.id, {
               cancel_at_period_end: true,
             });
@@ -106,6 +120,11 @@ export async function POST(req: Request) {
         );
         if (!settings?.portal_configuration_id)
           throw new Error("Portal not configured");
+        const configuration = await s.billingPortal.configurations.retrieve(
+          settings.portal_configuration_id,
+        );
+        assertStripeMode(configuration, environment.mode);
+        if (!configuration.active) throw new Error("Portal inactive");
         const portal = await s.billingPortal.sessions.create({
           customer: customer.stripe_customer_id,
           configuration: settings.portal_configuration_id,
@@ -118,18 +137,25 @@ export async function POST(req: Request) {
           400,
           "月額料金と自動更新・解約方法をご確認ください。",
         );
+      assertCheckoutEnabled();
       const { price, row } = await offer("plus");
       const limits = await serviceSettings();
       if (!customer) {
         const c = await s.customers.create(
           { metadata: { app: "yorisoi", user_id: user } },
-          { idempotencyKey: "yorisoi-customer:" + user },
+          {
+            idempotencyKey: "yorisoi-customer:" + environment.mode + ":" + user,
+          },
         );
-        if (c.livemode) throw new Error("Live customer disabled");
+        assertStripeMode(c, environment.mode);
         customer = checked(
           await db()
             .from("billing_customers")
-            .insert({ user_id: user, stripe_customer_id: c.id })
+            .insert({
+              user_id: user,
+              stripe_customer_id: c.id,
+              is_test: environment.isTest,
+            })
             .select("*")
             .single(),
         );
@@ -152,15 +178,46 @@ export async function POST(req: Request) {
         const previous = await s.checkout.sessions.retrieve(
           customer.checkout_session_id,
         );
-        if (previous.status === "open" && previous.url)
+        assertStripeMode(previous, environment.mode);
+        if (
+          previous.status === "open" &&
+          previous.url &&
+          previous.amount_total === price.unit_amount &&
+          previous.currency === "jpy" &&
+          previous.metadata?.user_id === user &&
+          stripeId(previous.customer) === customer.stripe_customer_id
+        ) {
+          await assertCheckoutPrice(
+            previous,
+            price,
+            environment.mode,
+            "subscription",
+          );
           return { url: previous.url };
+        }
+        if (previous.status === "open")
+          await s.checkout.sessions.expire(previous.id);
+        if (previous.status === "complete") {
+          const id = stripeId(previous.subscription);
+          const completed = id ? await s.subscriptions.retrieve(id) : null;
+          if (
+            !completed ||
+            !["canceled", "incomplete_expired"].includes(completed.status)
+          )
+            throw new HttpError(
+              409,
+              "契約の反映を確認しています。少し待ってからマイページをご確認ください。",
+            );
+          assertStripeMode(completed, environment.mode);
+        }
       }
       const session = await s.checkout.sessions.create(
         {
           mode: "subscription",
+          automatic_tax: { enabled: false },
           custom_text: {
             submit: {
-              message: `AIとのやり取りは契約期間ごとに${limits.plus_limit}往復まで。${exchangeExplanation}詳細診断は別料金です。現在はテスト決済のみで実請求は発生しません。`,
+              message: `AIとのやり取りは契約期間ごとに${limits.plus_limit}往復まで。${exchangeExplanation}詳細診断は別料金です。${environment.isTest ? "現在はテスト決済のみで実請求は発生しません。" : ""}`,
             },
           },
           customer: customer.stripe_customer_id,
@@ -175,10 +232,21 @@ export async function POST(req: Request) {
         },
         {
           idempotencyKey:
-            "plus:" + user + ":" + (customer.checkout_session_id ?? "initial"),
+            "plus:" +
+            environment.mode +
+            ":" +
+            user +
+            ":" +
+            (customer.checkout_session_id ?? "initial"),
         },
       );
-      if (session.livemode || !session.url) throw new Error("Invalid checkout");
+      assertStripeMode(session, environment.mode);
+      if (
+        session.amount_total !== price.unit_amount ||
+        session.currency !== "jpy" ||
+        !session.url
+      )
+        throw new Error("Invalid checkout");
       checked(
         await db()
           .from("billing_customers")

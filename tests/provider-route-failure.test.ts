@@ -25,7 +25,12 @@ vi.mock("@/lib/ai/pipeline", () => ({
 }));
 import { POST as contact } from "../src/app/api/contact/route";
 import { POST as checkout } from "../src/app/api/diagnoses/[id]/checkout/route";
+vi.mock("@/lib/stripe/environment", () => ({
+  stripeEnvironment: async () => ({ mode: "sandbox", isTest: true }),
+}));
 beforeEach(() => {
+  vi.stubEnv("STRIPE_MODE", "sandbox");
+  vi.stubEnv("VERCEL_ENV", "preview");
   mocks.from.mockReset();
   mocks.rpc.mockResolvedValue({
     data: null,

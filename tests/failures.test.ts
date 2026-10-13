@@ -49,7 +49,9 @@ describe("provider and network failures", () => {
     },
   );
   it("prevents enabling live Stripe by replacing a key", () => {
+    vi.stubEnv("STRIPE_MODE", "sandbox");
+    vi.stubEnv("VERCEL_ENV", "preview");
     vi.stubEnv("STRIPE_SECRET_KEY", "sk_live_test_fixture");
-    expect(() => stripe()).toThrow("Only Stripe sandbox keys");
+    expect(() => stripe()).toThrow("Stripe key environment mismatch");
   });
 });

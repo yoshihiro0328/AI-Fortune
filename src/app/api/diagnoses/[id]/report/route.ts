@@ -1,3 +1,4 @@
+import { paymentEnvironment } from "@/lib/stripe/environment";
 import { getPublicFlow } from "@/lib/questions/engine";
 import { api, csrf, owned, rate, HttpError } from "@/lib/http";
 import { db, checked } from "@/lib/supabase/admin";
@@ -9,16 +10,19 @@ export async function GET(
 ) {
   return api(async () => {
     const { id } = await params;
+    const environment = await paymentEnvironment();
     const d = await owned(id);
     if (d.status === "safety")
       return { status: "safety", report: null, attempts: 0 };
     const p = checked(
       await db()
         .from("payments")
-        .select("status")
+        .select("status,is_test")
         .eq("diagnosis_id", id)
         .maybeSingle(),
     );
+    if (p && p.is_test !== environment.isTest)
+      throw new Error("Report environment mismatch");
     if (p?.status !== "paid")
       throw new HttpError(
         403,
@@ -59,14 +63,17 @@ export async function POST(
   return api(async () => {
     csrf(req);
     const { id } = await params;
+    const environment = await paymentEnvironment();
     await owned(id);
     const p = checked(
       await db()
         .from("payments")
-        .select("status")
+        .select("status,is_test")
         .eq("diagnosis_id", id)
         .maybeSingle(),
     );
+    if (p && p.is_test !== environment.isTest)
+      throw new Error("Report environment mismatch");
     if (p?.status !== "paid")
       throw new HttpError(403, "決済が確認できません。");
     await rate("report:" + id, 8, 3600);

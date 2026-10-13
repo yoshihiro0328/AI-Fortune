@@ -3,7 +3,9 @@ import { createHash } from "node:crypto";
 import { after } from "next/server";
 import type Stripe from "stripe";
 import { stripe } from "@/lib/stripe/client";
-import { paidSession } from "@/lib/stripe/verify";
+import { reportEvent } from "@/lib/stripe/report-event";
+import { stripeEnvironment } from "@/lib/stripe/environment";
+import { assertStripeMode, stripeMode } from "@/lib/stripe/mode";
 import { required } from "@/lib/config";
 import { db, checked } from "@/lib/supabase/admin";
 import { generatePaid } from "@/lib/ai/pipeline";
@@ -32,9 +34,15 @@ export async function POST(req: Request) {
   } catch {
     return Response.json({ error: "Invalid signature" }, { status: 400 });
   }
-  if (e.livemode)
-    return Response.json({ error: "Live mode disabled" }, { status: 400 });
   try {
+    assertStripeMode(e);
+    assertStripeMode(e.data.object as { livemode?: boolean });
+    if (!/^evt_[A-Za-z0-9_]+$/.test(e.id)) throw new Error("Invalid event");
+  } catch {
+    return Response.json({ error: "Environment mismatch" }, { status: 400 });
+  }
+  try {
+    await stripeEnvironment();
     const subscription = await subscriptionFromEvent(e);
     if (subscription) {
       await syncSubscription(subscription, {
@@ -44,57 +52,12 @@ export async function POST(req: Request) {
       });
       return Response.json({ received: true });
     }
-    let session: string | null = null,
-      intent: string | null = null,
-      payment: string | null = null,
-      amount = 0,
-      currency = "jpy",
-      state = "",
-      diagnosis: string | null = null;
-    if (
-      e.type === "checkout.session.completed" ||
-      e.type === "checkout.session.async_payment_succeeded"
-    ) {
-      const s = e.data.object;
-      if (!paidSession(s))
-        return Response.json({ received: true, fulfilled: false });
-      session = s.id;
-      intent =
-        typeof s.payment_intent === "string"
-          ? s.payment_intent
-          : (s.payment_intent?.id ?? null);
-      payment = s.metadata!.payment_id;
-      diagnosis = s.metadata!.diagnosis_id;
-      amount = s.amount_total!;
-      currency = s.currency!;
-      state = "paid";
-    } else if (e.type === "payment_intent.payment_failed") {
-      const p = e.data.object;
-      intent = p.id;
-      payment = p.metadata.payment_id ?? null;
-      state = "failed";
-    } else if (e.type === "charge.refunded") {
-      const c = e.data.object;
-      intent =
-        typeof c.payment_intent === "string"
-          ? c.payment_intent
-          : (c.payment_intent?.id ?? null);
-      payment = c.metadata.payment_id ?? null;
-      state = "refunded";
-    } else return Response.json({ received: true });
-    if (!payment && !intent) return Response.json({ received: true });
-    if (!payment) {
-      const known = checked(
-        await db()
-          .from("payments")
-          .select("id")
-          .eq("stripe_payment_intent_id", intent!)
-          .maybeSingle(),
-      );
-      if (!known) return Response.json({ received: true });
-    }
+    const purchase = await reportEvent(e, stripeMode());
+    if (!purchase) return Response.json({ received: true });
+    const { session, intent, payment, amount, currency, state, diagnosis } =
+      purchase;
     checked(
-      await db().rpc("apply_stripe_event", {
+      await db().rpc("apply_stripe_event_v2", {
         p_event: e.id,
         p_type: e.type,
         p_hash: createHash("sha256").update(raw).digest("hex"),
@@ -104,6 +67,8 @@ export async function POST(req: Request) {
         p_amount: amount,
         p_currency: currency,
         p_state: state,
+        p_is_test: stripeMode() === "sandbox",
+        p_customer: purchase.customer,
       }),
     );
     if (state === "paid" && diagnosis)

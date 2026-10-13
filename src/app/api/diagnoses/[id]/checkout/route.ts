@@ -1,3 +1,6 @@
+import { assertCheckoutPrice } from "@/lib/stripe/checkout";
+import { stripeEnvironment } from "@/lib/stripe/environment";
+import { assertCheckoutEnabled, assertStripeMode } from "@/lib/stripe/mode";
 import { api, csrf, owned, rate, event, HttpError } from "@/lib/http";
 import { db, checked } from "@/lib/supabase/admin";
 import { stripe } from "@/lib/stripe/client";
@@ -26,6 +29,8 @@ export async function POST(
     )
       throw new HttpError(409, "先に無料診断を完了してください。");
     return lock("checkout:" + id, async () => {
+      const environment = await stripeEnvironment();
+      assertCheckoutEnabled();
       const s = stripe();
       let p = checked(
         await db()
@@ -34,8 +39,10 @@ export async function POST(
           .eq("diagnosis_id", id)
           .maybeSingle(),
       );
+      if (p && p.is_test !== environment.isTest)
+        throw new Error("Payment environment mismatch");
       if (p?.status === "paid") return { url: appUrl() + "/report/" + id };
-      const { price } = await offer("report");
+      const { price, row } = await offer("report");
       if (!p)
         p = checked(
           await db()
@@ -44,7 +51,8 @@ export async function POST(
               diagnosis_id: id,
               user_id: d.user_id,
               amount: price.unit_amount,
-              is_test: true,
+              is_test: environment.isTest,
+              price_version: row.id,
             })
             .select("*")
             .single(),
@@ -59,9 +67,21 @@ export async function POST(
         const previous = await s.checkout.sessions.retrieve(
           p.stripe_checkout_session_id,
         );
+        assertStripeMode(previous, environment.mode);
         if (previous.status === "open" && previous.url) {
-          if (previous.amount_total === price.unit_amount)
+          if (
+            previous.amount_total === price.unit_amount &&
+            previous.currency === "jpy" &&
+            previous.metadata?.payment_id === p.id
+          ) {
+            await assertCheckoutPrice(
+              previous,
+              price,
+              environment.mode,
+              "payment",
+            );
             return { url: previous.url };
+          }
           await s.checkout.sessions.expire(previous.id);
         }
         if (previous.status === "complete")
@@ -70,11 +90,11 @@ export async function POST(
             "決済を確認しています。結果画面でお待ちください。",
           );
       }
-      if (p.amount !== price.unit_amount) {
+      if (p.amount !== price.unit_amount || p.price_version !== row.id) {
         checked(
           await db()
             .from("payments")
-            .update({ amount: price.unit_amount })
+            .update({ amount: price.unit_amount, price_version: row.id })
             .eq("id", p.id)
             .in("status", ["pending", "failed"]),
         );
@@ -82,6 +102,7 @@ export async function POST(
       const session = await s.checkout.sessions.create(
         {
           mode: "payment",
+          automatic_tax: { enabled: false },
           line_items: [{ price: price.id, quantity: 1 }],
           client_reference_id: id,
           metadata: { payment_id: p.id, diagnosis_id: id },
@@ -95,12 +116,20 @@ export async function POST(
         {
           idempotencyKey:
             "checkout:" +
+            environment.mode +
+            ":" +
             p.id +
             ":" +
             (p.stripe_checkout_session_id ?? "initial"),
         },
       );
-      if (session.livemode || !session.url) throw new Error("Invalid checkout");
+      assertStripeMode(session, environment.mode);
+      if (
+        session.amount_total !== price.unit_amount ||
+        session.currency !== "jpy" ||
+        !session.url
+      )
+        throw new Error("Invalid checkout");
       checked(
         await db()
           .from("payments")
