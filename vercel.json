@@ -1,0 +1,18 @@
+{
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/reports",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/mail",
+      "schedule": "0 2 * * *"
+    }
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "codex/partner-mind-mvp": false
+    }
+  }
+}
