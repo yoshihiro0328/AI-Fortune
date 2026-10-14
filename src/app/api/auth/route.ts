@@ -34,6 +34,9 @@ export async function POST(req: Request) {
     const who = await identity(true);
     const action = input.action;
     await rateIP(req, "auth", 40, 3600);
+    // Signup attempts share a daily IP budget across browser sessions and email addresses.
+    // Existing accounts, monthly consultation limits and purchases remain unaffected.
+    if (action === "signup") await rateIP(req, "auth-signup", 3, 86400);
     await rate(
       "auth:" + action + ":" + who.session,
       action === "login" ? 10 : 5,

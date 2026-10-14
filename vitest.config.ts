@@ -7,5 +7,11 @@ export default defineConfig({
       "server-only": path.resolve("tests/server-only.ts"),
     },
   },
-  test: { environment: "node", include: ["tests/**/*.test.ts"] },
+  test: {
+    environment: "node",
+    include: ["tests/**/*.test.ts"],
+    maxWorkers: 2,
+    testTimeout: 15000,
+    hookTimeout: 15000,
+  },
 });

@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Visit from "@/components/visit";
 import "./globals.css";
+import "./phase6.css";
+import Phase6Shell from "@/components/phase6/shell";
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_APP_URL ||
@@ -36,7 +38,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <a className="skip" href="#main">
           本文へ
         </a>
-        <header>
+        <header className="legacy-header">
           <Link className="brand" href="/">
             よりそい<span>YORISOI</span>
           </Link>
@@ -52,8 +54,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           </nav>
         </header>
-        <Visit />
-        {children}
+        {process.env.NEXT_PUBLIC_SUPABASE_URL ? <Visit /> : null}
+        <Phase6Shell>{children}</Phase6Shell>
         <footer>
           <div className="brand">
             よりそい<span>あなたのペースで、一歩ずつ。</span>

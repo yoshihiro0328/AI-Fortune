@@ -12,7 +12,8 @@
   ],
   "git": {
     "deploymentEnabled": {
-      "codex/partner-mind-mvp": false
+      "codex/partner-mind-mvp": false,
+      "codex/yorisoi-phase6-redesign": false
     }
   }
 }
