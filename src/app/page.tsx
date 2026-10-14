@@ -1,4 +1,8 @@
 import Home from "@/components/phase6/home";
-export default function Page() {
-  return <Home />;
+import { connection } from "next/server";
+import { trialAvailability } from "@/lib/trial/availability";
+export default async function Page() {
+  await connection();
+  const availability = await trialAvailability();
+  return <Home trialEnabled={availability.enabled} />;
 }

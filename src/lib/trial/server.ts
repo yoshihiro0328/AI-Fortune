@@ -14,6 +14,7 @@ import {
   type Intake,
 } from "./topics";
 import { structured, GenerationFailure } from "@/lib/ai-engine/structured";
+import { trialAvailability } from "./availability";
 import { localSafety, trialPrompt, safetyFallback } from "./prompt";
 const cookie = "yorisoi_trial";
 export class TrialError extends HttpError {
@@ -139,13 +140,12 @@ const decryptAnswer = (t: StoredTurn, h: string) =>
     `${h}:${t.request_id}:answer`,
   );
 export async function readSession() {
+  const availability = await trialAvailability();
   const h = await token(false);
   if (!h)
     return {
       active: false,
-      enabled: runtimeEnabled(),
-      maxLength: 800,
-      retentionHours: 24,
+      ...availability,
       siteKey: process.env.NEXT_PUBLIC_TRIAL_TURNSTILE_SITE_KEY ?? null,
     };
   let stored: Stored;
@@ -155,8 +155,7 @@ export async function readSession() {
     if (e instanceof TrialError && e.code === "expired")
       return {
         active: false,
-        enabled: runtimeEnabled(),
-        maxLength: 800,
+        ...availability,
         expired: true,
       };
     throw e;
@@ -164,7 +163,7 @@ export async function readSession() {
   const cfg = await policy();
   return {
     active: true,
-    enabled: runtimeEnabled() && cfg.enabled,
+    enabled: availability.enabled,
     maxLength: cfg.text_limit,
     retentionHours: cfg.retention_seconds / 3600,
     ...stored,
@@ -293,7 +292,8 @@ export async function sendTurn(req: Request) {
   let answer: string | null = null,
     safety = false,
     usage: { input: number; output: number; providerId: string } | undefined,
-    notSent = false;
+    notSent = false,
+    anomaly = false;
   try {
     const safe = localSafety(
       [input.text, ...Object.values(input.fields)].join("\n"),
@@ -305,6 +305,7 @@ export async function sendTurn(req: Request) {
     } else {
       const result = await structured({
         apiKey: required("TRIAL_OPENAI_API_KEY"),
+        projectId: required("TRIAL_OPENAI_PROJECT_ID"),
         model: r.call.model,
         prompt: trialPrompt(input),
         input,
@@ -320,8 +321,10 @@ export async function sendTurn(req: Request) {
     if (e instanceof GenerationFailure) {
       usage = e.usage;
       notSent = e.notSent;
+      anomaly = e.anomaly;
     }
   }
+  if (anomaly) await rpc("trial_pause");
   await rpc("trial_finish", {
     p_call: r.call.id,
     p_lease: r.lease,

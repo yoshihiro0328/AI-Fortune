@@ -1,12 +1,14 @@
 # 匿名相談：設計、検証境界、運用・復旧手順
 
+最終改善の差分・現行の承認条件は [safety-review.md](safety-review.md) を優先。TOPの有効判定、日跨ぎ/未精算予算、遅延精算、保持説明、監視を補強済み。
+
 ## 有効化状態
 
 **初期状態はOFF。実DB未適用・デプロイ未実施。** `TRIAL_ENABLED=false`、DB `trial_private.settings.enabled=false`。実行環境sandbox・Stripe sandbox・Vercel Production以外・予算検証済み・保持検証済みのサーバー設定がすべて必要。現時点では検証済みフラグをtrueにしない。
 
 ## 予算・AI
 
-- nano USD整数（1ドル=1,000,000,000）で管理。匿名Sandboxだけに日$3、直近30日$90。日付はAsia/Tokyo。既存会員AI・決済には影響しない。
+- nano USD整数（1ドル=1,000,000,000）で管理。匿名Sandboxだけに日$3、直近24時間＋過去の未精算予約も$3、直近30日$90。日付はAsia/Tokyo。既存会員AI・決済には影響しない。
 - `settings`の一行をロックし、セッション枠と予算を同一トランザクションで予約。新規callは記録が成功するまでAIを呼ばない。残高はsettledまたはreservedを集計する。
 - `gpt-6-luna` Standardの入力最大単価（cache writeを含む）$0.125/M、出力$0.50/M。入力3000・出力1200 tokenの最大費用に2倍の余裕を予約：**$0.00195/呼出し**。料金表はモデル名・version・有効期限を持ち、未知/期限切れは停止。
 - 公式input token countに、実際と同じsystem/user/schemaを渡し、全入力3000超なら生成しない。max_output_tokens=1200は推論込み。再試行・上位モデルfallback・ツール呼び出しはなし。store=false、service_tier=default。
@@ -48,7 +50,7 @@
 
 `GET /api/cron/trial`は専用Bearerで保護。`trial_cleanup()`が期限切れ本文、challenge、counter、新設signup制限の期限切れキーを削除しheartbeatを記録。heartbeatが10分以上古い場合、新規発行・AI予約は停止する。
 
-**実際の定期実行は未設定。** 承認後、1分等の十分短い周期で実行・監視する。現在のVercel cron設定は変更していない。新規有料リソースも作成していない。
+**実際の定期実行は未設定。** 承認後、Supabase Cronで毎分実行し、別経路で毎分監視する。Vercel CronはPreviewを実行しない。現在のVercel cron設定は変更していない。新規有料リソースも作成していない。
 
 **P1の未解決リリース条件：** 読み取り期限は厳密に24hだが、物理削除はscheduler遅延・停止の影響を受ける。DBバックアップ/PITRにはciphertextが残り、共通鍵があれば復号できる。OpenAIの不正利用監視ログ、Vercel/Turnstileのログ保持も自サービスDBとは別である。厳密な本文保持24hを満たすには、バックアップから独立した期限付き鍵管理または同等の運用保証・外部事業者の保持設定が必要。現状を「24hで全コピーが消える」と保証せず、`TRIAL_RETENTION_VERIFIED=false`を維持する。
 
@@ -58,12 +60,12 @@
 
 ## 適用前チェックと復旧
 
-1. 承認前には実DBへ適用しない。適用対象は `20261014151638_trial_foundation.sql` 1件だけ。
-2. 既存ローカルの過去migration名は実DB履歴と時刻が異なる。過去ファイルの一括db push・repairをしない。実14件を読み取り取得した専用stageに承認済み新規1件のみを追加し、dry-runを確認する。
+1. 承認前には実DBへ適用しない。適用対象は `20261014151638_trial_foundation.sql` と `20261014160317_trial_safety_hardening.sql` の2件を順番に。
+2. 既存ローカルの過去migration名は実DB履歴と時刻が異なる。過去ファイルの一括db push・repairをしない。実14件を読み取り取得した専用stageに承認済み新規2件のみを追加し、dry-runを確認する。
 3. 実行直前に再度HEAD、Preview、14件履歴、決済件数/照合、RLS、payment_environment=sandboxを確認。新しいバックアップを取得し復元を確認。今回検証したバックアップ原本を上書きしない。
 4. 有効化前の戻し方は、アプリの新branchを使わず安定版を維持すること。実DBへ適用した後も、まずTRIAL_ENABLED=falseとDB enabled=falseで停止する。既存購入データをrestoreで巻き戻さない。
 5. 新schemaを削除する逆migrationはデータ消失を伴うため自動実行しない。会員へ保存済みの相談は保護する。整合性障害なら現状態を保全し、隔離DBへ復元して調査する。
-6. 今回Dockerの合成データで全15migrationを適用し、旧1980円/980円・設定・RLSの不変、dump→別DB復元、期限削除を検証した。既存ユーザーデータを隔離試験へコピーしていない。
+6. 今回Dockerの合成データで全16migrationを適用し、旧1980円/980円・設定・RLSの不変、dump→別DB復元、期限削除を検証した。既存ユーザーデータを隔離試験へコピーしていない。
 
 ## Git/Preview
 

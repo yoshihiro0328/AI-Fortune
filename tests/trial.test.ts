@@ -62,6 +62,7 @@ describe("trial validation and isolation", () => {
       STRIPE_MODE: "sandbox",
       TRIAL_RETENTION_VERIFIED: "true",
       TRIAL_BUDGET_VERIFIED: "true",
+      TRIAL_OPENAI_PROJECT_ID: "proj_synthetic",
     };
     expect(runtimeEnabled(env)).toBe(true);
     expect(runtimeEnabled({ ...env, VERCEL_ENV: "production" })).toBe(false);

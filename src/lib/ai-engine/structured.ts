@@ -7,6 +7,7 @@ export class GenerationFailure extends Error {
   constructor(
     public usage?: Usage,
     public notSent = false,
+    public anomaly = false,
   ) {
     super("Generation failed");
   }
@@ -31,6 +32,7 @@ export function costNusd(
 }
 export async function structured<T>(args: {
   apiKey: string;
+  projectId?: string;
   model: string;
   prompt: string;
   input: unknown;
@@ -38,9 +40,12 @@ export async function structured<T>(args: {
   inputLimit: number;
   outputLimit: number;
 }) {
-  // No implicit SDK retry, model fallback, tools, cache writes request or stored response.
+  // Cache pricing is reserved at the highest input rate; store:false is not ZDR.
   const client = new OpenAI({
     apiKey: args.apiKey,
+    project: args.projectId,
+    baseURL: "https://api.openai.com/v1",
+    organization: null,
     maxRetries: 0,
     timeout: 25000,
   });
@@ -76,12 +81,23 @@ export async function structured<T>(args: {
       text,
       max_output_tokens: args.outputLimit,
     });
-    if (response.usage)
+    if (
+      response.usage &&
+      [response.usage.input_tokens, response.usage.output_tokens].every(
+        (v) => Number.isSafeInteger(v) && v >= 0,
+      )
+    )
       usage = {
         input: response.usage.input_tokens,
         output: response.usage.output_tokens,
         providerId: response.id,
       };
+    if (
+      !usage ||
+      response.model !== args.model ||
+      response.service_tier !== "default"
+    )
+      throw new GenerationFailure(undefined, false, true);
     if (!usage || response.status !== "completed")
       throw new GenerationFailure(usage);
     return { value: args.schema.parse(response.output_parsed), usage };

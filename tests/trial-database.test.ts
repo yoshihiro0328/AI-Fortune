@@ -350,4 +350,152 @@ describe("trial transactional database", () => {
     );
     expect(f.rows[0].n).toBe(0);
   });
+  it("settles late usage after cleanup without restoring expired plaintext", async () => {
+    await setup();
+    await session();
+    const r = await reserve();
+    await pg.exec(
+      "update trial_private.sessions set expires_at=now()-interval '1 second';update trial_private.turns set lease_until=now()-interval '1 second'",
+    );
+    await rpc("trial_cleanup");
+    expect(
+      (
+        await rpc("trial_finish", [
+          r.call.id,
+          r.lease,
+          "late",
+          false,
+          4000,
+          2000,
+          "resp_late",
+          false,
+        ])
+      ).error,
+    ).toBe("expired");
+    const rows = await pg.query<{
+      settled_nusd: number;
+      turn_id: string | null;
+    }>("select settled_nusd,turn_id from trial_private.calls");
+    expect(Number(rows.rows[0].settled_nusd)).toBe(1500000);
+    expect(rows.rows[0].turn_id).toBeNull();
+    expect((await rpc("trial_policy")).enabled).toBe(false);
+    await rpc("trial_finish", [
+      r.call.id,
+      r.lease,
+      null,
+      false,
+      null,
+      null,
+      null,
+      true,
+    ]);
+    expect(
+      (await pg.query("select settled_nusd,turn_id from trial_private.calls"))
+        .rows,
+    ).toEqual(rows.rows);
+  });
+  it("midnight and older unresolved calls cannot open another daily budget", async () => {
+    await setup();
+    await session();
+    const r = await reserve();
+    await pg.exec(
+      "update trial_private.calls set budget_day=budget_day-1;update trial_private.settings set daily_nusd=2000000",
+    );
+    await session("d".repeat(64), "e".repeat(64), "f".repeat(64));
+    expect((await reserve("d".repeat(64))).error).toBe("budget");
+    await pg.exec(
+      "update trial_private.calls set created_at=now()-interval '2 days',status='uncertain'",
+    );
+    expect((await reserve("d".repeat(64))).error).toBe("budget");
+    expect((await rpc("trial_availability")).enabled).toBe(false);
+    expect(r.call.reserved_nusd).toBe(1950000);
+  });
+  it("heartbeat expiry, failed deletion, recovery and price expiry fail closed", async () => {
+    await setup();
+    await session();
+    await pg.exec(
+      "update trial_private.settings set cleaned_at=now()-interval '11 minutes'",
+    );
+    expect((await rpc("trial_availability")).enabled).toBe(false);
+    await rpc("trial_cleanup");
+    expect((await rpc("trial_policy")).enabled).toBe(false);
+    await pg.exec(
+      "update trial_private.settings set enabled=true,cleaned_at=now()-interval '11 minutes';update trial_private.sessions set expires_at=now()-interval '1 second';create function public.fail_purge() returns trigger language plpgsql as $$begin raise exception 'synthetic purge failure';end $$;create trigger fail_purge before delete on trial_private.sessions for each row execute function public.fail_purge();",
+    );
+    await expect(rpc("trial_cleanup")).rejects.toThrow(
+      "synthetic purge failure",
+    );
+    expect((await rpc("trial_availability")).enabled).toBe(false);
+    expect((await rpc("trial_read", [h])).error).toBe("expired");
+    await pg.exec("drop trigger fail_purge on trial_private.sessions");
+    await rpc("trial_cleanup");
+    await pg.exec(
+      "update trial_private.settings set enabled=true;update trial_private.prices set valid_until=now()-interval '1 second'",
+    );
+    expect((await rpc("trial_availability")).enabled).toBe(false);
+  });
+  it("purging unsettled old liability disables service rather than silently resetting budget", async () => {
+    await setup();
+    await session();
+    await reserve();
+    await pg.exec(
+      "update trial_private.calls set created_at=now()-interval '36 days'",
+    );
+    await rpc("trial_cleanup");
+    expect((await rpc("trial_policy")).enabled).toBe(false);
+  });
+  it("claimed foreign turn IDs and deleted content cannot enter a member thread", async () => {
+    await setup();
+    await session();
+    const own = await success();
+    const foreign = "d".repeat(64);
+    await session(foreign, "e".repeat(64), "f".repeat(64));
+    const another = await success(foreign);
+    await pg.exec(
+      `insert into auth.users(id,email_confirmed_at) values('${user}',now())`,
+    );
+    expect(
+      (
+        await rpc("trial_claim", [
+          h,
+          user,
+          another.turnId,
+          "foreign",
+          "foreign",
+          "general",
+          {},
+        ])
+      ).error,
+    ).toBe("conflict");
+    await rpc("trial_delete_content", [h]);
+    expect(
+      (
+        await rpc("trial_claim", [
+          h,
+          user,
+          own.turnId,
+          "own",
+          "own",
+          "general",
+          {},
+        ])
+      ).error,
+    ).toBe("conflict");
+    expect(
+      (await pg.query("select * from public.consultation_threads")).rows,
+    ).toHaveLength(0);
+  });
+  it("all trial tables enforce RLS and every public trial RPC denies browser roles", async () => {
+    await setup();
+    const tables = await pg.query<{ relname: string; relrowsecurity: boolean }>(
+      "select relname,relrowsecurity from pg_class where relkind='r' and (relnamespace='trial_private'::regnamespace or relname='trial_thread_context')",
+    );
+    expect(tables.rows).toHaveLength(8);
+    expect(tables.rows.every((t) => t.relrowsecurity)).toBe(true);
+    const grants = await pg.query<{ role: string; allowed: boolean }>(
+      "select r.role,has_function_privilege(r.role,p.oid,'EXECUTE') allowed from pg_proc p cross join (values('anon'),('authenticated')) r(role) where p.pronamespace='public'::regnamespace and p.proname like 'trial_%'",
+    );
+    expect(grants.rows).toHaveLength(22);
+    expect(grants.rows.some((g) => g.allowed)).toBe(false);
+  });
 });

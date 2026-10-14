@@ -46,7 +46,8 @@ export function runtimeEnabled(
     env.STRIPE_MODE === "sandbox" &&
     env.VERCEL_ENV !== "production" &&
     env.TRIAL_RETENTION_VERIFIED === "true" &&
-    env.TRIAL_BUDGET_VERIFIED === "true"
+    env.TRIAL_BUDGET_VERIFIED === "true" &&
+    /^proj_[A-Za-z0-9_-]+$/.test(env.TRIAL_OPENAI_PROJECT_ID ?? "")
   );
 }
 export function trustedIp(

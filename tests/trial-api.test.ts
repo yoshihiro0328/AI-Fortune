@@ -53,6 +53,8 @@ vi.mock("openai", () => ({
     responses = { inputTokens: { count: state.count }, parse: state.generate };
   },
 }));
+import { GET as cleanup } from "@/app/api/cron/trial/route";
+import { GET as health } from "@/app/api/cron/trial/health/route";
 import { POST as authPost } from "@/app/api/auth/route";
 import { GET as read, POST as create } from "@/app/api/trial/session/route";
 import { POST as send } from "@/app/api/trial/turns/route";
@@ -91,6 +93,7 @@ beforeEach(async () => {
     STRIPE_MODE: "sandbox",
     TRIAL_RETENTION_VERIFIED: "true",
     TRIAL_BUDGET_VERIFIED: "true",
+    TRIAL_OPENAI_PROJECT_ID: "proj_synthetic",
     TRIAL_SESSION_SECRET: "synthetic-session-secret",
     SESSION_SECRET: "synthetic-auth-secret",
     TRIAL_ABUSE_SECRET: "synthetic-abuse-secret",
@@ -117,6 +120,8 @@ beforeEach(async () => {
   state.generate.mockResolvedValue({
     id: "resp_synthetic",
     status: "completed",
+    model: "gpt-6-luna",
+    service_tier: "default",
     usage: { input_tokens: 200, output_tokens: 100 },
     output_parsed: {
       answer:
@@ -157,12 +162,16 @@ describe("real route -> encrypted DB -> synthetic provider -> claim", () => {
   it("replaces an expired session even when the old cookie is still present", async () => {
     expect((await create(sessionReq())).status).toBe(200);
     const oldCookie = state.jar.get("yorisoi_trial");
-    await pg.exec("update trial_private.sessions set expires_at=now()-interval '1 second'");
+    await pg.exec(
+      "update trial_private.sessions set expires_at=now()-interval '1 second'",
+    );
     expect((await (await read()).json()).active).toBe(false);
-    const response = await create(req("/api/trial/session", {
-      consentVersion: "trial-2026-10-15",
-      challengeToken: "synthetic-renewal",
-    }));
+    const response = await create(
+      req("/api/trial/session", {
+        consentVersion: "trial-2026-10-15",
+        challengeToken: "synthetic-renewal",
+      }),
+    );
     expect(response.status).toBe(200);
     expect((await response.json()).active).toBe(true);
     expect(state.jar.get("yorisoi_trial")).not.toEqual(oldCookie);
@@ -293,6 +302,8 @@ describe("real route -> encrypted DB -> synthetic provider -> claim", () => {
     state.generate.mockResolvedValue({
       id: "resp_bad",
       status: "completed",
+      model: "gpt-6-luna",
+      service_tier: "default",
       usage: { input_tokens: 50, output_tokens: 10 },
       output_parsed: { answer: "", safety: false },
     });
@@ -382,5 +393,155 @@ describe("real route -> encrypted DB -> synthetic provider -> claim", () => {
     expect((await create(sessionReq())).status).toBe(503);
     expect(state.rpc).not.toHaveBeenCalled();
     expect(state.generate).not.toHaveBeenCalled();
+  });
+  it("binds generation and token counting to a dedicated project and fixed official endpoint", async () => {
+    await create(sessionReq());
+    await send(req("/api/trial/turns", intake));
+    expect(state.construct).toHaveBeenCalledWith(
+      expect.objectContaining({
+        project: "proj_synthetic",
+        baseURL: "https://api.openai.com/v1",
+        organization: null,
+        maxRetries: 0,
+      }),
+    );
+    const count = state.count.mock.calls[0][0],
+      generated = state.generate.mock.calls[0][0];
+    expect(count.input).toEqual(generated.input);
+    expect(count.text).toEqual(generated.text);
+    expect(count.model).toEqual(generated.model);
+    const rows = await pg.query<{
+      input_tokens: number;
+      output_tokens: number;
+      settled_nusd: number;
+    }>(
+      "select input_tokens,output_tokens,settled_nusd from trial_private.calls",
+    );
+    expect(rows.rows[0].input_tokens).toBe(200);
+    expect(rows.rows[0].output_tokens).toBe(100);
+    expect(Number(rows.rows[0].settled_nusd)).toBe(75000);
+  });
+  it.each(["model", "service_tier", "usage"])(
+    "unexpected provider %s pauses generation and retains the cost reservation",
+    async (field) => {
+      await create(sessionReq());
+      const response = await state.generate();
+      state.generate.mockClear();
+      response[field] =
+        field === "usage"
+          ? { input_tokens: -1, output_tokens: 0 }
+          : "unverified";
+      state.generate.mockResolvedValue(response);
+      expect((await send(req("/api/trial/turns", intake))).status).toBe(503);
+      expect(
+        (
+          await pg.query<{ enabled: boolean }>(
+            "select enabled from trial_private.settings",
+          )
+        ).rows[0].enabled,
+      ).toBe(false);
+      expect(
+        (
+          await pg.query<{ settled_nusd: number | null }>(
+            "select settled_nusd from trial_private.calls",
+          )
+        ).rows[0].settled_nusd,
+      ).toBeNull();
+      expect((await (await read()).json()).enabled).toBe(false);
+    },
+  );
+  it("all browser mutations reject a foreign or missing Origin before DB access", async () => {
+    for (const originValue of ["https://attacker.example", ""]) {
+      state.rpc.mockClear();
+      expect(
+        (await create(req("/api/trial/session", {}, originValue))).status,
+      ).toBe(403);
+      expect(
+        (await send(req("/api/trial/turns", intake, originValue))).status,
+      ).toBe(403);
+      expect(
+        (await claim(req("/api/trial/claim", {}, originValue))).status,
+      ).toBe(403);
+      expect(
+        (
+          await erase(
+            new Request(origin + "/api/trial/session/content", {
+              method: "DELETE",
+              headers: { origin: originValue },
+            }),
+          )
+        ).status,
+      ).toBe(403);
+      expect(state.rpc).not.toHaveBeenCalled();
+    }
+  });
+  it("maintenance and health require the dedicated bearer; observing health never refreshes heartbeat", async () => {
+    vi.stubEnv("TRIAL_CLEANUP_SECRET", "synthetic-maintenance");
+    for (const handler of [cleanup, health])
+      expect(
+        (await handler(new Request(origin + "/api/cron/trial"))).status,
+      ).toBe(401);
+    const request = new Request(origin + "/api/cron/trial", {
+      headers: { authorization: "Bearer synthetic-maintenance" },
+    });
+    await pg.exec(
+      "update trial_private.settings set cleaned_at=now()-interval '11 minutes'",
+    );
+    expect((await health(request)).status).toBe(503);
+    expect((await (await read()).json()).enabled).toBe(false);
+    expect((await cleanup(request)).status).toBe(200);
+    expect((await health(request)).status).toBe(200);
+    expect((await (await read()).json()).enabled).toBe(false); // recovery stays paused
+  });
+  it("a forged ownership cookie cannot read, erase or transfer another session", async () => {
+    await create(sessionReq());
+    await send(req("/api/trial/turns", intake));
+    state.jar.set("yorisoi_trial", "x".repeat(43));
+    const response = await (await read()).json();
+    expect(response.active).toBe(false);
+    expect(response.turn).toBeUndefined();
+    expect(
+      (
+        await erase(
+          new Request(origin + "/api/trial/session/content", {
+            method: "DELETE",
+            headers: { origin },
+          }),
+        )
+      ).status,
+    ).toBe(410);
+    state.user = {
+      id: user,
+      email: "synthetic@example.com",
+      email_confirmed_at: new Date().toISOString(),
+    };
+    expect(
+      (
+        await claim(
+          req("/api/trial/claim", {
+            consent: true,
+            expectedEmail: state.user.email,
+          }),
+        )
+      ).status,
+    ).toBe(410);
+    expect(
+      (await pg.query("select * from public.consultation_threads")).rows,
+    ).toHaveLength(0);
+    expect(
+      (
+        await pg.query<{ payload: string }>(
+          "select payload from trial_private.turns",
+        )
+      ).rows[0].payload,
+    ).toBeTruthy();
+  });
+  it("unknown DB errors never expose query text or user content", async () => {
+    await create(sessionReq());
+    state.rpc.mockRejectedValue(new Error("private SQL and consultation text"));
+    const response = await send(req("/api/trial/turns", intake));
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain("private SQL");
+    expect(response.headers.get("cache-control")).toContain("no-store");
   });
 });

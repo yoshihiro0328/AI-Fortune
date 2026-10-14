@@ -16,7 +16,11 @@ const worries = [
   ["distance", "最近、少しすれ違っている", Users],
   ["reunion", "これからの向き合い方を考えたい", ArrowsClockwise],
 ] as const;
-export default function Home() {
+export default function Home({
+  trialEnabled = false,
+}: {
+  trialEnabled?: boolean;
+}) {
   return (
     <main id="main" className="p6-main">
       <div className="p6-home-grid">
@@ -28,13 +32,18 @@ export default function Home() {
             話してみませんか。
           </h1>
           <p>うまくまとまっていなくても、大丈夫。</p>
-          <Link className="p6-button p6-hero-button" href="/chat">
+          <Link
+            className="p6-button p6-hero-button"
+            href={trialEnabled ? "/chat" : "/diagnosis/partner-mind"}
+          >
             <ChatCircleDots size={28} aria-hidden />
-            すぐ相談する
+            {trialEnabled ? "すぐ相談する" : "じっくり無料診断する"}
             <ArrowRight size={20} aria-hidden />
           </Link>
           <p className="p6-small p6-center">
-            登録なし・1回答無料。診断は不要です。
+            {trialEnabled
+              ? "登録なし・1回答無料。診断は不要です。"
+              : "登録なし相談は現在準備中です。無料診断をご利用いただけます。"}
           </p>
           <div className="p6-reassurance p6-desktop">
             <h2>
@@ -53,7 +62,9 @@ export default function Home() {
                 <Icon size={26} aria-hidden />
                 <span>
                   <strong>{topics[id].name}</strong>
-                  <small>{sub}</small>
+                  <small>
+                    {trialEnabled ? sub : "相談は準備中・テーマを見る"}
+                  </small>
                 </span>
                 <CaretRight size={18} aria-hidden />
               </Link>

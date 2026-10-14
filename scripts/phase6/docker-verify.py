@@ -27,7 +27,7 @@ alter default privileges in schema public grant all on tables to service_role;
 sql(bootstrap)
 files=sorted((ROOT/'supabase/migrations').glob('*.sql'))
 for f in files:
- if 'trial_foundation' not in f.name:sql(f.read_text())
+ if f.name<'20261014151638_trial_foundation.sql':sql(f.read_text())
 # Old and current purchase fixtures, no real user data.
 u=str(uuid.uuid4());sql(f"insert into auth.users(id,email_confirmed_at) values('{u}',now());")
 for amount in [1980,980]:
@@ -35,7 +35,9 @@ for amount in [1980,980]:
  sql(f"insert into public.payments(user_id,diagnosis_id,amount,status) values('{u}','{d}',{amount},'paid');")
 snapshot="select jsonb_build_object('payments',(select md5(string_agg(to_jsonb(p)::text,'|' order by id)) from public.payments p),'settings',(select to_jsonb(s) from public.service_settings s),'policies',(select md5(string_agg(to_jsonb(p)::text,'|' order by tablename,policyname)) from pg_policies p where schemaname='public'));"
 before=obj(snapshot)
-migration=next(f for f in files if 'trial_foundation' in f.name);sql(migration.read_text());assert obj(snapshot)==before
+migrations=[f for f in files if f.name>='20261014151638_trial_foundation.sql']
+for migration in migrations:sql(migration.read_text())
+assert obj(snapshot)==before
 # Fresh price validity is synthetic; the checked-in release price remains time-limited.
 sql("update trial_private.settings set enabled=true,cleaned_at=now();update trial_private.prices set valid_until=now()+interval '1 day';")
 for n in range(24):
@@ -81,4 +83,35 @@ sql("update trial_private.sessions set expires_at=now()-interval '1 second';sele
 assert sql('select count(*) from trial_private.sessions;','phase6_restore')=='0'
 assert sql('select count(*) from trial_private.turns;','phase6_restore')=='0'
 assert obj(snapshot,'phase6_restore')==before
-print(json.dumps({'database':'PostgreSQL 17.11 (Docker, network none)','migrationApplied':migration.name,'existingSyntheticDataUnchanged':True,'sameSessionParallelRequests':12,'sameSessionReservations':1,'budgetParallelRequests':20,'budgetReservations':2,'reservedAndSettledNusd':cost,'budgetNusd':3000000000,'fullBudgetParallelRequests':20,'fullBudgetReservations':3,'crossAccountClaimWinners':1,'browserRolePermissionChecks':6,'restoreVerified':True,'expiryCleanupVerified':True},indent=2))
+
+# Hardening: all 11 RPC grants and all 8 table RLS flags in real PostgreSQL.
+assert sql("select count(*) from pg_class where relkind='r' and (relnamespace='trial_private'::regnamespace or relname='trial_thread_context') and relrowsecurity;")=='8'
+assert sql("select count(*) from pg_proc p cross join (values('anon'),('authenticated')) r(role) where p.pronamespace='public'::regnamespace and p.proname like 'trial_%' and has_function_privilege(r.role,p.oid,'EXECUTE');")=='0'
+# Concurrent delete/claim: either complete owned transfer or no member rows; never a partial transfer.
+db='phase6_restore'
+sql("update trial_private.prices set input_nusd=125,output_nusd=500;update trial_private.settings set enabled=true,cleaned_at=now();",db)
+r=runrpc('trial_create',[key('race'),key('race-ip'),key('race-challenge'),'trial-2026-10-15'],db);assert 'error' not in r
+r=runrpc('trial_reserve',[key('race'),str(uuid.uuid4()),'body','general','cipher'],db)
+runrpc('trial_finish',[r['call']['id'],r['lease'],'answer',False,100,100,'synthetic-race',False],db)
+before_threads=int(sql('select count(*) from public.consultation_threads;',db))
+with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+ a=pool.submit(runrpc,'trial_claim',[key('race'),u,r['turnId'],'合成相談','合成回答','general',{}],db)
+ b=pool.submit(runrpc,'trial_delete_content',[key('race')],db)
+ claim_result,delete_result=a.result(),b.result()
+assert delete_result.get('ok') is True
+assert 'threadId' in claim_result or claim_result.get('error')=='conflict'
+assert int(sql('select count(*) from public.consultation_threads;',db))==before_threads+int('threadId' in claim_result)
+assert sql("select count(*) from trial_private.turns where payload is not null or answer is not null;",db)=='0'
+# Purge/late settlement race must retain usage and never recreate removed content.
+runrpc('trial_create',[key('late'),key('late-ip'),key('late-challenge'),'trial-2026-10-15'],db)
+r=runrpc('trial_reserve',[key('late'),str(uuid.uuid4()),'body','general','cipher'],db)
+sql("update trial_private.sessions set expires_at=now()-interval '1 second';update trial_private.turns set lease_until=now()-interval '1 second';",db)
+with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+ a=pool.submit(runrpc,'trial_cleanup',[],db)
+ b=pool.submit(runrpc,'trial_finish',[r['call']['id'],r['lease'],'late-answer',False,4000,2000,'synthetic-late',False],db)
+ a.result();b.result()
+assert sql("select settled_nusd from trial_private.calls where id='"+r['call']['id']+"';",db)=='1500000'
+assert sql('select enabled from trial_private.settings;',db)=='f'
+assert sql('select count(*) from trial_private.sessions;',db)=='0'
+assert sql('select count(*) from trial_private.turns;',db)=='0'
+print(json.dumps({'database':'PostgreSQL 17.11 (Docker, network none)','migrationsApplied':[f.name for f in migrations],'existingSyntheticDataUnchanged':True,'sameSessionParallelRequests':12,'sameSessionReservations':1,'budgetParallelRequests':20,'budgetReservations':2,'reservedAndSettledNusd':cost,'budgetNusd':3000000000,'fullBudgetParallelRequests':20,'fullBudgetReservations':3,'crossAccountClaimWinners':1,'browserRolePermissionChecks':6,'allTrialTableRlsChecks':8,'allRpcBrowserGrantChecks':22,'deleteClaimRaceVerified':True,'purgeLateSettlementRaceVerified':True,'restoreVerified':True,'expiryCleanupVerified':True},indent=2))

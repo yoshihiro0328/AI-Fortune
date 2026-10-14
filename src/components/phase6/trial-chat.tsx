@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
+import TrialRetention from "./trial-retention";
 import {
   ArrowLeft,
   ArrowUp,
@@ -127,7 +128,7 @@ export default function TrialChat({
         setSession(null);
         setText("");
         setFields({});
-        setNotice("お試しの保存期限が終了しました。");
+        setNotice("お試しの閲覧・引き継ぎ期限が終了しました。");
         void refresh().catch(() => {});
       },
       Math.max(0, Date.parse(session.expiresAt) - Date.now()),
@@ -240,7 +241,9 @@ export default function TrialChat({
       setFields({});
 
       await refresh();
-      setNotice("お試しの本文と回答を削除しました。利用枠は戻りません。");
+      setNotice(
+        "サービス上の本文と回答を削除しました。バックアップ等の即時削除は保証しません。利用枠は戻りません。",
+      );
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -269,7 +272,13 @@ export default function TrialChat({
         </Link>
       </div>
       <div className="p6-chat-meta">
-        <span>登録なし・1回答無料</span>
+        <span>
+          {session?.enabled
+            ? "登録なし・1回答無料"
+            : session
+              ? "登録なし相談は準備中"
+              : "受付状況を確認中"}
+        </span>
         <span>AIによる相談サポート</span>
       </div>
       {session && !session.enabled && !answer && (
@@ -419,7 +428,7 @@ export default function TrialChat({
         </p>
         {session?.expiresAt && (
           <p className="p6-small">
-            お試しの保存期限：
+            お試しの閲覧・引き継ぎ期限：
             {new Date(session.expiresAt).toLocaleString("ja-JP")}
             （この端末の時刻）
           </p>
@@ -430,12 +439,13 @@ export default function TrialChat({
             disabled={busy}
             onClick={() => void erase()}
           >
-            お試しの本文・回答を削除する
+            サービス上の本文・回答を削除する
           </button>
         )}
         <Link className="p6-safety-link" href="/safety">
           危険や強いつらさを感じるとき
         </Link>
+        {used && <TrialRetention />}
       </div>
       {!used && (
         <form
@@ -499,8 +509,9 @@ export default function TrialChat({
             </span>
           </label>
           <p className="p6-small">
-            1回答／24時間。本文は最大24時間保存。実名・連絡先は省いてください。登録は任意です。
+            閲覧・引き継ぎは開始から最大24時間です。すべての保存先からの24時間以内の完全削除は保証していません。登録は任意です。
           </p>
+          <TrialRetention />
           <div ref={challengeElement} />
         </form>
       )}
