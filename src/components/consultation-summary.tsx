@@ -3,6 +3,10 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { exchangeExplanation } from "@/lib/display-copy";
 import { request } from "@/lib/client";
+import {
+  subscriptionDisplay,
+  japanDate,
+} from "@/lib/consultation/subscription-display";
 import type { ConsultationHome } from "@/lib/consultation/model";
 export default function ConsultationSummary() {
   const [data, setData] = useState<ConsultationHome | null>(null),
@@ -34,6 +38,7 @@ export default function ConsultationSummary() {
   if (!data)
     return <p role="status">{error || "相談の続きを読み込んでいます…"}</p>;
   const sub = data.subscription;
+  const display = sub ? subscriptionDisplay(sub, data.usage.plan) : null;
   return (
     <section className="panel consultation-summary">
       <p className="eyebrow">続きから話せる場所</p>
@@ -54,8 +59,8 @@ export default function ConsultationSummary() {
       <p className="fine">{exchangeExplanation}</p>
       <p className="fine">
         利用期間：
-        {new Date(data.usage.period_start).toLocaleDateString("ja-JP")}〜
-        {new Date(data.usage.period_end).toLocaleString("ja-JP")}の直前まで
+        {japanDate(data.usage.period_start)}〜{japanDate(data.usage.period_end)}
+        の直前まで
       </p>
       {data.subjects.slice(0, 4).map((s) => (
         <div className="history-row" key={s.id}>
@@ -79,36 +84,21 @@ export default function ConsultationSummary() {
           </span>
         </div>
       ))}
-      {sub && (
+      {sub && display && (
         <div className="billing-status">
           <h3>契約状況</h3>
           <p>
             月額{sub.amount.toLocaleString("ja-JP")}円（税込） ·{" "}
-            {sub.cancel_at_period_end
-              ? "解約予約済み"
-              : ((
-                  {
-                    active: "契約中",
-                    past_due: "支払いを確認中",
-                    canceled: "契約終了",
-                    incomplete: "手続き中",
-                    incomplete_expired: "手続き終了",
-                    unpaid: "未払い",
-                    paused: "一時停止",
-                  } as Record<string, string>
-                )[sub.status] ?? "確認中")}
+            {display.status}
           </p>
-          <p>
-            {["canceled", "incomplete_expired"].includes(sub.status)
-              ? "契約終了日"
-              : sub.cancel_at_period_end
-                ? "利用期限"
-                : "次回更新予定"}
-            ：
-            {new Date(sub.cancel_at ?? sub.period_end).toLocaleString("ja-JP")}
-          </p>
+          {display.date && (
+            <p>
+              {display.dateLabel}：{display.date}（日本時間）
+            </p>
+          )}
           {["active", "past_due"].includes(sub.status) &&
-            !sub.cancel_at_period_end && (
+            !sub.cancel_at_period_end &&
+            !sub.cancel_at && (
               <button
                 className="text-button"
                 disabled={busy}

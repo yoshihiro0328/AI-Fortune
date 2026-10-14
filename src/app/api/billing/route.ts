@@ -38,7 +38,7 @@ export async function GET() {
         await db()
           .from("subscriptions")
           .select(
-            "id,amount,status,period_end,paid_through,cancel_at_period_end,cancel_at",
+            "id,amount,status,period_end,ended_at,paid_through,cancel_at_period_end,cancel_at",
           )
           .eq("user_id", user)
           .order("created_at", { ascending: false })

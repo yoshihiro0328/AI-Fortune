@@ -56,6 +56,7 @@ export type Subscription = {
   amount: number;
   status: string;
   period_end: string;
+  ended_at: string | null;
   paid_through: string | null;
   cancel_at_period_end: boolean;
   cancel_at: string | null;

@@ -114,6 +114,7 @@ export async function syncSubscription(
         s.cancellation_details?.feedback ??
         s.cancellation_details?.reason ??
         null,
+      ended_at: s.ended_at == null ? null : iso(s.ended_at),
       canceled_at: s.canceled_at ? iso(s.canceled_at) : null,
       cancel_at_period_end: s.cancel_at_period_end || !!s.cancel_at,
       cancel_at: s.cancel_at ? iso(s.cancel_at) : null,
