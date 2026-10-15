@@ -3,6 +3,9 @@ import Link from "next/link";
 import Visit from "@/components/visit";
 import "./globals.css";
 import "./phase6.css";
+import "./demo.css";
+import { demoEnabled } from "@/lib/demo/config";
+import DemoBanner from "@/components/demo/banner";
 import Phase6Shell from "@/components/phase6/shell";
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -32,12 +35,14 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
+  const demo = demoEnabled();
   return (
     <html lang="ja">
       <body>
         <a className="skip" href="#main">
           本文へ
         </a>
+        {demo && <DemoBanner />}
         <header className="legacy-header">
           <Link className="brand" href="/">
             よりそい<span>YORISOI</span>
@@ -54,8 +59,8 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           </nav>
         </header>
-        {process.env.NEXT_PUBLIC_SUPABASE_URL ? <Visit /> : null}
-        <Phase6Shell>{children}</Phase6Shell>
+        {!demo && process.env.NEXT_PUBLIC_SUPABASE_URL ? <Visit /> : null}
+        {demo ? children : <Phase6Shell>{children}</Phase6Shell>}
         <footer>
           <div className="brand">
             よりそい<span>あなたのペースで、一歩ずつ。</span>

@@ -21,10 +21,14 @@ const links = [
 ] as const;
 export default function Phase6Shell({
   children,
+  demoHome = false,
 }: {
   children: React.ReactNode;
+  demoHome?: boolean;
 }) {
-  const path = usePathname();
+  const pathname = usePathname();
+  // A rewritten demo homepage must render the same shell on server and client.
+  const path = demoHome ? "/" : pathname;
   const chat = path === "/chat";
   const modern = path === "/" || chat;
   if (!modern) return children;
