@@ -1,0 +1,60 @@
+{
+  "docker": {
+    "database": "PostgreSQL 17.11 (Docker, isolated synthetic)",
+    "allMigrationsApplied": 16,
+    "restoreAclVerified": true,
+    "restoreQuarantinedBeforeCleanup": true,
+    "legacy1980And980PlusFreePreserved": true,
+    "migrationsApplied": [
+      "20261014151638_trial_foundation.sql",
+      "20261014160317_trial_safety_hardening.sql"
+    ],
+    "existingSyntheticDataUnchanged": true,
+    "sameSessionParallelRequests": 12,
+    "sameSessionReservations": 1,
+    "budgetParallelRequests": 20,
+    "budgetReservations": 2,
+    "reservedAndSettledNusd": 2928962500,
+    "budgetNusd": 3000000000,
+    "fullBudgetParallelRequests": 20,
+    "fullBudgetReservations": 3,
+    "crossAccountClaimWinners": 1,
+    "browserRolePermissionChecks": 6,
+    "allTrialTableRlsChecks": 8,
+    "allRpcBrowserGrantChecks": 22,
+    "deleteClaimRaceVerified": true,
+    "purgeLateSettlementRaceVerified": true,
+    "restoreVerified": true,
+    "expiryCleanupVerified": true
+  },
+  "http": {
+    "passed": 16,
+    "checks": [
+      "01 HTTP session / secure cookie / 24h retention",
+      "02 CSRF rejects all four mutations before challenge/DB",
+      "03 duplicate concurrency / encrypted storage / refresh / body conflict",
+      "04 forged and independent cookies cannot read/delete/claim owner data",
+      "05 verified identity / email consent / concurrent cross-owner claim / history",
+      "06 HTTP PostgREST JWT / RLS / browser RPC and write denial",
+      "07 owner deletion / no quota reset / idempotent delete",
+      "08 expiry cannot read/send/claim; maintenance auth / purge",
+      "09 rate limit across replaced cookies / challenge replay",
+      "10 no-send release / uncertain charge retained / retry / invalid output",
+      "11 $3 cap HTTP concurrency rejects excess before provider",
+      "12 stale price / cleanup heartbeat / anomaly stop generation",
+      "13 in-flight expiry and delete never resurrect content",
+      "14 database loss fails closed without provider generation",
+      "15 legacy purchases / Plus / free quota / no outbound leak",
+      "16 review project demo OFF blocks all real routes at HTTP boundary"
+    ],
+    "externalCalls": 0,
+    "auth": "signed synthetic token + mocked getUser; real Supabase Auth/email NOT tested",
+    "transport": "real Next HTTP, Supabase SDK, PostgREST 13, PostgreSQL 17"
+  },
+  "providers": {
+    "count": 15,
+    "generation": 14,
+    "allMocked": true
+  },
+  "legacyDataUnchanged": true
+}

@@ -29,15 +29,23 @@ files=sorted((ROOT/'supabase/migrations').glob('*.sql'))
 for f in files:
  if f.name<'20261014151638_trial_foundation.sql':sql(f.read_text())
 # Old and current purchase fixtures, no real user data.
+sql("update public.payment_environment set stripe_account_id='acct_synthetic';")
 u=str(uuid.uuid4());sql(f"insert into auth.users(id,email_confirmed_at) values('{u}',now());")
 for amount in [1980,980]:
  d=sql(f"insert into public.diagnoses(user_id,anonymous_session_id,diagnosis_type_id) values('{u}','synthetic',(select id from public.diagnosis_types limit 1)) returning id;")
  sql(f"insert into public.payments(user_id,diagnosis_id,amount,status) values('{u}','{d}',{amount},'paid');")
-snapshot="select jsonb_build_object('payments',(select md5(string_agg(to_jsonb(p)::text,'|' order by id)) from public.payments p),'settings',(select to_jsonb(s) from public.service_settings s),'policies',(select md5(string_agg(to_jsonb(p)::text,'|' order by tablename,policyname)) from pg_policies p where schemaname='public'));"
+plus_user=str(uuid.uuid4());sql(f"insert into auth.users(id,email_confirmed_at) values('{plus_user}',now());")
+sql(f"insert into public.billing_customers(user_id,stripe_customer_id) values('{plus_user}','cus_synthetic');")
+sql(f"insert into public.subscriptions(id,user_id,stripe_customer_id,price_version,amount,status,period_start,period_end,paid_through,is_test,created_at) values('sub_synthetic','{plus_user}','cus_synthetic','plus-2026-10-980',980,'active',now()-interval '1 day',now()+interval '29 days',now()+interval '29 days',true,now());")
+assert runrpc('consultation_entitlement',[u])['remaining']==3
+assert runrpc('consultation_entitlement',[plus_user])['remaining']==30
+snapshot="select jsonb_build_object('subscriptions',(select md5(string_agg(to_jsonb(s)::text,'|' order by id)) from public.subscriptions s),'payments',(select md5(string_agg(to_jsonb(p)::text,'|' order by id)) from public.payments p),'settings',(select to_jsonb(s) from public.service_settings s),'policies',(select md5(string_agg(to_jsonb(p)::text,'|' order by tablename,policyname)) from pg_policies p where schemaname='public'));"
 before=obj(snapshot)
 migrations=[f for f in files if f.name>='20261014151638_trial_foundation.sql']
 for migration in migrations:sql(migration.read_text())
 assert obj(snapshot)==before
+assert runrpc('consultation_entitlement',[u])['remaining']==3
+assert runrpc('consultation_entitlement',[plus_user])['remaining']==30
 # Fresh price validity is synthetic; the checked-in release price remains time-limited.
 sql("update trial_private.settings set enabled=true,cleaned_at=now();update trial_private.prices set valid_until=now()+interval '1 day';")
 for n in range(24):
@@ -74,10 +82,13 @@ for role in ['anon','authenticated']:
   r=subprocess.run(base,input='set role '+role+';'+query,text=True,capture_output=True)
   assert r.returncode!=0 and 'permission denied' in r.stderr
 # Restore the complete synthetic DB into a second DB, then prove source data + reservations remain.
-dump=subprocess.run(['docker','exec',CONTAINER,'pg_dump','-h','/tmp','-U','postgres','--no-owner','--no-acl','postgres'],capture_output=True,check=True).stdout
+dump=subprocess.run(['docker','exec',CONTAINER,'pg_dump','-h','/tmp','-U','postgres','--no-owner','postgres'],capture_output=True,check=True).stdout
 sql('create database phase6_restore;')
 r=subprocess.run(base+['-d','phase6_restore'],input=dump,capture_output=True);assert r.returncode==0,r.stderr[-1000:]
+sql('update trial_private.settings set enabled=false;', 'phase6_restore')
+assert runrpc('trial_policy',[], 'phase6_restore')['enabled'] is False
 assert obj(snapshot,'phase6_restore')==before
+assert sql("select count(*) from pg_proc p cross join (values('anon'),('authenticated')) r(role) where p.pronamespace='public'::regnamespace and p.proname like 'trial_%' and has_function_privilege(r.role,p.oid,'EXECUTE');",'phase6_restore')=='0'
 restored=int(sql('select sum(coalesce(settled_nusd,reserved_nusd)) from trial_private.calls;','phase6_restore'));assert restored==cost
 sql("update trial_private.sessions set expires_at=now()-interval '1 second';select public.trial_cleanup();",'phase6_restore')
 assert sql('select count(*) from trial_private.sessions;','phase6_restore')=='0'
@@ -114,4 +125,4 @@ assert sql("select settled_nusd from trial_private.calls where id='"+r['call']['
 assert sql('select enabled from trial_private.settings;',db)=='f'
 assert sql('select count(*) from trial_private.sessions;',db)=='0'
 assert sql('select count(*) from trial_private.turns;',db)=='0'
-print(json.dumps({'database':'PostgreSQL 17.11 (Docker, network none)','migrationsApplied':[f.name for f in migrations],'existingSyntheticDataUnchanged':True,'sameSessionParallelRequests':12,'sameSessionReservations':1,'budgetParallelRequests':20,'budgetReservations':2,'reservedAndSettledNusd':cost,'budgetNusd':3000000000,'fullBudgetParallelRequests':20,'fullBudgetReservations':3,'crossAccountClaimWinners':1,'browserRolePermissionChecks':6,'allTrialTableRlsChecks':8,'allRpcBrowserGrantChecks':22,'deleteClaimRaceVerified':True,'purgeLateSettlementRaceVerified':True,'restoreVerified':True,'expiryCleanupVerified':True},indent=2))
+print(json.dumps({'database':'PostgreSQL 17.11 (Docker, isolated synthetic)' ,'allMigrationsApplied':len(files),'restoreAclVerified':True,'restoreQuarantinedBeforeCleanup':True,'legacy1980And980PlusFreePreserved':True,'migrationsApplied':[f.name for f in migrations],'existingSyntheticDataUnchanged':True,'sameSessionParallelRequests':12,'sameSessionReservations':1,'budgetParallelRequests':20,'budgetReservations':2,'reservedAndSettledNusd':cost,'budgetNusd':3000000000,'fullBudgetParallelRequests':20,'fullBudgetReservations':3,'crossAccountClaimWinners':1,'browserRolePermissionChecks':6,'allTrialTableRlsChecks':8,'allRpcBrowserGrantChecks':22,'deleteClaimRaceVerified':True,'purgeLateSettlementRaceVerified':True,'restoreVerified':True,'expiryCleanupVerified':True},indent=2))

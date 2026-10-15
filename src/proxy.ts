@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { demoEnabled } from "@/lib/demo/config";
+import { demoEnabled, isolatedReviewProject } from "@/lib/demo/config";
 
 function protect(response: NextResponse) {
   response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
@@ -12,7 +12,19 @@ function protect(response: NextResponse) {
 }
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
-  if (!demoEnabled()) return NextResponse.next();
+  if (!demoEnabled()) {
+    if (isolatedReviewProject())
+      return protect(
+        NextResponse.json(
+          {
+            error: "REVIEW_DISABLED",
+            message: "検証画面は停止中です。実サービスには接続しません。",
+          },
+          { status: 503 },
+        ),
+      );
+    return NextResponse.next();
+  }
   // Never reach the real API, webhook, auth callback, server action or provider.
   if (
     !["GET", "HEAD"].includes(request.method) ||

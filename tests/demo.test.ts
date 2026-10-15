@@ -68,6 +68,7 @@ describe("demo activation fails closed", () => {
   });
   it("cannot be enabled by headers, cookies or query parameters", () => {
     vi.stubEnv("PREVIEW_DEMO_ENABLED", "false");
+    vi.stubEnv("VERCEL_PROJECT_ID", "normal-project");
     const r = proxy(
       new NextRequest(
         "https://example.test/account?PREVIEW_DEMO_ENABLED=true",
@@ -167,6 +168,7 @@ describe("normal-mode regression boundary", () => {
   it.each(paths)(
     "preserves original routing and permissions for %s",
     (path) => {
+      vi.stubEnv("VERCEL_PROJECT_ID", "normal-project");
       for (const environment of ["production", "development", "preview"]) {
         vi.stubEnv("VERCEL_ENV", environment);
         vi.stubEnv("PREVIEW_DEMO_ENABLED", "false");
@@ -261,5 +263,35 @@ describe("synthetic screen content", () => {
     }
     expect(canAdvance(0, answers)).toBe(true);
     expect(canAdvance(12, answers)).toBe(false);
+  });
+});
+
+describe("review project permanent isolation", () => {
+  it.each(paths)(
+    "blocks %s with demo OFF, missing or Production misclassification",
+    (path) => {
+      for (const flag of ["false", "", undefined]) {
+        vi.stubEnv("PREVIEW_DEMO_ENABLED", flag);
+        for (const environment of ["preview", "production", "development"]) {
+          vi.stubEnv("VERCEL_ENV", environment);
+          for (const method of ["GET", "POST", "DELETE"]) {
+            const r = proxy(
+              new NextRequest("https://example.test" + path, { method }),
+            );
+            expect(r.status).toBe(503);
+            expect(r.headers.get("x-robots-tag")).toContain("noindex");
+            expect(r.headers.get("x-middleware-next")).toBeNull();
+            expect(r.headers.get("x-middleware-rewrite")).toBeNull();
+          }
+        }
+      }
+    },
+  );
+  it("blocks server rendered pages before any provider client can initialize", () => {
+    vi.stubEnv("PREVIEW_DEMO_ENABLED", "false");
+    for (const path of ["/", "/plans", "/account", "/consult", "/_next/image"])
+      expect(proxy(new NextRequest("https://example.test" + path)).status).toBe(
+        503,
+      );
   });
 });

@@ -1,4 +1,5 @@
 import "server-only";
+import { isolatedReviewProject } from "@/lib/demo/config";
 import {
   createCipheriv,
   createDecipheriv,
@@ -41,6 +42,8 @@ export function runtimeEnabled(
   env: Record<string, string | undefined> = process.env,
 ) {
   return (
+    !isolatedReviewProject(env) &&
+    env.VERCEL_TARGET_ENV !== "production" &&
     env.TRIAL_ENABLED === "true" &&
     env.TRIAL_ENVIRONMENT === "sandbox" &&
     env.STRIPE_MODE === "sandbox" &&

@@ -7,6 +7,7 @@ import {
   runtimeEnabled,
   trustedIp,
 } from "@/lib/trial/security";
+import { REVIEW_PROJECT_ID } from "@/lib/demo/config";
 import { costNusd } from "@/lib/ai-engine/structured";
 import { trialPrompt, localSafety } from "@/lib/trial/prompt";
 const input = {
@@ -68,6 +69,12 @@ describe("trial validation and isolation", () => {
     expect(runtimeEnabled({ ...env, VERCEL_ENV: "production" })).toBe(false);
     expect(runtimeEnabled({ ...env, STRIPE_MODE: "live" })).toBe(false);
     expect(runtimeEnabled({})).toBe(false);
+    expect(runtimeEnabled({ ...env, VERCEL_TARGET_ENV: "production" })).toBe(
+      false,
+    );
+    expect(
+      runtimeEnabled({ ...env, VERCEL_PROJECT_ID: REVIEW_PROJECT_ID }),
+    ).toBe(false);
   });
   it("ignores spoofed generic IP and denies untrusted deployment", () => {
     const req = new Request("https://preview.example/chat", {

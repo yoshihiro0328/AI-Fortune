@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:http": "node scripts/http-smoke.mjs"
+    "test:http": "node scripts/http-smoke.mjs",
+    "test:integration": "node scripts/phase6/integration.mjs"
   },
   "keywords": [],
   "author": "",

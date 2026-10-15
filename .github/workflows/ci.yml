@@ -18,3 +18,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Docker isolated HTTP and database integration
+        run: npm run test:integration
+        env:
+          PHASE6_REPORT_PATH: phase6-integration-results.json
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: phase6-integration-results
+          path: phase6-integration-results.json

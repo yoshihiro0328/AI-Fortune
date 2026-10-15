@@ -10,3 +10,10 @@ export function demoEnabled(
     env.VERCEL_PROJECT_ID === REVIEW_PROJECT_ID
   );
 }
+
+/** The review project must never reach real APIs, even if the demo flag is lost. */
+export function isolatedReviewProject(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  return env.VERCEL_PROJECT_ID === REVIEW_PROJECT_ID;
+}

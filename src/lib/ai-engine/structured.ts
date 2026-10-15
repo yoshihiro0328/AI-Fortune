@@ -72,7 +72,9 @@ export async function structured<T>(args: {
     )
       throw new GenerationFailure(undefined, true);
     sent = true;
-    const response = await client.responses.parse({
+    // Read usage before parsing the answer: SDK parse() can throw on malformed
+    // output and otherwise discard the billed usage from an HTTP 200 response.
+    const response = await client.responses.create({
       model: args.model,
       store: false,
       service_tier: "default",
@@ -100,7 +102,10 @@ export async function structured<T>(args: {
       throw new GenerationFailure(undefined, false, true);
     if (!usage || response.status !== "completed")
       throw new GenerationFailure(usage);
-    return { value: args.schema.parse(response.output_parsed), usage };
+    return {
+      value: args.schema.parse(JSON.parse(response.output_text)),
+      usage,
+    };
   } catch (e) {
     if (e instanceof GenerationFailure) throw e;
     throw new GenerationFailure(usage, !sent);

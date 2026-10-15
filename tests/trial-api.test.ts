@@ -50,7 +50,7 @@ vi.mock("openai", () => ({
     constructor(o: unknown) {
       state.construct(o);
     }
-    responses = { inputTokens: { count: state.count }, parse: state.generate };
+    responses = { inputTokens: { count: state.count }, create: state.generate };
   },
 }));
 import { GET as cleanup } from "@/app/api/cron/trial/route";
@@ -123,11 +123,11 @@ beforeEach(async () => {
     model: "gpt-6-luna",
     service_tier: "default",
     usage: { input_tokens: 200, output_tokens: 100 },
-    output_parsed: {
+    output_text: JSON.stringify({
       answer:
         "短い近況と、相手が答えやすい質問を一つ添えてみてはいかがでしょうか。",
       safety: false,
-    },
+    }),
   });
   pg = await isolatedDb();
   await applyIsolation(pg);
@@ -305,7 +305,7 @@ describe("real route -> encrypted DB -> synthetic provider -> claim", () => {
       model: "gpt-6-luna",
       service_tier: "default",
       usage: { input_tokens: 50, output_tokens: 10 },
-      output_parsed: { answer: "", safety: false },
+      output_text: JSON.stringify({ answer: "", safety: false }),
     });
     expect((await send(req("/api/trial/turns", intake))).status).toBe(503);
     expect((await (await read()).json()).remaining).toBe(1);
@@ -544,4 +544,22 @@ describe("real route -> encrypted DB -> synthetic provider -> claim", () => {
     expect(await response.text()).not.toContain("private SQL");
     expect(response.headers.get("cache-control")).toContain("no-store");
   });
+});
+
+it("malformed provider JSON retains measured usage before answer parsing", async () => {
+  await create(sessionReq());
+  state.generate.mockResolvedValue({
+    id: "resp_invalid_json",
+    status: "completed",
+    model: "gpt-6-luna",
+    service_tier: "default",
+    usage: { input_tokens: 200, output_tokens: 100 },
+    output_text: "{broken JSON",
+  });
+  expect((await send(req("/api/trial/turns", intake))).status).toBe(503);
+  expect((await (await read()).json()).remaining).toBe(1);
+  const result = await pg.query<{ n: number }>(
+    "select settled_nusd::int n from trial_private.calls",
+  );
+  expect(result.rows[0].n).toBe(75000);
 });
