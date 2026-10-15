@@ -175,3 +175,29 @@ body:has(.demo-banner) .p6 {
     text-align: center;
   }
 }
+.demo-main button {
+  padding: 12px 18px;
+  border: 1px solid #486c59;
+  border-radius: 10px;
+  background: #31594b;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.demo-main button.secondary {
+  background: #fff;
+  color: #31594b;
+}
+.demo-main button:disabled {
+  background: #e5e8e3;
+  border-color: #bcc8bf;
+  color: #536257;
+  cursor: not-allowed;
+}
+.demo-main button:focus-visible,
+.demo-main a:focus-visible,
+.demo-main input:focus-visible,
+.demo-main textarea:focus-visible {
+  outline: 3px solid #31594b;
+  outline-offset: 3px;
+}
