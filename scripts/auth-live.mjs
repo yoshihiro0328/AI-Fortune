@@ -1,10 +1,10 @@
-import fs from "node:fs";
-import { parseEnv } from "node:util";
+import { assertLocalAuthFixture } from "./phase6/auth-preparation.mjs";
 import { randomUUID, randomBytes } from "node:crypto";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-const env = parseEnv(fs.readFileSync(".env.local", "utf8"));
-const base = process.env.TEST_BASE_URL || "http://127.0.0.1:3000";
+const env = process.env;
+assertLocalAuthFixture(env);
+const base = env.TEST_BASE_URL;
 const admin = createClient(
   env.NEXT_PUBLIC_SUPABASE_URL,
   env.SUPABASE_SERVICE_ROLE_KEY,
