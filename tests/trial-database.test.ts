@@ -25,25 +25,30 @@ async function setup() {
   );
 }
 async function rpc(name: string, args: unknown[] = []) {
-  const r = await pg.query<{
-    r: {
-      error?: string;
-      call: { id: string; reserved_nusd: number };
-      lease: string;
-      turnId: string;
-      turn: { status: string; answer: string };
-      remaining: number;
-      enabled: boolean;
-      cached: boolean;
-      threadId: string;
-      used: number;
-      deletedSessions: number;
-    };
-  }>(
-    `select public.${name}(${args.map((_, i) => "$" + (i + 1)).join(",")}) r`,
-    args,
-  );
-  return r.rows[0].r;
+  await pg.exec("set role service_role");
+  try {
+    const r = await pg.query<{
+      r: {
+        error?: string;
+        call: { id: string; reserved_nusd: number };
+        lease: string;
+        turnId: string;
+        turn: { status: string; answer: string };
+        remaining: number;
+        enabled: boolean;
+        cached: boolean;
+        threadId: string;
+        used: number;
+        deletedSessions: number;
+      };
+    }>(
+      `select public.${name}(${args.map((_, i) => "$" + (i + 1)).join(",")}) r`,
+      args,
+    );
+    return r.rows[0].r;
+  } finally {
+    await pg.exec("reset role");
+  }
 }
 async function session(hash = h, network = ip, ch = challenge) {
   return rpc("trial_create", [hash, network, ch, "trial-2026-10-15"]);

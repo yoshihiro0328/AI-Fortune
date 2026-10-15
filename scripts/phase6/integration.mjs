@@ -60,7 +60,7 @@ function command(cmd, args, options = {}) {
 function docker(...args) {
   return command("docker", args);
 }
-function sql(query, database = "http_test") {
+function sql(query, database = "http_test", role = "postgres") {
   return command(
     "docker",
     [
@@ -71,7 +71,7 @@ function sql(query, database = "http_test") {
       "-h",
       "/tmp",
       "-U",
-      "postgres",
+      role,
       "-d",
       database,
       "-qAt",
@@ -205,7 +205,7 @@ try {
     "sh",
     "public.ecr.aws/supabase/postgres:17.11.0.004",
     "-c",
-    "initdb -D /tmp/phase6-data --auth=trust >/dev/null && echo 'host all all all trust' >> /tmp/phase6-data/pg_hba.conf && exec postgres -D /tmp/phase6-data -k /tmp -h '*' -c log_statement=none -c log_min_error_statement=panic",
+    "initdb -D /tmp/phase6-data -U platform_admin --auth=trust >/dev/null && echo 'host all all all trust' >> /tmp/phase6-data/pg_hba.conf && exec postgres -D /tmp/phase6-data -k /tmp -h '*' -c log_statement=none -c log_min_error_statement=panic",
   );
   await waitUntil(
     () =>
@@ -214,6 +214,12 @@ try {
         ["exec", pg, "pg_isready", "-h", "/tmp", "-U", "postgres"],
         { stdio: "ignore" },
       ).status === 0,
+  );
+  // Separate bootstrap superuser from the non-superuser Supabase migration owner.
+  sql(
+    "create role postgres login superuser;alter database postgres owner to postgres;",
+    "postgres",
+    "platform_admin",
   );
   const dbResults = JSON.parse(
     command("python3", ["scripts/phase6/docker-verify.py"], {
@@ -228,11 +234,11 @@ try {
     "PASS Docker migrations, races, budget and ACL-preserving restore",
   );
   sql("create database http_test;", "postgres");
-  sql(`create schema auth; create table auth.users(id uuid primary key, created_at timestamptz default now(), email_confirmed_at timestamptz);
-    create function auth.uid() returns uuid language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claim.sub',true),''),nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub')::uuid $$;
-    grant usage on schema public,auth to anon,authenticated,service_role;
-    grant select on auth.users to service_role;
-    alter default privileges in schema public grant all on tables to service_role;`);
+  sql(
+    readFileSync(path.join(root, "scripts/phase6/auth-bootstrap.sql"), "utf8"),
+    "http_test",
+    "platform_admin",
+  );
   for (const f of readdirSync(path.join(root, "supabase/migrations"))
     .filter((f) => f.endsWith(".sql"))
     .sort())
@@ -240,6 +246,8 @@ try {
   // Authenticator has no table privileges and can switch only to the three API roles.
   sql(
     "create role http_authenticator login noinherit; grant anon,authenticated,service_role to http_authenticator;",
+    "http_test",
+    "platform_admin",
   );
   serviceToken = jwt("service_role");
   anonToken = jwt("anon");
@@ -506,6 +514,39 @@ try {
       ).status,
       403,
     );
+    // Client-supplied identity/verification fields must never override getUser().
+    for (const extra of [
+      { user_id: other.id },
+      { p_user: other.id },
+      { email_confirmed_at: "2099-01-01" },
+    ]) {
+      assert.equal(
+        (
+          await request("/api/trial/claim", {
+            method: "POST",
+            cookie: saved.cookie + "; " + authCookie(owner),
+            data: { ...approval, ...extra },
+          })
+        ).status,
+        422,
+      );
+    }
+    // A stale verified Auth response must still fail against the current DB truth.
+    sql(`update auth.users set email_confirmed_at=null where id='${owner.id}'`);
+    assert.equal(
+      (
+        await request("/api/trial/claim", {
+          method: "POST",
+          cookie: saved.cookie + "; " + authCookie(owner),
+          data: approval,
+        })
+      ).status,
+      401,
+    );
+    assert.equal(sql("select count(*) from public.consultation_threads"), "0");
+    sql(
+      `update auth.users set email_confirmed_at=now() where id='${owner.id}'`,
+    );
     const r = await Promise.all(
       [owner, other].map((u) =>
         request("/api/trial/claim", {
@@ -610,6 +651,21 @@ try {
     const r = await request("/api/trial/session", { cookie: s.cookie });
     assert.ok(!r.data.turn?.answer);
     assert.equal(r.data.remaining, 0);
+    const before = sql("select count(*) from public.consultation_threads");
+    assert.equal(
+      (
+        await request("/api/trial/claim", {
+          method: "POST",
+          cookie: s.cookie + "; " + authCookie(owner),
+          data: { consent: true, expectedEmail: owner.email },
+        })
+      ).status,
+      409,
+    );
+    assert.equal(
+      sql("select count(*) from public.consultation_threads"),
+      before,
+    );
   });
   await test("08 expiry cannot read/send/claim; maintenance auth / purge", async () => {
     const s = await session();

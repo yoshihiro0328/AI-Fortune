@@ -4,14 +4,10 @@ export const migrationName = "20261013074636_stripe_environment_isolation.sql";
 export async function isolatedDb() {
   const pg = await PGlite.create();
   // Only Supabase's platform-owned Auth schema is stubbed. Application migrations run unmodified.
-  await pg.exec(`create role anon; create role authenticated; create role service_role bypassrls;
- create schema auth;
- create table auth.users(id uuid primary key, created_at timestamptz default now(), email_confirmed_at timestamptz);
- create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
- grant usage on schema public,auth to anon,authenticated,service_role;
- grant execute on function auth.uid() to anon,authenticated,service_role;
- alter default privileges in schema public grant all on tables to service_role;
- `);
+  await pg.exec(
+    "create role anon; create role authenticated; create role service_role bypassrls; create role supabase_auth_admin nologin;",
+  );
+  await pg.exec(await readFile("scripts/phase6/auth-bootstrap.sql", "utf8"));
   for (const name of (await readdir("supabase/migrations"))
     .filter((n) => n.endsWith(".sql") && n < migrationName)
     .sort()) {

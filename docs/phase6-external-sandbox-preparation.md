@@ -1,5 +1,7 @@
 # 第1開発単位：外部Sandbox構築・結合検証の承認前計画
 
+**更新：新project `ukdzggjfkcwjssjmnqim` は作成済み。以下の料金・枠・クラウド設定の調査は作成前の履歴であり、今回再調査していない。Auth権限不整合は17番migrationでローカル修正。最新の[再検証報告](phase6-auth-permissions-verification.md)と[17件manifest](phase6-external-migration-manifest.md)を優先する。実DB適用・外部実行は別承認待ち。**
+
 調査日：2026-10-15（JST）。アプリ基準：`8869a23d8e1ec46a20fd55f015bd52916ce6e15a`、ブランチ：`codex/yorisoi-phase6-redesign`。
 
 **今回は準備のみ。クラウド資源・鍵の作成、設定変更、SQL適用、メール送信、AI生成、テスト決済、デプロイは実施していない。** 読取調査、ローカル検証、文書のcommit/push/CIに限定する。第2開発単位は対象外。
@@ -53,14 +55,14 @@ Freeの2枠は、Owner/Adminの全組織を通算し、停止中のプロジェ�
 ### 新DBへの適用手順（未実行）
 
 1. 承認された組織・名称・Free・地域を作成直前に再表示。追加課金・枠不足なら停止。新refを記録し、既存ref `rnvrdrfdbapfafwjbygo`と異なることを確認する。
-2. Git連携なし、DBは空、専用の強いDBパスワード。Data APIは必要だが、migrationが明示するGRANT/RLSだけを使う。作成画面の「Automatically expose new tables」は無効を計画し、16 SQLが実際に必要権限を付与することを別途確認する。自動RLS追加もmigrationとの差分を確認してから決める。
-3. 下表の固定SHA・SHA256と照合して16 SQLを順番に適用。Supabase CLIのmigration履歴に記録。各SQLの既存transaction境界を守り、失敗時は残りを実行しない。resetやrepairで失敗を隠さない。
-4. 新DBでも`trial_private.settings.enabled=false`を確認。新Stripe Sandbox IDが確定するまではAuthユーザー・diagnoses・payment fixturesを投入しない。13番SQLは旧Sandbox IDを初期値に持つため、**全16件適用後、空DBのままDB所有者権限で新IDへ初期化**する変更を別途承認対象に含める。
-5. `price_versions`・service_settingsの価格とPortal IDは、新Sandboxで作ったIDにだけ差し替える。非activeのLive価格seedは有効化しない。`payment_environment.mode=sandbox`を維持する。
+2. Git連携なし、DBは空、専用の強いDBパスワード。Data APIは必要だが、migrationが明示するGRANT/RLSだけを使う。作成画面の「Automatically expose new tables」は無効を計画し、17 SQLが実際に必要権限を付与することを別途確認する。自動RLS追加もmigrationとの差分を確認してから決める。
+3. 下表の固定SHA・SHA256と照合して17 SQLを順番に適用。Supabase CLIのmigration履歴に記録。各SQLの既存transaction境界を守り、失敗時は残りを実行しない。resetやrepairで失敗を隠さない。
+4. 新DBでも`trial_private.settings.enabled=false`を確認。新Stripe Sandbox IDが確定するまではAuthユーザー・diagnoses・payment fixturesを投入しない。13番SQLは旧Sandbox IDを初期値に持つため、**全17件適用後、空DBのままDB所有者権限で新IDへ初期化**する変更を別途承認対象に含める。
+5. `price_versions`の既存価格ID・商品IDはUPDATEしない（13番の`guard_price_environment`が禁止する）。既存Sandbox価格を`active=false`にし、新Sandboxの商品・価格IDで別のversion IDをINSERTする。`kind`ごと・環境ごとのactive一意制約を守り、980円・JPY・report単発／Plus月額の整合を確認する。非activeのLive価格seedは有効化しない。`service_settings.portal_configuration_id`と旧レポート用の`STRIPE_PAID_DIAGNOSIS_PRICE_ID`も新Sandbox専用IDを使用する。`payment_environment.mode=sandbox`を維持する。これらは別途承認された初期化transactionと設定変更で実行する。
 6. 合成fixtureをrun ID付きで投入：無料、Plus、旧1980円・新980円購入、診断・相手・履歴。認証メール対象A/Bと、メール不要のAPI品質試験用`example.invalid`ユーザーは区別する。既存データを取り込まない。
-7. SQL 16件の履歴、RLS、RPC権限、所有権、disabled状態、価格IDの環境整合、Cron未設定状態を検査。外部実行開始には別の段階承認が必要。
+7. SQL 17件の履歴、RLS、RPC権限、所有権、disabled状態、価格IDの環境整合、Cron未設定状態を検査。外部実行開始には別の段階承認が必要。
 
-移行順序とチェックサムは[移行manifest](phase6-external-migration-manifest.md)。13番の環境初期化・価格置換・Cron・fixtureは16 migrationsとは別の承認対象であり、元のmigrationファイルを書き換えて済ませない。
+移行順序とチェックサムは[移行manifest](phase6-external-migration-manifest.md)。13番の環境初期化・価格置換・Cron・fixtureは17 migrationsとは別の承認対象であり、元のmigrationファイルを書き換えて済ませない。
 
 ## 4. 必要なキーと設定
 
@@ -159,7 +161,7 @@ Preview成功後、未認証の固有URL・自動alias・既定ドメインで�
 | Cron/DB障害                                                            | 新規匿名相談停止、閲覧期限は延長しない                                                       | 清掃の成功、権限・所有権・費用を再確認して手動再承認                            |
 | migration失敗                                                          | 残りを適用せず、到達version/エラーを記録。partial状態でアプリ接続しない                      | 原則、合成データしかない新DBを承認済み手順で再構築。既存DBのrestore/resetは禁止 |
 
-Freeの復旧は自動バックアップに依存しない。16 migrations＋合成fixture＋環境設定台帳を再生成元にする。試験開始前の新DBだけを暗号化してローカルexportし、原則7日で削除する案。保存先は権限制限された作業端末、担当は実行担当者。保存期限/担当/削除の承認が必要。StorageオブジェクトやAuth・鍵・provider設定がDB dumpだけで完全復元されるとは扱わない。実メール検証ユーザーは再登録を基本にし、セッションの継続を復元成功条件にしない。
+Freeの復旧は自動バックアップに依存しない。17 migrations＋合成fixture＋環境設定台帳を再生成元にする。試験開始前の新DBだけを暗号化してローカルexportし、原則7日で削除する案。保存先は権限制限された作業端末、担当は実行担当者。保存期限/担当/削除の承認が必要。StorageオブジェクトやAuth・鍵・provider設定がDB dumpだけで完全復元されるとは扱わない。実メール検証ユーザーは再登録を基本にし、セッションの継続を復元成功条件にしない。
 
 復元試験はまず追加Free枠を消費しないDockerで行う。クラウド復元は新テストproject内だけに限定し別承認。外向き通信・生成・Webhookを閉じて復元し、**期限内も含め匿名セッションを全削除**してから再公開する。外部に控えた費用記録で古い台帳への巻戻りを検知し、二重予算使用を防ぐ。バックアップ/WAL/providerログを含む24時間以内の完全消去は保証しない。
 
@@ -174,7 +176,7 @@ Freeの復旧は自動バックアップに依存しない。16 migrations＋合
 | 段階 | 承認対象・上限                                                                                              | 費用/開始条件                                                                                                |
 | ---- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | P1   | Supabase `yorisoi-integration-test` 1件作成、Free、東京優先                                                 | $0を作成直前に確認。0でも明示承認後。新ref取得後、SQL対象照合                                                |
-| P2   | 新refへmanifest16件、空DBのStripe環境初期化・専用価格、合成fixture、Cron、暗号化export/復元/cleanup         | 新DB限定。DB/鍵保持7日案、担当・監視先も確定。新Stripe account ID確定前にユーザーを入れない                  |
+| P2   | 新refへmanifest17件、空DBのStripe環境初期化・専用価格、合成fixture、Cron、暗号化export/復元/cleanup         | 新DB限定。DB/鍵保持7日案、担当・監視先も確定。新Stripe account ID確定前にユーザーを入れない                  |
 | P3   | Auth設定と実認証、所有する2宛先へ最大4通                                                                    | 宛先実名・チーム適格性の承認。SMTP追加契約なら別費用承認                                                     |
 | P4   | 別Stripe Sandbox作成、新商品/価格/Portal/送信先/RAK、試験IDを指定したテスト取引・Test Clock・解約と後片付け | 実資金$0、作成費用と枠を事前再確認。既存Sandboxは対象外                                                      |
 | P5   | OpenAI専用project/key・モデル/RPM・hard limit、匿名生成最大20回・予算$0.10                                  | 現残高のみ、補充なし。利用可能な最小hard limitと実単価を確認。既存32件のAI品質試験は別予算承認               |

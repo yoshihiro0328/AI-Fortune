@@ -14,17 +14,12 @@ def runrpc(name,values,db='postgres'):
   if isinstance(x,bool):return 'true' if x else 'false'
   if isinstance(x,(int,float)):return str(x)
   return "'"+str(x).replace("'","''")+"'"
- return obj('select public.'+name+'('+','.join(map(literal,values))+');',db)
+ return obj('set role service_role;select public.'+name+'('+','.join(map(literal,values))+');',db)
 def key(n):return hashlib.sha256(str(n).encode()).hexdigest()
-bootstrap="""
-create role anon;create role authenticated;create role service_role bypassrls;
-create schema auth;create table auth.users(id uuid primary key,created_at timestamptz default now(),email_confirmed_at timestamptz);
-create function auth.uid() returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
-grant usage on schema public,auth to anon,authenticated,service_role;
-grant select on auth.users to service_role;
-alter default privileges in schema public grant all on tables to service_role;
-"""
-sql(bootstrap)
+sql('create role anon;create role authenticated;create role service_role bypassrls;create role supabase_auth_admin nologin;create role public_probe nologin;grant anon,authenticated,service_role,public_probe to postgres with inherit false,set true;')
+sql((ROOT/'scripts/phase6/auth-bootstrap.sql').read_text())
+# Supabase's postgres owner has BYPASSRLS, not superuser. Exercise that real boundary.
+sql('alter role postgres nosuperuser createdb createrole bypassrls;')
 files=sorted((ROOT/'supabase/migrations').glob('*.sql'))
 for f in files:
  if f.name<'20261014151638_trial_foundation.sql':sql(f.read_text())
@@ -42,7 +37,40 @@ assert runrpc('consultation_entitlement',[plus_user])['remaining']==30
 snapshot="select jsonb_build_object('subscriptions',(select md5(string_agg(to_jsonb(s)::text,'|' order by id)) from public.subscriptions s),'payments',(select md5(string_agg(to_jsonb(p)::text,'|' order by id)) from public.payments p),'settings',(select to_jsonb(s) from public.service_settings s),'policies',(select md5(string_agg(to_jsonb(p)::text,'|' order by tablename,policyname)) from pg_policies p where schemaname='public'));"
 before=obj(snapshot)
 migrations=[f for f in files if f.name>='20261014151638_trial_foundation.sql']
-for migration in migrations:sql(migration.read_text())
+auth_snapshot="select jsonb_build_object('rls',(select relrowsecurity from pg_class where oid='auth.users'::regclass),'acl',(select relacl::text from pg_class where oid='auth.users'::regclass),'policies',(select count(*) from pg_policies where schemaname='auth'));"
+auth_before=obj(auth_snapshot)
+for migration in migrations:
+ if migration.name.endswith('_trial_auth_verification.sql'):
+  pre=subprocess.run(base,input="set role service_role;select public.trial_claim(repeat('a',64),'"+u+"',null,null,null,null,'{}');",text=True,capture_output=True)
+  assert pre.returncode!=0 and 'permission denied for table users' in pre.stderr,pre.stderr
+ sql(migration.read_text())
+assert obj(auth_snapshot)==auth_before
+assert sql("select rolsuper from pg_roles where rolname='postgres';")=='f'
+assert sql("select rolbypassrls from pg_roles where rolname='postgres';")=='t'
+assert sql("select has_table_privilege('service_role','auth.users','SELECT');")=='f'
+assert sql("select relrowsecurity from pg_class where oid='auth.users'::regclass;")=='t'
+assert obj("select jsonb_build_object('owner',pg_get_userbyid(proowner),'definer',prosecdef,'path',proconfig,'type',prorettype::regtype::text) from pg_proc where oid='trial_private.email_verified(uuid)'::regprocedure;")=={'owner':'postgres','definer':True,'path':['search_path=""'],'type':'boolean'}
+assert sql("select prosecdef from pg_proc where oid='public.trial_claim(text,uuid,uuid,text,text,text,jsonb)'::regprocedure;")=='f'
+assert sql("select pg_get_userbyid(proowner) from pg_proc where oid='public.trial_claim(text,uuid,uuid,text,text,text,jsonb)'::regprocedure;")=='postgres'
+assert obj("select jsonb_agg(n.nspname || '.' || p.proname order by n.nspname,p.proname) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname in ('public','trial_private') and p.prosrc like '%from auth.users%';")==['public.protect_payment_environment','trial_private.email_verified']
+assert sql("select has_schema_privilege('service_role','trial_private','CREATE');")=='f'
+for role in ['anon','authenticated']:
+ assert sql("select has_function_privilege('"+role+"','trial_private.email_verified(uuid)','EXECUTE');")=='f'
+
+for role in ['anon','authenticated','service_role','public_probe']:
+ denied=subprocess.run(base,input='set role '+role+';select id,email_confirmed_at from auth.users;',text=True,capture_output=True)
+ assert denied.returncode!=0 and 'permission denied' in denied.stderr
+ if role!='service_role':
+  denied=subprocess.run(base,input='set role '+role+";select trial_private.email_verified('"+u+"');",text=True,capture_output=True)
+  assert denied.returncode!=0 and 'permission denied' in denied.stderr
+assert sql("select count(*) from pg_proc p,lateral aclexplode(p.proacl) a where p.oid='trial_private.email_verified(uuid)'::regprocedure and a.grantee=0;")=='0'
+assert sql("set role service_role;select trial_private.email_verified('"+u+"');")=='t'
+# Existing Stripe guard needs Auth only for owner-only environment changes.
+denied=subprocess.run(base,input="set role service_role;update payment_environment set stripe_account_id='acct_forbidden';",text=True,capture_output=True)
+assert denied.returncode!=0 and 'permission denied' in denied.stderr
+denied=subprocess.run(base,input="update payment_environment set stripe_account_id='acct_forbidden';",text=True,capture_output=True)
+assert denied.returncode!=0 and 'only an empty project' in denied.stderr
+
 assert obj(snapshot)==before
 assert runrpc('consultation_entitlement',[u])['remaining']==3
 assert runrpc('consultation_entitlement',[plus_user])['remaining']==30
@@ -71,10 +99,30 @@ cost=int(sql('select sum(coalesce(settled_nusd,reserved_nusd)) from trial_privat
 # Transactional claim + cross-account race.
 other=str(uuid.uuid4());sql(f"insert into auth.users(id,email_confirmed_at) values('{other}',now());")
 turn=w['turnId']
+unconfirmed=str(uuid.uuid4());sql(f"insert into auth.users(id) values('{unconfirmed}');")
+claim_state="select jsonb_build_object('subjects',(select coalesce(jsonb_agg(to_jsonb(s) order by id),'[]') from public.consultation_subjects s),'threads',(select coalesce(jsonb_agg(to_jsonb(t) order by id),'[]') from public.consultation_threads t),'turns',(select coalesce(jsonb_agg(to_jsonb(t) order by id),'[]') from public.consultation_turns t),'sessions',(select coalesce(jsonb_agg(to_jsonb(s) order by id),'[]') from trial_private.sessions s));"
+claim_before=obj(claim_state)
+for invalid_user in [unconfirmed,str(uuid.uuid4()),None]:
+ assert runrpc('trial_claim',[h,invalid_user,turn,'合成相談本文','合成回答','general','{}'])['error']=='auth'
+ assert obj(claim_state)==claim_before
+# Force a late failure; all earlier inserts and ownership changes must roll back.
+sql("create function public.fail_auth_claim_test() returns trigger language plpgsql as $$begin raise exception 'synthetic claim failure';end $$;create trigger fail_auth_claim_test before insert on public.consultation_turns for each row execute function public.fail_auth_claim_test();")
+try:
+ runrpc('trial_claim',[h,u,turn,'合成相談本文','合成回答','general','{}'])
+ raise AssertionError('expected synthetic failure')
+except RuntimeError as e:assert 'synthetic claim failure' in str(e)
+assert obj(claim_state)==claim_before
+sql('drop trigger fail_auth_claim_test on public.consultation_turns;drop function public.fail_auth_claim_test();')
 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
  results=list(pool.map(lambda owner:runrpc('trial_claim',[h,owner,turn,'合成相談本文','合成回答','general','{}']),[u,other]))
 assert sum('threadId' in r for r in results)==1,results
 assert sum(r.get('error')=='ownership' for r in results)==1,results
+winner=[owner for owner,result in zip([u,other],results) if 'threadId' in result][0]
+claimed=[result for result in results if 'threadId' in result][0]
+assert runrpc('trial_claim',[h,winner,None,None,None,None,'{}'])==claimed
+assert sql("select count(*) from public.consultation_threads where id='"+claimed['threadId']+"' and user_id='"+winner+"';")=='1'
+assert sql("select count(*) from public.consultation_turns where thread_id='"+claimed['threadId']+"' and user_id='"+winner+"' and not charged;")=='1'
+
 # Caller permissions: service role works; browser roles fail.
 assert obj("set role service_role;select public.trial_policy();")['enabled'] is True
 for role in ['anon','authenticated']:
@@ -88,6 +136,9 @@ r=subprocess.run(base+['-d','phase6_restore'],input=dump,capture_output=True);as
 sql('update trial_private.settings set enabled=false;', 'phase6_restore')
 assert runrpc('trial_policy',[], 'phase6_restore')['enabled'] is False
 assert obj(snapshot,'phase6_restore')==before
+assert sql("select has_table_privilege('service_role','auth.users','SELECT');",'phase6_restore')=='f'
+assert sql("select relrowsecurity from pg_class where oid='auth.users'::regclass;",'phase6_restore')=='t'
+assert sql("set role service_role;select trial_private.email_verified('"+u+"');",'phase6_restore')=='t'
 assert sql("select count(*) from pg_proc p cross join (values('anon'),('authenticated')) r(role) where p.pronamespace='public'::regnamespace and p.proname like 'trial_%' and has_function_privilege(r.role,p.oid,'EXECUTE');",'phase6_restore')=='0'
 restored=int(sql('select sum(coalesce(settled_nusd,reserved_nusd)) from trial_private.calls;','phase6_restore'));assert restored==cost
 sql("update trial_private.sessions set expires_at=now()-interval '1 second';select public.trial_cleanup();",'phase6_restore')
@@ -125,4 +176,4 @@ assert sql("select settled_nusd from trial_private.calls where id='"+r['call']['
 assert sql('select enabled from trial_private.settings;',db)=='f'
 assert sql('select count(*) from trial_private.sessions;',db)=='0'
 assert sql('select count(*) from trial_private.turns;',db)=='0'
-print(json.dumps({'database':'PostgreSQL 17.11 (Docker, isolated synthetic)' ,'allMigrationsApplied':len(files),'restoreAclVerified':True,'restoreQuarantinedBeforeCleanup':True,'legacy1980And980PlusFreePreserved':True,'migrationsApplied':[f.name for f in migrations],'existingSyntheticDataUnchanged':True,'sameSessionParallelRequests':12,'sameSessionReservations':1,'budgetParallelRequests':20,'budgetReservations':2,'reservedAndSettledNusd':cost,'budgetNusd':3000000000,'fullBudgetParallelRequests':20,'fullBudgetReservations':3,'crossAccountClaimWinners':1,'browserRolePermissionChecks':6,'allTrialTableRlsChecks':8,'allRpcBrowserGrantChecks':22,'deleteClaimRaceVerified':True,'purgeLateSettlementRaceVerified':True,'restoreVerified':True,'expiryCleanupVerified':True},indent=2))
+print(json.dumps({'database':'PostgreSQL 17.11 (Docker, isolated synthetic)' ,'allMigrationsApplied':len(files),'authDirectSelectDenied':True,'authRlsPreserved':True,'pre17FailureReproduced':True,'verifierOwnerNonSuperuser':True,'verifierPublicDenied':True,'claimAsServiceRole':True,'claimRollbackVerified':True,'stripeGuardUnchanged':True,'restoreAclVerified':True,'restoreQuarantinedBeforeCleanup':True,'legacy1980And980PlusFreePreserved':True,'migrationsApplied':[f.name for f in migrations],'existingSyntheticDataUnchanged':True,'sameSessionParallelRequests':12,'sameSessionReservations':1,'budgetParallelRequests':20,'budgetReservations':2,'reservedAndSettledNusd':cost,'budgetNusd':3000000000,'fullBudgetParallelRequests':20,'fullBudgetReservations':3,'crossAccountClaimWinners':1,'browserRolePermissionChecks':6,'allTrialTableRlsChecks':8,'allRpcBrowserGrantChecks':22,'deleteClaimRaceVerified':True,'purgeLateSettlementRaceVerified':True,'restoreVerified':True,'expiryCleanupVerified':True},indent=2))
