@@ -17,6 +17,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Offline local recipient form checks
+        run: python3 scripts/phase6/auth-recipient-input-test.py
       - run: npm run build
       - name: Offline scoped Stripe catalog initialization
         run: python3 scripts/phase6/stripe-init-verify.py

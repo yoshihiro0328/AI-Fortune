@@ -1,5 +1,5 @@
 """Loopback-only recipient collection. No Supabase requests, passwords, or emails sent."""
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 import json,secrets,sys,os,re
@@ -11,7 +11,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type','text/html; charset=utf-8')
         self.send_header('Cache-Control','no-store')
-        self.send_header('Referrer-Policy','no-referrer')
+        # Preserve the Origin of same-origin form POSTs; no-referrer makes it null.
+        self.send_header('Referrer-Policy','same-origin')
         self.send_header('Content-Security-Policy',"default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
         self.end_headers();self.wfile.write(text.encode())
     def valid(self):return self.path=='/'+nonce and self.headers.get('Host')==f'127.0.0.1:{self.server.server_port}'
@@ -33,7 +34,7 @@ class Handler(BaseHTTPRequestHandler):
         except FileExistsError:return self.output(409,'既に保管済みです。変更する場合はお知らせください。')
         except (ValueError,UnicodeError):return self.output(400,'異なる2つの有効なメールアドレスを入力してください。')
         self.output(200,'<meta charset="utf-8"><h1>宛先を安全に保管しました</h1><p>ユーザー作成・メール送信は行っていません。この画面を閉じて構いません。</p>')
-server=HTTPServer(('127.0.0.1',0),Handler)
+server=ThreadingHTTPServer(('127.0.0.1',0),Handler)
 (private/'recipient-input-url.txt').write_text(f'http://127.0.0.1:{server.server_port}/{nonce}')
 os.chmod(private/'recipient-input-url.txt',0o600)
 print('Local recipient input ready (no sending)',flush=True)
