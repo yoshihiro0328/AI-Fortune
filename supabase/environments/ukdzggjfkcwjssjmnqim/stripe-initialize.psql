@@ -1,0 +1,95 @@
+-- Prepared only. Hosted execution requires separate approval.
+-- psql -X only, using the validated direct host or target-specific session pooler user, TLS verify-full, no hostaddr/service override.
+-- The local branch is ONLY for a network-disabled Docker DB with this exact name.
+\set ON_ERROR_STOP on
+select current_user='postgres' and session_user='postgres' and
+ (((( :'HOST'='db.ukdzggjfkcwjssjmnqim.supabase.co' and :'USER'='postgres')
+    or (:'HOST'='aws-0-ap-northeast-1.pooler.supabase.com' and :'USER'='postgres.ukdzggjfkcwjssjmnqim'))
+   and :'PORT'='5432' and current_database()='postgres'
+   and exists(select 1 from pg_stat_ssl where pid=pg_backend_pid() and ssl))
+  or (:'HOST'='/tmp' and :'USER'='postgres' and current_database()='stripe_init_isolated'
+      and inet_server_addr() is null)) as target_ok \gset
+\if :target_ok
+\else
+do $$ begin raise exception 'STOP: unexpected connection target, role or TLS'; end $$;
+\endif
+begin;
+set local lock_timeout='5s';
+set local statement_timeout='60s';
+set local search_path='';
+-- No app/Auth writer may race the empty-state checks. No grants are added.
+lock table auth.users,auth.sessions in share mode;
+lock table public.payment_environment,public.price_versions,public.service_settings in exclusive mode;
+do $$
+declare t record; occupied boolean; versions text[];
+begin
+ select array_agg(version order by version) into versions from supabase_migrations.schema_migrations;
+ if versions is distinct from array['20261006074109','20261006080553','20261006114912','20261006115729','20261007010000','20261007011000','20261007012000','20261007070000','20261008124041','20261008163422','20261008165734','20261008171809','20261013074636','20261014075838','20261014151638','20261014160317','20261015081652']::text[] then
+  raise exception 'expected exact approved 17 migrations';
+ end if;
+ if (select count(*) from public.payment_environment)<>1 or not exists(
+  select 1 from public.payment_environment where id and mode='sandbox'
+  and stripe_account_id='acct_1UNSvsIYwtQeIHKP') then
+  raise exception 'unexpected prior Stripe account/mode (or already initialized)';
+ end if;
+ if (select count(*) from public.price_versions)<>4 or exists(select 1 from public.price_versions where active)
+ or (select array_agg(id order by id) from public.price_versions) is distinct from
+ array['plus-2026-10-980','plus-live-2026-10-980','report-2026-10-980','report-live-2026-10-980']::text[] then
+  raise exception 'expected four inactive baseline prices';
+ end if;
+ if (select count(*) from public.service_settings)<>1 or not exists(select 1 from public.service_settings
+  where id and portal_configuration_id is null and free_limit=3 and plus_limit=30) then
+  raise exception 'unexpected service settings/Portal';
+ end if;
+ if (select count(*) from trial_private.settings)<>1 or exists(select 1 from trial_private.settings where enabled) then
+  raise exception 'anonymous AI must remain OFF';
+ end if;
+ -- All data tables, including future additions, must be empty. Only seeded catalogs are exempt.
+ for t in select n.nspname,c.relname from pg_class c join pg_namespace n on n.oid=c.relnamespace
+  where c.relkind='r' and n.nspname in ('public','trial_private')
+   and (n.nspname||'.'||c.relname) not in
+   ('public.diagnosis_types','public.diagnosis_questions','public.affiliate_products',
+    'public.service_settings','public.price_versions','public.payment_environment',
+    'trial_private.settings','trial_private.prices') order by n.nspname,c.relname
+ loop
+  execute format('lock table %I.%I in share mode',t.nspname,t.relname);
+  execute format('select exists(select 1 from %I.%I)',t.nspname,t.relname) into occupied;
+  if occupied then raise exception 'nonempty table: %.%',t.nspname,t.relname; end if;
+ end loop;
+ if exists(select 1 from auth.users) or exists(select 1 from auth.sessions) then raise exception 'Auth must be empty'; end if;
+ if exists(select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace
+   where n.nspname in ('public','trial_private') and c.relkind='r' and not c.relrowsecurity)
+   or not (select relrowsecurity from pg_class where oid='auth.users'::regclass)
+   or has_table_privilege('service_role','auth.users','SELECT') then raise exception 'unexpected RLS/Auth privilege'; end if;
+ if exists(select 1 from pg_trigger where not tgisinternal and tgname in
+  ('protect_payment_environment','price_environment','payments_environment','customers_environment',
+   'subscriptions_environment','invoices_environment','events_environment') and tgenabled<>'O')
+ or (select count(*) from pg_trigger where not tgisinternal and tgname in
+  ('protect_payment_environment','price_environment','payments_environment','customers_environment',
+   'subscriptions_environment','invoices_environment','events_environment'))<>7 then raise exception 'environment trigger drift'; end if;
+end $$;
+-- Preserve baseline rows exactly (including created_at and all Stripe identifiers).
+create temporary table init_old_prices on commit drop as select * from public.price_versions;
+create temporary table init_acl on commit drop as
+ select c.oid,c.relacl,c.relrowsecurity,c.relforcerowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace
+ where n.nspname in ('public','trial_private','auth') and c.relkind='r';
+update public.payment_environment set stripe_account_id='acct_1UQlQdI73kTcvXz8'
+ where id and mode='sandbox' and stripe_account_id='acct_1UNSvsIYwtQeIHKP';
+-- Deliberately inactive until a separate app/Checkout test approval.
+insert into public.price_versions(id,kind,amount,currency,stripe_price_id,stripe_product_id,active,is_test) values
+ ('report-integration-202610-980-v1','report',980,'jpy','price_1UQlnvI73kTcvXz8twnU8NIR','prod_VRf89e8A94b0mb',false,true),
+ ('plus-integration-202610-980-v1','plus',980,'jpy','price_1UQlpjI73kTcvXz814TUAfOd','prod_VRfAjqXSjem3nl',false,true);
+update public.service_settings set portal_configuration_id='bpc_1UQlv6I73kTcvXz8G4TVvwUm',updated_at=now() where id;
+do $$ begin
+ if exists((select * from pg_temp.init_old_prices) except
+  (select p.* from public.price_versions p join pg_temp.init_old_prices b using(id))) then raise exception 'baseline price modified'; end if;
+ if (select count(*) from public.price_versions)<>6 or exists(select 1 from public.price_versions where active)
+ or (select count(*) from public.price_versions where id in ('report-integration-202610-980-v1','plus-integration-202610-980-v1')
+  and amount=980 and currency='jpy' and is_test and not active)<>2 then raise exception 'catalog postcondition failed'; end if;
+ if not exists(select 1 from public.payment_environment where id and mode='sandbox' and stripe_account_id='acct_1UQlQdI73kTcvXz8')
+ or not exists(select 1 from public.service_settings where id and portal_configuration_id='bpc_1UQlv6I73kTcvXz8G4TVvwUm' and free_limit=3 and plus_limit=30)
+ or exists(select 1 from trial_private.settings where enabled) then raise exception 'settings postcondition failed'; end if;
+ if exists(select 1 from pg_temp.init_acl a join pg_class c on c.oid=a.oid where
+  (c.relacl,c.relrowsecurity,c.relforcerowsecurity) is distinct from (a.relacl,a.relrowsecurity,a.relforcerowsecurity)) then raise exception 'ACL/RLS changed'; end if;
+end $$;
+commit;

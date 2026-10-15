@@ -18,6 +18,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Offline scoped Stripe catalog initialization
+        run: python3 scripts/phase6/stripe-init-verify.py
+        env:
+          PHASE6_STRIPE_INIT_REPORT: phase6-stripe-init-results.json
       - name: Docker isolated HTTP and database integration
         run: npm run test:integration
         env:
@@ -26,4 +30,6 @@ jobs:
         if: success()
         with:
           name: phase6-integration-results
-          path: phase6-integration-results.json
+          path: |
+            phase6-integration-results.json
+            phase6-stripe-init-results.json
