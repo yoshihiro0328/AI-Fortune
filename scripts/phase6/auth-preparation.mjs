@@ -81,3 +81,17 @@ export function checkAuthMailPlan(plan) {
     deliveryVerified: false,
   };
 }
+
+/** STEP 7 initial stage only: the optional two resends are a separate approval.
+ * This is an offline plan check, never a send authorization or delivery ledger.
+ */
+export function checkInitialAuthMailPlan(plan) {
+  const result = checkAuthMailPlan(plan);
+  if (
+    plan.attempts.length !== 2 ||
+    new Set(plan.attempts.map((attempt) => attempt.recipient)).size !== 2 ||
+    plan.attempts.some((attempt) => attempt.action !== "signup")
+  )
+    throw new Error("Initial stage requires one signup each for A and B");
+  return { ...result, stage: "initial", automaticResend: false };
+}

@@ -65,6 +65,8 @@ TRIAL_ENABLED、TRIAL_RETENTION_VERIFIED、TRIAL_BUDGET_VERIFIED、STRIPE_LIVE_C
 
 ## メールA/Bと標準SMTPの制約
 
+STEP 7追記: 宛先A/Bは現在保存済み。独自ドメイン不要のMailerSend Sandboxを比較検討し、最新の推奨・承認手順を[SMTP選定資料](phase6-smtp-selection.md)へまとめた。以下のSMTP推奨はSTEP 6時点の記録。
+
 **AI FortuneのTeam画面でメンバーは1名。異なる2宛先を標準SMTPの許可対象にする条件を満たせない。** メンバーのメール値はチャット・Git・報告書に記載せず、照合用に専用ローカル領域へ保管。メンバー招待はしていない。
 
 A/B入力用に、127.0.0.1限定・ランダムパス・同一Origin/Host検証・no-store・CSPの専用画面を用意。外部通信を一切持たず、異なる2つの宛先だけを0600で保存する。パスワード・認証リンクは収集しない。入力結果はその時点の完了報告で区別する。未入力を承認済みと扱わない。
