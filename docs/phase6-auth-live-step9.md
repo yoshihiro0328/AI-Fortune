@@ -94,3 +94,36 @@ Bの認証とログイン、パスワードログイン成功、ログアウト/
 GitHub CI（86400f6、run 38871950942）は**失敗**。Dockerイメージ配布元ECRが `toomanyrequests: Data limit exceeded` を返し、Stripe初期化の隔離DBチェックを開始できなかった。ローカル611テスト/HTTP16/ビルドの成功と区別し、CI成功とは報告しない。認証操作やメール送信はCIから実行していない。
 
 事後の読取でSite URL `http://localhost:5198`、Redirect URL `http://localhost:5198/auth/callback` が不変であることを確認。CIで開始できなかったStripe初期化のDocker検証はローカルで29項目すべて成功（外部接続0、Stripe取引0）。
+
+## Bのパスワード再設定準備（2026-10-17、メール送信未承認）
+
+本人からMac/ChromeにBのパスワードが保存されていないとの回答。既存Bを維持し、既存アプリの `resetPasswordForEmail` → PKCE callback → `updateUser({password})` → 新パスワードでログインする。新規登録・確認メール再送・管理者による変更は行わない。回復メール1通の送信は**本人の最終確認待ち**。現時点で送信0、パスワード変更0。
+
+### 読取結果
+
+- 新DB `ukdzggjfkcwjssjmnqim` はACTIVE_HEALTHY。Authユーザー2/確認済み2、Aセッション1、Bセッション0、価格active0、trial OFF。保存済みB宛先と既存B UUIDの一致を、メール値を返さないハッシュ比較で確認。
+- Site URLと専用callbackは不変。回復テンプレートは標準 `{{ .ConfirmationURL }}`。Password changed通知はOFF（追加通知の自動送信を避けるため確認しただけで設定変更なし）。
+- MailerSend Sandboxのテストドメインは利用可能。過去の送信3/Delivered3/Rejected0、open/click/content/unsubscribe追跡OFF。新しい送信は行っていない。送信直前にも残枠と重複記録を確認する。
+
+### ローカル限定の変更と検証
+
+本体の認証コード/SQL17件/クラウド設定は変更していない。専用ハーネスに `auth-password-recovery.mjs` を追加し、次を制限する。
+
+1. `reset-prepared` は全Auth書込を拒否。`reset-b` では保存済みBへの回復だけを入口で許可し、Bの既存UUID・確認済み状態・新DB専用anon keyを確認。Aへの送信、新規登録、signup再送は拒否。
+2. 最終承認後にのみGit管理外へ作る `reset-b-1.approved`（対象Ref/UUID/宛先ハッシュ/1通/短い期限）を要求する。承認ファイルは今回作成していない。送信前に `reset-b-1.reserved` をO_EXCL + ファイル/親ディレクトリfsyncで確定。エラーや通信不明でも枠を戻さず再試行不可。既存signup2件/resend1件の記録は保持。
+3. SDKが回復用の新verifierをCookieに保存すること、S256 challengeと一致することをモックで確認。今回予約したchallengeに合うverifierだけでコード交換できる。旧signupのverifierや別ブラウザーの値は拒否。callbackは `next=recovery` と単一codeだけを許可。メールURL/コード/verifierそのものは記録しない。
+4. 回復ログインを確認してから手動で `password-b` 段階へ進める。本人入力の強いパスワードだけをPUTで許可し、email/phone/metadata変更を拒否。本人JWTをSupabaseが検証し、B以外の応答を受け付けない。既存アプリのglobal signOutはBのJWTに限るためAセッションへ適用できない。signOut成功はUI文言だけでなくプロキシ応答とDB状態で確認する。
+5. 外向きorigin固定、OS通信制限、CSRF、署名付き回復Cookie、JWT/RLSは維持。回復段階のrefresh、データ引き継ぎRPC、Stripe/OpenAI/旧DB接続は拒否。準備用ローカルHTTPでreset/signup/resend/login/logout/updateの6操作が外部通信前に403となることを確認。
+
+既存611 + 新規16 = **627テスト成功**。外部33件は未実施として分離。lint/型チェック、旧envなしの専用コピーでNext.js build、Docker HTTP16、Stripe初期化隔離DB29項目成功。実SDKのCookie永続化→回復コード交換→password update→B global signOutは合成応答で検証しており、実メール/実パスワード変更の成功を意味しない。
+
+### 承認後の実行手順
+
+- 実行直前にB未ログイン/認証済み、Aセッション1、対象Ref、SMTP/送信残枠、追加通知OFFを再確認。B宛て回復1通の明示承認を得てから承認記録を作り、段階を `reset-b` に切り替える。
+- B登録に用いたアプリ内ブラウザー（localhost:5198）の既存再設定フォームで、保存済みBを使用して1回だけ送信。本人が最新メールのリンクを右クリックして「リンクのアドレスをコピー」し、**先に別ブラウザーで開かず**、同じアプリ内ブラウザーのアドレス欄へ貼り付けて1回だけ開く。調査用GET/HEAD/先読みは禁止。
+- PKCE交換/B UUID/回復Cookieを確認後、新しいパスワードの入力・確認・送信は本人が行う（12〜128文字、大小英字/数字/記号）。Mac「パスワード」にB用として保存。メール未着・結果不明・リンクエラーは直ちにSTOPし、追加送信しない。
+- 更新後、Bの回復セッション終了とAの元セッション不変を確認してから通常password loginへ進む。Bでログアウト/再ログイン/refresh/Cookie削除、A/B本人JWTのprofile RLSを検証する。Aの元セッションはログアウトやCookie削除の対象にしない。相談所有権はデータ未投入のため未検証のまま。
+
+Supabase現行公式ソースのredirect判定ではSite URLと同一originへのパス/クエリ遷移を許可するため、既存 `?next=recovery` のためだけにクラウドallowlistを変更しない。ローカル側では厳密にこのURLだけを許可。Hosted実際のメール遷移は送信後に本人操作で確認する。
+
+参考: [resetPasswordForEmail](https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail)、[redirect判定の公式実装](https://github.com/supabase/auth/blob/master/internal/utilities/request.go)、[PKCE](https://supabase.com/docs/guides/auth/sessions/pkce-flow)。changelog.mdは今回取得エラーで差分未確認。インストール済みSDKの実コードと上記公式資料、モック試験で対象動作を確認した。

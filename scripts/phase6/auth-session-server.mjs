@@ -7,6 +7,10 @@ import { parseCookieHeader } from "@supabase/ssr";
 import { sessionChecks } from "./auth-session-checks.mjs";
 import { validateRuntime } from "./local-auth-policy.mjs";
 import {
+  recoveryCallbackAllowed,
+  resetApprovalValid,
+} from "./auth-password-recovery.mjs";
+import {
   incomingAllowed as allowedIncoming,
   authActionAllowed,
   boundedBody,
@@ -65,10 +69,7 @@ http
       res.end();
       return;
     }
-    if (
-      pathname === "/auth/callback" &&
-      [...parsed.searchParams.keys()].some((k) => k !== "code")
-    ) {
+    if (!recoveryCallbackAllowed(parsed, stage)) {
       res.writeHead(403);
       res.end();
       return;
@@ -105,6 +106,9 @@ http
         req.headers.origin !== "http://localhost:5198" ||
         fs.existsSync(path.join(dir, "STOP")) ||
         !authActionAllowed(input, recipients, stage) ||
+        (input.action === "reset" &&
+          (!resetApprovalValid(dir, recipients.b) ||
+            fs.existsSync(path.join(dir, "reset-b-1.reserved")))) ||
         (input.action === "resend" &&
           (!pkceCookiePresent(parseCookieHeader(req.headers.cookie ?? "")) ||
             fs.existsSync(path.join(dir, "resend-b-1.reserved"))))

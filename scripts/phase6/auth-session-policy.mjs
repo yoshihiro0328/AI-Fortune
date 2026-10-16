@@ -2,6 +2,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import { origin, allowedExternal as readOnly } from "./local-auth-policy.mjs";
+import {
+  recoveryRequestShape,
+  resetStages,
+} from "./auth-password-recovery.mjs";
 export { origin };
 export function externalAllowed(value, method = "GET", body = {}) {
   let u;
@@ -11,6 +15,7 @@ export function externalAllowed(value, method = "GET", body = {}) {
     return false;
   }
   if (u.origin !== origin || u.username || u.password || u.hash) return false;
+  if (recoveryRequestShape(u, method, body)) return true;
   if (readOnly(value, method)) return true;
   if (method === "GET" && u.pathname === "/rest/v1/profiles") return true;
   if (method !== "POST") return false;
@@ -46,7 +51,7 @@ export function externalAllowed(value, method = "GET", body = {}) {
     );
   if (u.pathname === "/auth/v1/logout")
     return (
-      u.searchParams.get("scope") === "local" &&
+      ["local", "global"].includes(u.searchParams.get("scope")) &&
       [...u.searchParams.keys()].every((k) => k === "scope")
     );
   if (u.search) return false;
@@ -78,6 +83,13 @@ export function incomingAllowed(pathname, method, host) {
   );
 }
 export function authActionAllowed(body, recipients, stage) {
+  if (resetStages.has(stage))
+    return (
+      (stage === "reset-b" &&
+        body.action === "reset" &&
+        body.email?.trim().toLowerCase() === recipients.b) ||
+      (stage === "password-b" && body.action === "update")
+    );
   if (stage === "resend-b")
     return (
       body.action === "resend" &&

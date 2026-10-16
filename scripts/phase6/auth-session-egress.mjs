@@ -11,6 +11,13 @@ import {
   reserveResend,
 } from "./auth-session-policy.mjs";
 import { validateRuntime } from "./local-auth-policy.mjs";
+import {
+  resetStageAllowed,
+  resetStages,
+  recoveryUser,
+  reserveReset,
+  resetVerifierMatches,
+} from "./auth-password-recovery.mjs";
 const dir = process.argv[2],
   env = JSON.parse(fs.readFileSync(path.join(dir, "runtime.json"))),
   recipients = JSON.parse(fs.readFileSync(path.join(dir, "recipients.json")));
@@ -61,6 +68,7 @@ const server = http.createServer(async (req, res) => {
   )
     return fail();
   const bearer = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+  let subject;
   if (!keys.includes(bearer)) {
     try {
       const jwt = JSON.parse(Buffer.from(bearer.split(".")[1], "base64url"));
@@ -70,6 +78,7 @@ const server = http.createServer(async (req, res) => {
         !known.has(jwt.sub)
       )
         return fail();
+      subject = jwt.sub;
     } catch {
       return fail();
     }
@@ -78,7 +87,33 @@ const server = http.createServer(async (req, res) => {
     ([, v]) => v === b.email?.trim().toLowerCase(),
   )?.[0];
   const stage = fs.readFileSync(path.join(dir, "stage"), "utf8").trim();
-  if (!recoveryExternalAllowed(target, req.method, stage, label)) return fail();
+  if (
+    !recoveryExternalAllowed(target, req.method, stage, label) ||
+    !resetStageAllowed(u, req.method, stage, label, subject)
+  )
+    return fail();
+  if (
+    resetStages.has(stage) &&
+    u.pathname.startsWith("/auth/v1/") &&
+    req.headers.apikey !== keys[0]
+  )
+    return fail();
+  if (u.pathname === "/auth/v1/recover") {
+    const bUser = JSON.parse(fs.readFileSync(path.join(dir, "user-b.json")));
+    if (bUser.id !== recoveryUser || !bUser.confirmed || bearer !== keys[0])
+      return fail();
+    try {
+      reserveReset(dir, label, recipients.b, b.code_challenge);
+    } catch {
+      return fail();
+    }
+  }
+  if (
+    stage === "reset-b" &&
+    u.pathname === "/auth/v1/token" &&
+    !resetVerifierMatches(dir, b.code_verifier)
+  )
+    return fail();
   if (u.pathname === "/auth/v1/resend") {
     const bUser = JSON.parse(fs.readFileSync(path.join(dir, "user-b.json")));
     if (
@@ -176,7 +211,10 @@ const server = http.createServer(async (req, res) => {
         const l = Object.entries(recipients).find(
           ([, v]) => v === user.email?.toLowerCase(),
         )?.[0];
-        if (!l) {
+        if (
+          !l ||
+          (resetStages.has(stage) && (l !== "b" || user.id !== recoveryUser))
+        ) {
           stop();
           return fail(502);
         }
