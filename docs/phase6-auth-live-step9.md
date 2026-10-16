@@ -78,3 +78,19 @@ Bの認証とログイン、パスワードログイン成功、ログアウト/
 実ブラウザーのPKCE Cookie存在と未ログイン状態を確認。インストール済みSSR SDKのresendが、送信するS256 challengeと対応する新verifierをCookieへ保存することをモックで検証。新規17テスト追加、既存594と合計611成功。外部33件は未実施。lint/型チェック、専用コピーのNext.js build、Docker隔離DB/HTTP16成功。
 
 17:08:23 JST、既存Bへresend POST200を1回観測。MailerSendの配送3行目がDelivered、全送信累計3通。DBのB UUID不変/未認証、Aセッション1、Authユーザー合計2。再送後のBブラウザーにもPKCE Cookieあり。本人には最新メールだけを同じブラウザーで1回開くよう案内した。確認リンク自体は取得・記録・先読みしていない。認証完了とセッション検証の結果は本人操作後に追記する。
+
+### 再送後の結果：メール認証済み、ログイン未完了で再停止
+
+- 本人が最新メールのリンクを操作してエラーを報告したため、STOPを作成しローカルアプリ/中継を停止。再送は1回、累計送信3通、MailerSendは3通ともDelivered。本人の受信・操作は確認済み。追加送信は行わない。
+- 17:12:21 JSTにSupabase `user_signedup` と `/verify` 303。Bはメール認証済みとなり、再送分のPKCE flowで認証コード発行あり。
+- 17:12:45 JSTに `/verify` が `One-time token not found`。本人から「先に別の画面・ブラウザーでも開いた」と回答あり。最初の操作でメール認証され、後続操作で消費済みリンクが拒否されたという解釈と整合する。最初のブラウザーのCookie欠落自体は直接観測していないため断定しない。
+- 新しいPKCE `/token` 交換はローカル中継記録にも取得したSupabaseログにもない。Bセッション0、B profile未作成。メール認証の成功をログイン成功と扱わない。PKCE Cookieは再送前後にBの元ブラウザーで存在を確認していた。
+- テンプレートは標準 `{{ .ConfirmationURL }}`。SMTP配送は成功。確認リンク自体を採取・HEAD/GET・プレビューしていない。メール自動スキャンによる消費の証拠はない。
+- 最終新DB: Authユーザー2/認証済み2、identities2、セッション1（A）、profiles1（A）。診断/購入/契約/相談thread/turn0。migration17、trial OFF、価格active0、service_role Auth直接SELECT不可。
+- Aのログアウト・refresh・セッション失効は行っていない。B成功後に予定したpassword login、logout/relogin、別ブラウザー、refresh、Cookie削除、本人JWTでのRLSは未実施。相談所有権/外部33件も未検証。
+- 復旧案は追加メールではなく、認証済みの既存Bへ通常のpassword loginを行い、その成功後にセッション/RLS検証を再開する。今回はユーザーの「再度エラー時は停止」に従い実施しない。リンクの再利用、signup、管理者による確認済み化、ユーザー削除は不要。
+- UI改善案（未実装）: 登録時ブラウザーで確認する案内、確認済みなら通常ログインへ誘導する説明、秘密値を記録しないcallback失敗段階の診断。自動先読み対策が必要と判明した場合のみ、公式仕様の中間確認画面/OTP方式を別設計し、CSRF・PKCE・所有権を維持してDockerで検証する。
+
+GitHub CI（86400f6、run 38871950942）は**失敗**。Dockerイメージ配布元ECRが `toomanyrequests: Data limit exceeded` を返し、Stripe初期化の隔離DBチェックを開始できなかった。ローカル611テスト/HTTP16/ビルドの成功と区別し、CI成功とは報告しない。認証操作やメール送信はCIから実行していない。
+
+事後の読取でSite URL `http://localhost:5198`、Redirect URL `http://localhost:5198/auth/callback` が不変であることを確認。CIで開始できなかったStripe初期化のDocker検証はローカルで29項目すべて成功（外部接続0、Stripe取引0）。
