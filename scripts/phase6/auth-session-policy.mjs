@@ -111,3 +111,8 @@ export async function boundedBody(req) {
   }
   return Buffer.concat(chunks);
 }
+
+// Profile RLS checks must never accept an administrative bearer, even with anon apikey.
+export function profileCredentialsAllowed(apiKey, bearer, keys) {
+  return apiKey === keys[0] && !!bearer && !keys.includes(bearer);
+}

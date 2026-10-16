@@ -7,6 +7,7 @@ import {
   incomingAllowed,
   authActionAllowed,
   reserveSignup,
+  profileCredentialsAllowed,
   origin,
 } from "../scripts/phase6/auth-session-policy.mjs";
 const signup = {
@@ -154,4 +155,16 @@ describe("STEP9 scope and irreversible mail reservations (offline)", () => {
       fs.rmSync(d, { recursive: true });
     }
   });
+});
+
+describe("RLS probe credential boundary", () => {
+  const keys = ["anon-fixture", "service-fixture"];
+  it("rejects service bearer with anonymous API key", () =>
+    expect(profileCredentialsAllowed(keys[0], keys[1], keys)).toBe(false));
+  it("rejects service apikey and unauthenticated bearer", () => {
+    expect(profileCredentialsAllowed(keys[1], "user-jwt", keys)).toBe(false);
+    expect(profileCredentialsAllowed(keys[0], keys[0], keys)).toBe(false);
+  });
+  it("permits only anonymous apikey plus user bearer for subsequent provider verification", () =>
+    expect(profileCredentialsAllowed(keys[0], "user-jwt", keys)).toBe(true));
 });

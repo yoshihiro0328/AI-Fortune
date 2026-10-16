@@ -6,6 +6,7 @@ import {
   externalAllowed,
   reserveSignup,
   boundedBody,
+  profileCredentialsAllowed,
 } from "./auth-session-policy.mjs";
 import { validateRuntime } from "./local-auth-policy.mjs";
 const dir = process.argv[2],
@@ -97,7 +98,7 @@ const server = http.createServer(async (req, res) => {
     return fail();
   if (
     u.pathname === "/rest/v1/profiles" &&
-    req.headers.apikey !== env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    !profileCredentialsAllowed(req.headers.apikey, bearer, keys)
   )
     return fail();
   const invalidLoginFile = path.join(dir, "expected-invalid-login.once");
