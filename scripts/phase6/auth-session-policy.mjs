@@ -14,6 +14,18 @@ export function externalAllowed(value, method = "GET", body = {}) {
   if (readOnly(value, method)) return true;
   if (method === "GET" && u.pathname === "/rest/v1/profiles") return true;
   if (method !== "POST") return false;
+  if (u.pathname === "/auth/v1/resend")
+    return (
+      u.searchParams.get("redirect_to") ===
+        "http://localhost:5198/auth/callback" &&
+      [...u.searchParams.keys()].every((k) => k === "redirect_to") &&
+      body.type === "signup" &&
+      typeof body.email === "string" &&
+      body.code_challenge_method === "s256" &&
+      /^[A-Za-z0-9_-]{43}$/.test(body.code_challenge ?? "") &&
+      !body.password &&
+      !body.phone
+    );
   if (u.pathname === "/auth/v1/signup")
     return (
       u.searchParams.get("redirect_to") ===
@@ -66,6 +78,11 @@ export function incomingAllowed(pathname, method, host) {
   );
 }
 export function authActionAllowed(body, recipients, stage) {
+  if (stage === "resend-b")
+    return (
+      body.action === "resend" &&
+      body.email?.trim().toLowerCase() === recipients.b
+    );
   if (body.action === "logout") return true;
   const label = Object.entries(recipients).find(
     ([, email]) => email === body.email?.trim().toLowerCase(),
@@ -74,6 +91,56 @@ export function authActionAllowed(body, recipients, stage) {
     !!label &&
     ["signup", "login"].includes(body.action) &&
     (body.action !== "signup" || label === stage)
+  );
+}
+export function recoveryExternalAllowed(url, method, stage, label) {
+  const u = new URL(url);
+  if (u.pathname === "/auth/v1/resend")
+    return stage === "resend-b" && label === "b";
+  if (stage !== "resend-b") return true;
+  if (method === "GET")
+    return [
+      "/auth/v1/user",
+      "/rest/v1/diagnoses",
+      "/rest/v1/service_settings",
+    ].includes(u.pathname);
+  return (
+    (u.pathname === "/auth/v1/token" &&
+      u.searchParams.get("grant_type") === "pkce") ||
+    [
+      "/rest/v1/rpc/consume_limit",
+      "/rest/v1/rpc/claim_anonymous_diagnoses",
+    ].includes(u.pathname)
+  );
+}
+export function reserveResend(dir, label) {
+  if (label !== "b") throw new Error("Unapproved resend recipient");
+  const fd = fs.openSync(path.join(dir, "resend-b-1.reserved"), "wx", 0o600);
+  try {
+    fs.writeFileSync(
+      fd,
+      JSON.stringify({
+        label,
+        at: new Date().toISOString(),
+        approval: "STEP9-B-resend-1",
+      }),
+    );
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+  const parent = fs.openSync(dir, "r");
+  try {
+    fs.fsyncSync(parent);
+  } finally {
+    fs.closeSync(parent);
+  }
+}
+export function pkceCookiePresent(cookies) {
+  const prefix = "sb-ukdzggjfkcwjssjmnqim-auth-token";
+  return cookies.some(
+    ({ name, value }) =>
+      name.startsWith(prefix) && name.includes("-code-verifier") && !!value,
   );
 }
 // Reserve BEFORE forwarding; O_EXCL prevents repeats/concurrency across processes/restarts.

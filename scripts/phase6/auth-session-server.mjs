@@ -3,12 +3,14 @@ import fs from "node:fs";
 import { Readable } from "node:stream";
 import path from "node:path";
 import next from "next";
+import { parseCookieHeader } from "@supabase/ssr";
 import { sessionChecks } from "./auth-session-checks.mjs";
 import { validateRuntime } from "./local-auth-policy.mjs";
 import {
   incomingAllowed as allowedIncoming,
   authActionAllowed,
   boundedBody,
+  pkceCookiePresent,
 } from "./auth-session-policy.mjs";
 const dir = process.env.STEP9_PRIVATE;
 const recipients = JSON.parse(
@@ -27,6 +29,42 @@ http
   .createServer(async (req, res) => {
     const parsed = new URL(req.url, "http://localhost:5198");
     const pathname = parsed.pathname;
+    const stage = fs.readFileSync(path.join(dir, "stage"), "utf8").trim();
+    if (
+      pathname === "/__step9-presence" &&
+      req.method === "GET" &&
+      req.headers.host === "localhost:5198"
+    ) {
+      const jar = parseCookieHeader(req.headers.cookie ?? "");
+      res.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "content-security-policy": "default-src 'none'; frame-ancestors 'none'",
+        "cache-control": "no-store",
+        "x-robots-tag": "noindex",
+      });
+      res.end(
+        '<!doctype html><meta charset="utf-8"><title>PKCE確認</title><pre>' +
+          JSON.stringify({
+            pkceCookiePresent: pkceCookiePresent(jar),
+            sessionCookiePresent: jar.some(
+              (c) =>
+                /^sb-ukdzggjfkcwjssjmnqim-auth-token(?:\.\d+)?$/.test(c.name) &&
+                !!c.value,
+            ),
+          }) +
+          "</pre>",
+      );
+      return;
+    }
+    if (
+      pathname === "/__step9" &&
+      req.method === "POST" &&
+      stage !== "sessions"
+    ) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
     if (
       pathname === "/auth/callback" &&
       [...parsed.searchParams.keys()].some((k) => k !== "code")
@@ -63,11 +101,13 @@ http
         res.end();
         return;
       }
-      const stage = fs.readFileSync(path.join(dir, "stage"), "utf8").trim();
       if (
         req.headers.origin !== "http://localhost:5198" ||
         fs.existsSync(path.join(dir, "STOP")) ||
-        !authActionAllowed(input, recipients, stage)
+        !authActionAllowed(input, recipients, stage) ||
+        (input.action === "resend" &&
+          (!pkceCookiePresent(parseCookieHeader(req.headers.cookie ?? "")) ||
+            fs.existsSync(path.join(dir, "resend-b-1.reserved"))))
       ) {
         res.writeHead(403);
         res.end('{"error":"STEP9_BLOCKED"}');
@@ -90,6 +130,6 @@ http
   })
   .listen(5198, "127.0.0.1", () =>
     console.log(
-      "STEP9 app ready at http://localhost:5198 (A-only signup, no resend)",
+      "STEP9 app ready at http://localhost:5198 (stage-scoped, durable mail reservations)",
     ),
   );

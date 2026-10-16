@@ -7,6 +7,8 @@ import {
   reserveSignup,
   boundedBody,
   profileCredentialsAllowed,
+  recoveryExternalAllowed,
+  reserveResend,
 } from "./auth-session-policy.mjs";
 import { validateRuntime } from "./local-auth-policy.mjs";
 const dir = process.argv[2],
@@ -75,6 +77,23 @@ const server = http.createServer(async (req, res) => {
   const label = Object.entries(recipients).find(
     ([, v]) => v === b.email?.trim().toLowerCase(),
   )?.[0];
+  const stage = fs.readFileSync(path.join(dir, "stage"), "utf8").trim();
+  if (!recoveryExternalAllowed(target, req.method, stage, label)) return fail();
+  if (u.pathname === "/auth/v1/resend") {
+    const bUser = JSON.parse(fs.readFileSync(path.join(dir, "user-b.json")));
+    if (
+      bUser.confirmed ||
+      !known.has(bUser.id) ||
+      req.headers.apikey !== keys[0] ||
+      bearer !== keys[0]
+    )
+      return fail();
+    try {
+      reserveResend(dir, label);
+    } catch {
+      return fail();
+    }
+  }
   if (
     u.pathname === "/auth/v1/signup" ||
     (u.pathname === "/auth/v1/token" &&
@@ -158,6 +177,14 @@ const server = http.createServer(async (req, res) => {
           ([, v]) => v === user.email?.toLowerCase(),
         )?.[0];
         if (!l) {
+          stop();
+          return fail(502);
+        }
+        const existingFile = path.join(dir, "user-" + l + ".json");
+        if (
+          fs.existsSync(existingFile) &&
+          JSON.parse(fs.readFileSync(existingFile)).id !== user.id
+        ) {
           stop();
           return fail(502);
         }

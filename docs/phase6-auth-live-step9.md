@@ -68,3 +68,13 @@ Bの認証とログイン、パスワードログイン成功、ログアウト/
 4. Aの既存セッションは残存。サーバー停止はセッション失効ではない。セッション失効テストやユーザー削除は未実行のまま、再開/限定削除を別途承認する。
 
 削除対象UUIDはGit管理外の`private-auth-step9/cleanup-targets.json`にA/Bラベルで保管。削除前に各UUIDのAuth identities/sessions/refresh tokens、profileと関連FKを読み取り照合し、当該2名に限定する。rate_limits8件はハッシュ化IP/匿名セッションの共有枠を含むため、ユーザーUUIDだけで一括削除しない。監査/配送ログの保持制限も区別する。全DB reset・全Auth削除・既存環境への操作は不要。
+
+## B限定再送の承認後準備（2026-10-16）
+
+新DBの既存B UUIDと保存済み宛先の一致を値非公開で照合し、B未認証・A確認済み/セッション1・全価格無効を確認。MailerSend配送2通、日次残枠98を送信前に確認した。
+
+`resend-b`段階はBへの正規resend、PKCE交換、認証に必要なRPCと限定読取のみ許可する。新規登録・A再送・password/refresh/logoutはB認証完了まで拒否。再送直前に`resend-b-1.reserved`をO_EXCL/fsyncで作成し、失敗・結果不明でも枠を戻さない。既存signup予約2件は保持。以前のSTOPは削除せず日時付きで保存した。
+
+実ブラウザーのPKCE Cookie存在と未ログイン状態を確認。インストール済みSSR SDKのresendが、送信するS256 challengeと対応する新verifierをCookieへ保存することをモックで検証。新規17テスト追加、既存594と合計611成功。外部33件は未実施。lint/型チェック、専用コピーのNext.js build、Docker隔離DB/HTTP16成功。
+
+17:08:23 JST、既存Bへresend POST200を1回観測。MailerSendの配送3行目がDelivered、全送信累計3通。DBのB UUID不変/未認証、Aセッション1、Authユーザー合計2。再送後のBブラウザーにもPKCE Cookieあり。本人には最新メールだけを同じブラウザーで1回開くよう案内した。確認リンク自体は取得・記録・先読みしていない。認証完了とセッション検証の結果は本人操作後に追記する。
