@@ -12,6 +12,7 @@ export function externalAllowed(value, method = "GET", body = {}) {
   }
   if (u.origin !== origin || u.username || u.password || u.hash) return false;
   if (readOnly(value, method)) return true;
+  if (method === "GET" && u.pathname === "/rest/v1/profiles") return true;
   if (method !== "POST") return false;
   if (u.pathname === "/auth/v1/signup")
     return (

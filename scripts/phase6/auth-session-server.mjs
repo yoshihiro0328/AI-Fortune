@@ -3,6 +3,7 @@ import fs from "node:fs";
 import { Readable } from "node:stream";
 import path from "node:path";
 import next from "next";
+import { sessionChecks } from "./auth-session-checks.mjs";
 import { validateRuntime } from "./local-auth-policy.mjs";
 import {
   incomingAllowed as allowedIncoming,
@@ -40,6 +41,7 @@ http
       "Content-Security-Policy",
       "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
     );
+    if (await sessionChecks(req, res, dir)) return;
     if (!allowedIncoming(pathname, req.method, req.headers.host)) {
       res.writeHead(403, { "content-type": "application/json" });
       res.end(

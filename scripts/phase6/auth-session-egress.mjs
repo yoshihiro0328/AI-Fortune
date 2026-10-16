@@ -15,6 +15,15 @@ validateRuntime(env);
 const known = new Set(),
   confirmed = new Set(),
   keys = [env.NEXT_PUBLIC_SUPABASE_ANON_KEY, env.SUPABASE_SERVICE_ROLE_KEY];
+// UUID records originate only from prior authenticated provider responses.
+for (const label of ["a", "b"]) {
+  const f = path.join(dir, "user-" + label + ".json");
+  if (fs.existsSync(f)) {
+    const user = JSON.parse(fs.readFileSync(f));
+    known.add(user.id);
+    if (user.confirmed) confirmed.add(user.id);
+  }
+}
 const stop = () =>
   fs.writeFileSync(path.join(dir, "STOP"), "Stopped: inspect without retry", {
     mode: 0o600,
@@ -86,6 +95,28 @@ const server = http.createServer(async (req, res) => {
     !confirmed.has(b.p_user)
   )
     return fail();
+  if (
+    u.pathname === "/rest/v1/profiles" &&
+    req.headers.apikey !== env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  )
+    return fail();
+  const invalidLoginFile = path.join(dir, "expected-invalid-login.once");
+  let expectedInvalidLogin = false;
+  if (
+    u.pathname === "/auth/v1/token" &&
+    u.searchParams.get("grant_type") === "password" &&
+    fs.existsSync(invalidLoginFile)
+  ) {
+    if (fs.readFileSync(invalidLoginFile, "utf8").trim() !== label)
+      return fail();
+    fs.unlinkSync(invalidLoginFile);
+    expectedInvalidLogin = true;
+  }
+  const negative =
+    req.headers["x-step9-negative"] === "1" &&
+    (u.pathname === "/auth/v1/user" ||
+      (u.pathname === "/auth/v1/token" &&
+        u.searchParams.get("grant_type") === "refresh_token"));
   const headers = {};
   for (const k of [
     "apikey",
@@ -109,6 +140,10 @@ const server = http.createServer(async (req, res) => {
       signal: AbortSignal.timeout(20000),
     });
     const bytes = Buffer.from(await response.arrayBuffer());
+    if (expectedInvalidLogin && response.ok) {
+      stop();
+      return fail(502);
+    }
     if (response.ok && u.pathname.startsWith("/auth/v1/")) {
       let data;
       try {
@@ -135,7 +170,14 @@ const server = http.createServer(async (req, res) => {
       }
     }
     // Any upstream error freezes the run. Expected negative tests require separate, explicit preparation.
-    if (!response.ok) stop();
+    if (
+      !response.ok &&
+      !(
+        (negative || expectedInvalidLogin) &&
+        [400, 401, 403].includes(response.status)
+      )
+    )
+      stop();
     fs.appendFileSync(
       path.join(dir, "requests.jsonl"),
       JSON.stringify({
