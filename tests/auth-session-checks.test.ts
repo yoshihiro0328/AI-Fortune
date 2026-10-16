@@ -7,6 +7,7 @@ const mock = vi.hoisted(() => ({
   getUser: vi.fn(),
   getSession: vi.fn(),
   refreshSession: vi.fn(),
+  signOut: vi.fn(),
   from: vi.fn(),
 }));
 vi.mock("@supabase/ssr", () => ({
@@ -18,6 +19,7 @@ import { sessionChecks } from "../scripts/phase6/auth-session-checks.mjs";
 let dir: string;
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "auth-session-checks-"));
+  fs.writeFileSync(path.join(dir, "stage"), "sessions");
   for (const l of ["a", "b"])
     fs.writeFileSync(
       path.join(dir, "user-" + l + ".json"),
@@ -56,6 +58,36 @@ async function invoke(
   return { status, text, result: JSON.parse(text) };
 }
 describe("real-session test controls (offline)", () => {
+  it("does not permit B recovery cleanup in normal session stage", async () => {
+    expect((await invoke("recovery-logout-b")).status).toBe(403);
+    expect(mock.signOut).not.toHaveBeenCalled();
+  });
+  it("protects A from the recovery cleanup even with a valid A identity", async () => {
+    fs.writeFileSync(path.join(dir, "stage"), "b-recovery-cleanup");
+    expect((await invoke("recovery-logout-b")).status).toBe(409);
+    expect(mock.signOut).not.toHaveBeenCalled();
+  });
+  it("closes B sessions only after provider verification", async () => {
+    fs.writeFileSync(path.join(dir, "stage"), "b-recovery-cleanup");
+    mock.getUser.mockResolvedValue({
+      data: { user: { id: "b", email_confirmed_at: "fixture" } },
+    });
+    mock.signOut.mockResolvedValue({ error: null });
+    expect((await invoke("recovery-logout-b")).result).toEqual({
+      label: "b",
+      globalLogoutSucceeded: true,
+    });
+    expect(mock.signOut).toHaveBeenCalledWith({ scope: "global" });
+  });
+  it("reports recovery logout failure rather than claiming success", async () => {
+    fs.writeFileSync(path.join(dir, "stage"), "b-recovery-cleanup");
+    mock.getUser.mockResolvedValue({
+      data: { user: { id: "b", email_confirmed_at: "fixture" } },
+    });
+    mock.signOut.mockResolvedValue({ error: { message: "fixture" } });
+    expect((await invoke("recovery-logout-b")).status).toBe(409);
+    expect(fs.existsSync(path.join(dir, "STOP"))).toBe(true);
+  });
   it("rejects cross-origin before Auth", async () => {
     expect((await invoke("refresh", "https://evil.test")).status).toBe(403);
     expect(mock.getUser).not.toHaveBeenCalled();

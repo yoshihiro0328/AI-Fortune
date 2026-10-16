@@ -127,3 +127,16 @@ GitHub CI（86400f6、run 38871950942）は**失敗**。Dockerイメージ配布
 Supabase現行公式ソースのredirect判定ではSite URLと同一originへのパス/クエリ遷移を許可するため、既存 `?next=recovery` のためだけにクラウドallowlistを変更しない。ローカル側では厳密にこのURLだけを許可。Hosted実際のメール遷移は送信後に本人操作で確認する。
 
 参考: [resetPasswordForEmail](https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail)、[redirect判定の公式実装](https://github.com/supabase/auth/blob/master/internal/utilities/request.go)、[PKCE](https://supabase.com/docs/guides/auth/sessions/pkce-flow)。changelog.mdは今回取得エラーで差分未確認。インストール済みSDKの実コードと上記公式資料、モック試験で対象動作を確認した。
+
+## B回復メール・パスワード変更の実測（2026-10-17 JST）
+
+本人からB宛て回復メール1通の最終承認を取得。新DB/既存B/確認済み2名/Aセッション1/Bセッション0/価格無効/trial OFFを再照合して実行した。
+
+- 00:33:18 JST: 正規 `/auth/v1/recover` が200、Bだけ1回。MailerSendの最新 `Reset your password` が保存済みBと一致しDelivered。累計4通（登録A/B各1、B登録確認再送1、今回回復1）。追加送信・signup・自動再送なし。
+- 00:36:11 JST: 本人が同じアプリ内ブラウザープロファイルで開き、PKCE token交換200、BのgetUser200、回復画面表示。Auth UUID不変、Bセッション1、Aセッション1。最初のパスワード保存操作はまだ `reset-b` 段階だったため入口で拒否し、外部へ送っていない。
+- 回復状態を確認して `password-b` に進め、本人が新しいパスワードを保存。00:40:38 JSTにBの `/auth/v1/user` PUT200。本人とUIの「パスワードを更新しました」を確認。パスワード値は取得/保存/出力していない。
+- **後続のglobal logoutは未成功**。ローカルfetch中継がSDKの本文なしPOSTをJSON解析エラーとして止め、外部 `/logout` は呼ばれなかった。SDKはエラー時でもブラウザーのセッションを消すためUIは未ログインだが、DBのB回復セッション1件は残存。アプリのupdate処理はsignOut戻り値のerrorを確認していないため、更新成功表示だけで失効まで成功とみなさない。本体処理は今回は変更していない。
+- 通信中継を本文なし正規logoutに対応するよう修正。URL/段階/B JWT検証は維持。インストール済みSDKを実際のfetch hookに通す4件を追加し、モックだけでは漏れていたこの失敗を再現・修正した。無関係な空POST、不正JSON、旧DB/Stripeは拒否。
+- Bが新しいパスワードでログインした後の復旧用に、`b-recovery-cleanup` 段階を追加。B本人のgetUserとglobal logoutだけを許可し、A/サービスキー/パスワード再変更/メール/他の書込は拒否。専用パネルの「Bの再設定セッションを終了」で、残った回復セッションとその検証ログインを終了する計画。管理者Auth APIやSQLによる失効は使わない。結果は別途DB/レスポンスで確認し、現在は未実施。
+
+635件成功（627+通信4+復旧制御4）、外部33件未実施。lint/型チェック、専用コピーbuild、Docker HTTP16成功。初回の新規テスト型宣言に型エラーがあり修正後に全件再実行した。パスワードlogin、Mac保存確認、B残存セッション終了、A/B本人JWTによる実RLSと後続セッション検証は本人ログイン待ち。Aの既存セッション/実ユーザー数は維持。

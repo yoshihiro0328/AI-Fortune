@@ -63,7 +63,7 @@ http
     if (
       pathname === "/__step9" &&
       req.method === "POST" &&
-      stage !== "sessions"
+      !["sessions", "b-recovery-cleanup"].includes(stage)
     ) {
       res.writeHead(403);
       res.end();

@@ -7,7 +7,7 @@ globalThis.fetch = async (input, init) => {
   if (!["GET", "HEAD"].includes(req.method)) {
     text = await req.text();
     try {
-      body = JSON.parse(text);
+      body = text ? JSON.parse(text) : {};
     } catch {
       throw new Error("STEP9 invalid body");
     }

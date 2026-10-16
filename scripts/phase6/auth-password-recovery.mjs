@@ -7,7 +7,12 @@ export const recoveryRedirect =
   "http://localhost:5198/auth/callback?next=recovery";
 export const recoveryProject = "ukdzggjfkcwjssjmnqim";
 export const recoveryUser = "9aee987e-1c44-4a96-97b5-02a58647b3bd";
-export const resetStages = new Set(["reset-prepared", "reset-b", "password-b"]);
+export const resetStages = new Set([
+  "reset-prepared",
+  "reset-b",
+  "password-b",
+  "b-recovery-cleanup",
+]);
 const digest = (value) =>
   createHash("sha256").update(value).digest("base64url");
 
@@ -64,14 +69,20 @@ export function resetStageAllowed(u, method, stage, label, subject) {
   // Sensitive reset operations are unavailable in every other stage, too.
   if (u.pathname === "/auth/v1/recover")
     return stage === "reset-b" && label === "b";
-  if (
-    (u.pathname === "/auth/v1/user" && method === "PUT") ||
-    (u.pathname === "/auth/v1/logout" &&
-      u.searchParams.get("scope") === "global")
-  )
+  if (u.pathname === "/auth/v1/user" && method === "PUT")
     return stage === "password-b" && subject === recoveryUser;
+  if (
+    u.pathname === "/auth/v1/logout" &&
+    u.searchParams.get("scope") === "global"
+  )
+    return (
+      ["password-b", "b-recovery-cleanup"].includes(stage) &&
+      subject === recoveryUser
+    );
   if (!resetStages.has(stage)) return true;
   if (subject && subject !== recoveryUser) return false;
+  if (stage === "b-recovery-cleanup")
+    return method === "GET" && u.pathname === "/auth/v1/user";
   if (method === "GET")
     return [
       "/auth/v1/user",

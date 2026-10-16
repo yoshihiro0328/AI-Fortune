@@ -30,7 +30,7 @@ export async function sessionChecks(req, res, dir) {
         "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'",
     });
     res.end(
-      `<!doctype html><meta charset="utf-8"><title>認証セッション検証</title><style>body{font:18px sans-serif;padding:40px;line-height:1.8}button{margin:8px;padding:12px}pre{white-space:pre-wrap}</style><h1>認証セッション検証</h1><p>新Supabaseだけを対象に実行します。宛先・トークンは表示しません。メールは送信しません。</p><button data-action="refresh">セッション更新</button><button data-action="rls">プロフィールRLS確認</button><button data-action="invalid">無効トークン拒否</button><button data-action="snapshot">ログアウト前の状態を記憶</button><button data-action="after-a">Aのログアウト後検証</button><button data-action="after-b">Bのログアウト後検証</button><button data-action="clear">このブラウザーの認証Cookieを削除</button><pre id="result">未実行</pre><script>document.querySelectorAll('button').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const r=await fetch('/__step9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:b.dataset.action})});document.querySelector('#result').textContent=JSON.stringify(await r.json(),null,2)}catch{document.querySelector('#result').textContent='通信失敗。再試行しないでください。' }});</script>`,
+      `<!doctype html><meta charset="utf-8"><title>認証セッション検証</title><style>body{font:18px sans-serif;padding:40px;line-height:1.8}button{margin:8px;padding:12px}pre{white-space:pre-wrap}</style><h1>認証セッション検証</h1><p>新Supabaseだけを対象に実行します。宛先・トークンは表示しません。メールは送信しません。</p><button data-action="refresh">セッション更新</button><button data-action="rls">プロフィールRLS確認</button><button data-action="invalid">無効トークン拒否</button><button data-action="snapshot">ログアウト前の状態を記憶</button><button data-action="after-a">Aのログアウト後検証</button><button data-action="after-b">Bのログアウト後検証</button><button data-action="clear">このブラウザーの認証Cookieを削除</button>${fs.readFileSync(path.join(dir, "stage"), "utf8").trim() === "b-recovery-cleanup" ? '<button data-action="recovery-logout-b">Bの再設定セッションを終了</button>' : ""}<pre id="result">未実行</pre><script>document.querySelectorAll('button').forEach(b=>b.onclick=async()=>{b.disabled=true;try{const r=await fetch('/__step9',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:b.dataset.action})});document.querySelector('#result').textContent=JSON.stringify(await r.json(),null,2)}catch{document.querySelector('#result').textContent='通信失敗。再試行しないでください。' }});</script>`,
     );
     return true;
   }
@@ -40,6 +40,11 @@ export async function sessionChecks(req, res, dir) {
   }
   try {
     const { action } = JSON.parse(await boundedBody(req));
+    const stage = fs.readFileSync(path.join(dir, "stage"), "utf8").trim();
+    if ((action === "recovery-logout-b") !== (stage === "b-recovery-cleanup")) {
+      finish(403, { error: "stage" });
+      return true;
+    }
     const jar = parseCookieHeader(req.headers.cookie ?? "");
     const auth = createServerClient(
       origin,
@@ -134,7 +139,13 @@ export async function sessionChecks(req, res, dir) {
         throw new Error("Not authenticated");
       const label = Object.keys(ids).find((l) => ids[l] === user.id);
       if (!label) throw new Error("Unknown user");
-      if (action === "refresh") {
+      if (action === "recovery-logout-b") {
+        if (label !== "b")
+          throw new Error("Only B recovery sessions may be closed");
+        const { error } = await auth.auth.signOut({ scope: "global" });
+        if (error) throw new Error("B session cleanup failed");
+        result = { label: "b", globalLogoutSucceeded: true };
+      } else if (action === "refresh") {
         const before = (await auth.auth.getSession()).data.session;
         const refreshed = await auth.auth.refreshSession();
         if (
