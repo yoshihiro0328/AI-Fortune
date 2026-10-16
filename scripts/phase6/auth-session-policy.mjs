@@ -2,10 +2,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { origin, allowedExternal as readOnly } from "./local-auth-policy.mjs";
-import {
-  recoveryRequestShape,
-  resetStages,
-} from "./auth-password-recovery.mjs";
+import { recoveryRequestShape } from "./auth-password-recovery.mjs";
+import { resetStages, recoveryFlow } from "./auth-recovery-flows.mjs";
 export { origin };
 export function externalAllowed(value, method = "GET", body = {}) {
   let u;
@@ -85,10 +83,12 @@ export function incomingAllowed(pathname, method, host) {
 export function authActionAllowed(body, recipients, stage) {
   if (resetStages.has(stage))
     return (
-      (stage === "reset-b" &&
+      (stage === "reset-" + recoveryFlow(stage).label &&
         body.action === "reset" &&
-        body.email?.trim().toLowerCase() === recipients.b) ||
-      (stage === "password-b" && body.action === "update")
+        body.email?.trim().toLowerCase() ===
+          recipients[recoveryFlow(stage).label]) ||
+      (stage === "password-" + recoveryFlow(stage).label &&
+        body.action === "update")
     );
   if (stage === "resend-b")
     return (

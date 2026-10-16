@@ -8,8 +8,8 @@ import { sessionChecks } from "./auth-session-checks.mjs";
 import { validateRuntime } from "./local-auth-policy.mjs";
 import {
   recoveryCallbackAllowed,
-  resetApprovalValid,
-} from "./auth-password-recovery.mjs";
+  recoveryFlow,
+} from "./auth-recovery-flows.mjs";
 import {
   incomingAllowed as allowedIncoming,
   authActionAllowed,
@@ -93,6 +93,7 @@ http
       return;
     }
     if (req.method === "POST") {
+      const flow = recoveryFlow(stage);
       let raw, input;
       try {
         raw = await boundedBody(req);
@@ -107,8 +108,9 @@ http
         fs.existsSync(path.join(dir, "STOP")) ||
         !authActionAllowed(input, recipients, stage) ||
         (input.action === "reset" &&
-          (!resetApprovalValid(dir, recipients.b) ||
-            fs.existsSync(path.join(dir, "reset-b-1.reserved")))) ||
+          (!flow ||
+            !flow.resetApprovalValid(dir, recipients[flow.label]) ||
+            fs.existsSync(path.join(dir, flow.reservationFile)))) ||
         (input.action === "resend" &&
           (!pkceCookiePresent(parseCookieHeader(req.headers.cookie ?? "")) ||
             fs.existsSync(path.join(dir, "resend-b-1.reserved"))))

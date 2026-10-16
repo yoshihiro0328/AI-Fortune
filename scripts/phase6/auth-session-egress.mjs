@@ -14,10 +14,8 @@ import { validateRuntime } from "./local-auth-policy.mjs";
 import {
   resetStageAllowed,
   resetStages,
-  recoveryUser,
-  reserveReset,
-  resetVerifierMatches,
-} from "./auth-password-recovery.mjs";
+  recoveryFlow,
+} from "./auth-recovery-flows.mjs";
 const dir = process.argv[2],
   env = JSON.parse(fs.readFileSync(path.join(dir, "runtime.json"))),
   recipients = JSON.parse(fs.readFileSync(path.join(dir, "recipients.json")));
@@ -87,6 +85,7 @@ const server = http.createServer(async (req, res) => {
     ([, v]) => v === b.email?.trim().toLowerCase(),
   )?.[0];
   const stage = fs.readFileSync(path.join(dir, "stage"), "utf8").trim();
+  const flow = recoveryFlow(stage);
   if (
     !recoveryExternalAllowed(target, req.method, stage, label) ||
     !resetStageAllowed(u, req.method, stage, label, subject)
@@ -99,19 +98,26 @@ const server = http.createServer(async (req, res) => {
   )
     return fail();
   if (u.pathname === "/auth/v1/recover") {
-    const bUser = JSON.parse(fs.readFileSync(path.join(dir, "user-b.json")));
-    if (bUser.id !== recoveryUser || !bUser.confirmed || bearer !== keys[0])
+    const targetUser = JSON.parse(
+      fs.readFileSync(path.join(dir, "user-" + flow.label + ".json")),
+    );
+    if (
+      targetUser.id !== flow.user ||
+      !targetUser.confirmed ||
+      bearer !== keys[0]
+    )
       return fail();
     try {
-      reserveReset(dir, label, recipients.b, b.code_challenge);
+      flow.reserveReset(dir, label, recipients[flow.label], b.code_challenge);
     } catch {
       return fail();
     }
   }
   if (
-    stage === "reset-b" &&
+    flow &&
+    stage === "reset-" + flow.label &&
     u.pathname === "/auth/v1/token" &&
-    !resetVerifierMatches(dir, b.code_verifier)
+    !flow.resetVerifierMatches(dir, b.code_verifier)
   )
     return fail();
   if (u.pathname === "/auth/v1/resend") {
@@ -211,10 +217,7 @@ const server = http.createServer(async (req, res) => {
         const l = Object.entries(recipients).find(
           ([, v]) => v === user.email?.toLowerCase(),
         )?.[0];
-        if (
-          !l ||
-          (resetStages.has(stage) && (l !== "b" || user.id !== recoveryUser))
-        ) {
+        if (!l || (flow && (l !== flow.label || user.id !== flow.user))) {
           stop();
           return fail(502);
         }

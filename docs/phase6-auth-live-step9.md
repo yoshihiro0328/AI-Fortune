@@ -156,3 +156,47 @@ Supabase現行公式ソースのredirect判定ではSite URLと同一originへ�
 - 635ローカル自動テスト/HTTP16/build/lint/typecheckの直前成功記録は維持。コード変更なし。コミット35c83807dfaf584602dee73c37afe6ea0535a773のCI run38926857990は失敗: ECRの `toomanyrequests: Data limit exceeded` でDockerイメージ取得不可。失敗をskipや成功に置き換えない。外部33件は未検証で、今回の実Auth/RLS個別検証とは別集計。
 
 次の再開手順は、Aの認証開始時プロファイルを本人と確認し、必要ならそのプロファイルで通常loginする（メール/登録不要、元のDBセッションをglobal logoutしない）。その後にA本人JWTのRLSとrefresh、B限定の残存回復セッション終了と再ログインを行う。今回は再試行せず、原因とこの復旧案を報告して停止する。相談履歴の所有権は合成データ未投入のため未検証。STEP9全体は未完了。
+
+
+### A通常ログイン後の再開（2026-10-17 JST）
+
+Aの元ブラウザーは本人も不明。元のDBセッションを維持し、CookieのないChromeで既存Aへ通常password loginを本人が実行。01:55:54 JSTにtoken交換200。Authユーザーは2件不変、A元セッション1＋今回追加1、Bセッション2。
+
+- A本人JWTのprofiles RLS: 自分1件/他人0件/全件検索も自分のみ。Bの先行成功と合わせ、双方向のprofile分離を実確認。
+- Aのrefresh成功、本人不変、Refresh Tokenローテーションあり。A/Bの署名改変tokenはどちらもAuth user endpointが403で拒否。
+- 01:58:00 JST、B専用段階でB本人JWTのglobal logout成功。回復セッションとpassword login sessionがともに終了しB0件、Aは2件のまま。BのAuthユーザーは削除していない。
+- Bログアウト後: Access Tokenの時刻上の残期限あり、Auth user endpoint403、Refresh Token交換400。JWTの署名/exp自体が即無効になったとの主張はしない。ログアウト後のREST RLSにおける残存JWT利用可否は今回未検証。
+- 続いてAは既存アプリのlocal scope logoutで今回追加したセッションだけ終了。UI成功、DBは元のAセッション1件のみ残存。AもAuth user endpoint403、Refresh Token交換400を確認。
+- A/Bの再ログインと別ブラウザー検証を一度に行うため、ログアウト済みChromeに保存済みB、ログアウト済みアプリ内ブラウザーに保存済みAを入力。本人のパスワード入力待ち。以後は従来のブラウザーとA/Bラベルの対応が逆になるため、Supabase getUserと保存済みUUIDで再照合する。
+- 今回メール送信0。予約記録は全保持。匿名AI、決済、相談データ投入、他環境への接続なし。コード変更なし。
+- ebc3d15のCI run38933353522もECRのDockerイメージ転送上限で失敗。ローカル635件/HTTP16の成功と区別する。
+
+
+### 別ブラウザーの再ログイン結果と停止（2026-10-17 JST）
+
+本人から「Bは成功、Aは失敗」。再試行せず読み取り調査した。
+
+- 02:09:09 JST、Chromeから保存済みBへのpassword login200。getUser200、既存認証フローRPC200、診断照会200。UIも「ログインしました」。Bの別ブラウザーでの再ログイン成功を確認。
+- 02:09:24 JST、アプリ内ブラウザーから保存済みAへpassword login400。宛先はローカル許可リストのAに一致。新Supabaseの同じ1分間のAuthログに `Invalid login credentials` が1件、rate-limit一致0件。秘密値を含まない集計だけを取得した。
+- 想定外の認証失敗により中継がSTOPを作成。画面の `STEP9_BLOCKED` は安全停止を示す。入力パスワードの値は読んでいないため、誤入力/自動入力の取り違え等の詳細原因は断定しない。PKCEメールリンクの再失敗ではなく、通常password loginの拒否。
+- 事後DB: Authユーザー2/確認済み2、A元セッション1、B新セッション1。Aの元のセッションを失効させていない。価格active0、trial OFF。
+- 今回追加メール0、再試行0、ユーザー作成/削除/パスワード変更0。既存DB・Stripe・OpenAI・Previewへの操作なし。STOPと全送信予約記録を保持。
+- Bの再ログイン/別ブラウザーは成功。Aの別ブラウザーログイン、Cookie削除後の実動作、相談データの所有権は未検証。A/Bの先行RLS/refresh/署名不正拒否/logout後refresh拒否の成功は維持するが、STEP9全体は未完了。
+- 復旧案: 本人がA用の保存済みパスワードを確認し、Aだけ通常ログインを1回再開する。パスワードが確認できない場合は、その時点でA向け再設定の必要性と1通送信を別途承認する。現在は再送/再設定を提案だけで実行しない。
+
+
+## A専用パスワード再設定の準備（2026-10-17 JST、送信未承認）
+
+本人がAパスワード不明と回答し、A既存セッションの終了を許可して再設定を準備する方針を承認。これは**送信の最終承認ではない**。既存A UUID/アカウントは維持し、Bは更新/失効対象外。新規登録・削除・管理者password updateは使わない。
+
+- 既存Bの再設定規則を共通factoryへ移し、固定されたA/BそれぞれのUUIDと段階/台帳を分離。Bの公開インターフェース、既存の予約ファイル名と内容は維持。Aにのみ `reset-a-prepared` → `reset-a` → `password-a` を使用する。本体アプリ/SQL/クラウド設定は変更していない。
+- `reset-a-1.approved` は最終承認後だけ作成する。対象Project/既存A UUID/保存済みA宛先ハッシュ/1通/短い期限を照合し、送信前に `reset-a-1.reserved` を排他的作成・fsync。結果不明でも枠を戻さず再送不可。Bの承認記録ではAへ送信できない。現在Aの承認/予約ファイルはどちらも存在しない。
+- Aの送信段階はPKCE S256の新verifierを永続化し、Aの予約challengeと一致する場合だけコード交換。B/古いverifierを拒否する。本人入力後のpassword PUT/global logoutはA本人JWTに限定し、B/サービスキー/第三者を拒否する。
+- Aが準備に使用するブラウザーは**アプリ内ブラウザー**。送信後も同じプロファイルで、最新回復メールのリンクを他のブラウザーで先に開かず1回だけ操作する。本人がパスワードを入力・Macへ保存・送信し、PUTとglobal logoutの両応答とDBのAセッション終了を確認する。アプリ側はsignOut errorを無視する既知事項があるため、表示だけで終了成功とは扱わない。JWTは時刻上の有効期限が残り得る。
+- Aの前回失敗のSTOPは記録を残して保存し、準備段階のみ再開。実ローカルHTTPでreset/signup/resend/login/logout/updateを各403、外部要求増分0、メール予約0を確認。新DB: Auth2/確認済み2、Aセッション1/Bセッション1、価格active0/trial OFF。本人許可のAセッション終了も、まだ実行していない。
+- MailerSend Sandbox: 提供テストドメインverified、送信4/配送4/拒否0。open/click/content/unsubscribe追跡は未選択。追加送信0、追加契約0。以前の無料月100通条件に対して4通使用、送信時は残枠を再確認する。Supabaseメール上限は既存30通/時のまま（今回変更なし）。
+- 既存635＋新規10＝**645自動テスト成功**。外部33件は未実施として分離。lint/typecheck成功、外向き通信禁止かつ秘密鍵なしの専用コピーでNext.js build成功。Docker HTTP16/初期化29成功、実外部接続0。最初のbuild準備は `.env.example` を実設定ファイルと誤判定して停止したが、例示ファイルのみ許可する確認に直して実ビルドを完了した。実.envは不使用。
+
+最終承認対象は、保存済みAへの回復メール**1通だけ**。Bへ送らない、新規登録/自動再送なし。ユーザーが承認するまで、承認ファイル生成・送信段階への切替・回復API実行はしない。Aのセッション終了は本人password更新後、Bセッションが維持されたことと併せて検証する。
+
+公式確認: [回復メールAPI](https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail)、[signOut](https://supabase.com/docs/reference/javascript/auth-signout)。changelog.mdはブラウズ取得時の形式エラーで未確認。API仕様は公式ページとインストール済みSDKの合成応答テストで照合した。
