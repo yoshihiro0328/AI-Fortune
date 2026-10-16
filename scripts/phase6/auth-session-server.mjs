@@ -1,0 +1,93 @@
+import http from "node:http";
+import fs from "node:fs";
+import { Readable } from "node:stream";
+import path from "node:path";
+import next from "next";
+import { validateRuntime } from "./local-auth-policy.mjs";
+import {
+  incomingAllowed as allowedIncoming,
+  authActionAllowed,
+  boundedBody,
+} from "./auth-session-policy.mjs";
+const dir = process.env.STEP9_PRIVATE;
+const recipients = JSON.parse(
+  fs.readFileSync(path.join(dir, "recipients.json")),
+);
+validateRuntime(process.env);
+const app = next({
+  dev: false,
+  dir: process.cwd(),
+  hostname: "localhost",
+  port: 5198,
+});
+await app.prepare();
+const handle = app.getRequestHandler();
+http
+  .createServer(async (req, res) => {
+    const parsed = new URL(req.url, "http://localhost:5198");
+    const pathname = parsed.pathname;
+    if (
+      pathname === "/auth/callback" &&
+      [...parsed.searchParams.keys()].some((k) => k !== "code")
+    ) {
+      res.writeHead(403);
+      res.end();
+      return;
+    }
+    res.setHeader("X-Robots-Tag", "noindex, nofollow, noarchive");
+    res.setHeader("Cache-Control", "private, no-store");
+    res.setHeader(
+      "Content-Security-Policy",
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'",
+    );
+    if (!allowedIncoming(pathname, req.method, req.headers.host)) {
+      res.writeHead(403, { "content-type": "application/json" });
+      res.end(
+        JSON.stringify({
+          error: "STEP9_BLOCKED",
+          message:
+            "この検証では許可されていない操作です。再送は行わないでください。",
+        }),
+      );
+      return;
+    }
+    if (req.method === "POST") {
+      let raw, input;
+      try {
+        raw = await boundedBody(req);
+        input = JSON.parse(raw);
+      } catch {
+        res.writeHead(400);
+        res.end();
+        return;
+      }
+      const stage = fs.readFileSync(path.join(dir, "stage"), "utf8").trim();
+      if (
+        req.headers.origin !== "http://localhost:5198" ||
+        fs.existsSync(path.join(dir, "STOP")) ||
+        !authActionAllowed(input, recipients, stage)
+      ) {
+        res.writeHead(403);
+        res.end('{"error":"STEP9_BLOCKED"}');
+        return;
+      }
+      // Reconstitute the consumed stream without changing the real API implementation.
+      const replay = Readable.from([raw]);
+      Object.assign(replay, {
+        url: req.url,
+        method: req.method,
+        headers: req.headers,
+        socket: req.socket,
+        connection: req.socket,
+        httpVersion: req.httpVersion,
+      });
+      handle(replay, res);
+      return;
+    }
+    handle(req, res);
+  })
+  .listen(5198, "127.0.0.1", () =>
+    console.log(
+      "STEP9 app ready at http://localhost:5198 (A-only signup, no resend)",
+    ),
+  );
