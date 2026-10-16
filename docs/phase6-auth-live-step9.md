@@ -200,3 +200,28 @@ Aの元ブラウザーは本人も不明。元のDBセッションを維持し�
 最終承認対象は、保存済みAへの回復メール**1通だけ**。Bへ送らない、新規登録/自動再送なし。ユーザーが承認するまで、承認ファイル生成・送信段階への切替・回復API実行はしない。Aのセッション終了は本人password更新後、Bセッションが維持されたことと併せて検証する。
 
 公式確認: [回復メールAPI](https://supabase.com/docs/reference/javascript/auth-resetpasswordforemail)、[signOut](https://supabase.com/docs/reference/javascript/auth-signout)。changelog.mdはブラウズ取得時の形式エラーで未確認。API仕様は公式ページとインストール済みSDKの合成応答テストで照合した。
+
+
+## A再設定の実測・認証検証再開（2026-10-17 JST）
+
+本人の最終承認後、新Supabase `ukdzggjfkcwjssjmnqim` の既存Aに回復メールを1通だけ送信した。A/Bの既存Auth UUIDとユーザー2件を維持。実値・確認URL・認証コードは記録していない。
+
+- 02:32:02 JST: Aへの正規recover API200。排他的予約台帳を保持。MailerSendで保存済みAとの一致とDeliveredを確認。累計5通（登録A/B、B確認再送、B回復、A回復が各1）。追加送信・再送なし。
+- 02:36:07 JST: 本人が同じアプリ内ブラウザーで最新リンクを開き、PKCE交換200と既存AのgetUser200。先に押された保存はまだ回復段階だったためローカルで拒否し、外部PUTは0件。
+- A限定更新段階へ進め、本人が02:38:44 JSTにパスワードを更新。PUT200、global logout204を確認。DB上のAセッションは2→0、Bは1件維持。更新成功表示だけで判断せず、API応答とDBの双方を照合した。パスワードそのものは取得していない。
+- 02:40:11 JST: 本人による新パスワードlogin200。Aの通常認証と既存claim_anonymous_diagnoses RPC200。診断・相談データの投入はしていない。AのChromeでの先行成功と今回アプリ内ブラウザーでの成功により、別ブラウザーでの認証成功を確認した。
+- A/Bともrefresh成功、本人UUID不変、Refresh Tokenローテーションあり。本人JWTによるprofiles実RLSは各自1件・相手0件・全件検索も本人の行のみ。署名を改変したtokenは双方403で拒否。
+- 02:41:30 JST: Aのアプリ内ブラウザーで認証Cookieのみを削除し、アカウント画面が未ログインへ戻ることを確認。Cookie削除はサーバー側セッションの失効を意味しない。BのCookie・セッションは削除していない。MacへのA用パスワード保存は本人が完了を確認。02:43:14 JSTにCookie削除後のA再ログイン200、getUser200、既存認証RPC200と画面の成功表示を確認した。
+- 先行検証のA/B logout後は、時刻上のAccess Token残期限があってもAuth user endpoint403、Refresh Token交換400。全RESTアクセスでAccess Tokenが即失効したとは主張しない。相談履歴の完全な所有権検証は実データ未投入のため未検証。
+- 本体コード・SQL・クラウド設定の追加変更なし。直前ローカル645件、lint/typecheck/build、Docker HTTP16/初期化29の成功を維持。外部33件は未実施のまま。5e77ef8のCI run38939580909はECRのレート制限でDocker取得に失敗（lint/typecheck/test/buildは成功、後続HTTPは未実行）。CI全体を成功扱いしない。今回は検証記録のみの更新。
+
+
+### 最終状態・次工程の境界
+
+最終読取: Authユーザー2/確認済み2、profiles2、Aセッション2/Bセッション1。Aの2件は再設定時に全終了した後のログインとCookie削除後の再ログインに由来する。Cookie削除だけでは前のDBセッションは消えない。診断0/相談相手0/相談スレッド0/相談ターン0/匿名セッション0、billing_customers0/subscriptions0。migration17、価格6件すべてactive=false、trial OFFを維持。削除・DB resetは実行していない。
+
+今回の実Auth、メール確認、回復、password login、別ブラウザー、logout、refresh、Cookie削除、profile RLSの実施可能項目は確認できた。メール配送は累計5件、再送の追加実行なし。本体のアカウント画面に残る `STEP9_BLOCKED` はローカルで禁止した `/api/billing` の照会表示であり、料金機能を成功と扱わない。相談履歴の実所有権・匿名引き継ぎ・Stripe・OpenAIは対象外/未検証。外部33テスト一式の成功を意味しない。
+
+削除候補はローカル保護ファイルで特定済みのA/Bの既存UUIDと、そのprofiles/identities/sessions/refresh token等の関連データ。本人承認後に対象とcascade範囲を再点検し、対象ユーザーだけを正規Auth削除手順で処理する。監査ログ/利用制限記録の保持・削除は別途範囲確認する。現在はユーザー/セッションを維持し、自動削除しない。
+
+次に必要な承認は、合成相談データ投入と匿名引き継ぎ検証の範囲、またはA/Bの限定クリーンアップ。Stripe決済/OpenAI生成/Preview変更は別承認のまま。第2開発単位へは進まず停止する。
