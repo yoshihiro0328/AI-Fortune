@@ -4,6 +4,7 @@ Neither mode can transmit SQL to Supabase. SQL/UUIDs/hashes/provider responses a
 """
 import argparse, concurrent.futures, hashlib, json, os, re, subprocess, tempfile, time
 from pathlib import Path
+from docker_startup_diagnostics import IMAGE, failure, engine_metadata
 
 ROOT = Path(__file__).resolve().parents[2]
 parser = argparse.ArgumentParser()
@@ -22,7 +23,11 @@ checks = []
 def digest(data): return hashlib.sha256(data).hexdigest()
 def command(argv, data=None, check=True):
     r = subprocess.run(argv, input=data, capture_output=True)
-    if check and r.returncode: raise RuntimeError('Isolated command failed; SQL and private values suppressed')
+    if check and r.returncode:
+      # SQL subprocess errors must never enter the startup diagnostic path.
+      stage = {'run':'container_start','version':'engine'}.get(argv[1]) if argv[0]=='docker' else None
+      if stage: print(json.dumps(failure(stage,r.returncode,r.stderr)),flush=True)
+      raise RuntimeError('Isolated command failed; SQL and private values suppressed')
     return r
 def sql(data, db='stripe_init_isolated', role='postgres', check=True):
     if isinstance(data,str): data=data.encode()
@@ -56,11 +61,17 @@ with tempfile.TemporaryDirectory(prefix='yorisoi-frozen-sql-') as tmp:
     assert len(entries)==17
     for f,h in entries: assert digest((ROOT/'supabase/migrations'/f).read_bytes())==h
     passed('all 17 original migration checksums preserved')
-    command(['docker','run','-d','--name',CONTAINER,'--network','none','--user','postgres','--entrypoint','sh','public.ecr.aws/supabase/postgres:17.11.0.004','-c',"initdb -D /tmp/data -U platform_admin --auth=trust >/dev/null && exec postgres -D /tmp/data -k /tmp -h '' -c log_statement=none -c log_min_error_statement=panic"])
+    engine=command(['docker','version','--format','{{json .Server}}'])
+    print(json.dumps(engine_metadata(engine.stdout)),flush=True)
+    command(['docker','run','-d','--name',CONTAINER,'--network','none','--user','postgres','--entrypoint','sh',IMAGE,'-c',"initdb -D /tmp/data -U platform_admin --auth=trust >/dev/null && exec postgres -D /tmp/data -k /tmp -h '' -c log_statement=none -c log_min_error_statement=panic"])
     for _ in range(120):
       if command(['docker','exec',CONTAINER,'pg_isready','-h','/tmp'],check=False).returncode==0: break
       time.sleep(.25)
-    else: raise RuntimeError('Isolated PostgreSQL readiness failed')
+    else:
+      # This is before any schema, private SQL or fixture is sent to the container.
+      startup_logs=command(['docker','logs',CONTAINER],check=False)
+      print(json.dumps(failure('readiness',1,startup_logs.stderr+startup_logs.stdout)),flush=True)
+      raise RuntimeError('Isolated PostgreSQL readiness failed')
     inspect=json.loads(command(['docker','inspect',CONTAINER]).stdout)[0]
     assert inspect['HostConfig']['NetworkMode']=='none' and not inspect['HostConfig']['PortBindings']
     passed('network none; Unix socket only; no credentials or hosted connection')
@@ -150,11 +161,13 @@ with tempfile.TemporaryDirectory(prefix='yorisoi-frozen-sql-') as tmp:
     passed('exact frozen SQL fails on twelfth INSERT; first eleven rolled back; no partial writes')
     # Cleanup is tested only in this isolated success database, never sent to Hosted.
     script="""import fs from 'node:fs';import {cleanupSQL} from './scripts/phase6/step10-fixtures.mjs';fs.writeFileSync(process.argv[2],cleanupSQL(JSON.parse(fs.readFileSync(process.argv[1]))),{mode:0o600});"""
-    generated_cleanup=Path(tmp)/'cleanup.sql'
-    command(['node','--input-type=module','-e',script,str(artifact/'manifest.json'),str(generated_cleanup)])
-    cleanup_file=args.cleanup_file.resolve() if args.cleanup_file else generated_cleanup
+    if args.cleanup_file:
+      # Approved private SQL is read verbatim, never regenerated, even into a temp file.
+      cleanup_file=args.cleanup_file.resolve()
+    else:
+      cleanup_file=Path(tmp)/'cleanup.sql'
+      command(['node','--input-type=module','-e',script,str(artifact/'manifest.json'),str(cleanup_file)])
     cleanup_bytes=cleanup_file.read_bytes();cleanup_sha=digest(cleanup_bytes)
-    assert cleanup_bytes==generated_cleanup.read_bytes(), 'Cleanup compiler/manifest mismatch'
     if args.cleanup_sha256: assert cleanup_sha==args.cleanup_sha256, 'Cleanup digest mismatch'
     def execute_cleanup(db, check=True):
       current=cleanup_file.read_bytes()
