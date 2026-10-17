@@ -157,9 +157,13 @@ export function cleanupSQL(plan) {
   // Freeze both parents and all dependent tables before checking: no concurrent cascade/SET NULL race.
   return (
     `begin;\nset local lock_timeout='3s';\nlock table ${lockedTables.map((t) => "public." + t).join(",")} in share row exclusive mode;\ndo $$ begin\n${checks.join("\n")}\nend $$;\n` +
+    "do $$ declare affected bigint; begin\n" +
     deleteOrder
-      .map((t) => `delete from public.${t} where id in (${ids(t)});`)
+      .map(
+        (t) =>
+          `delete from public.${t} where id in (${ids(t)});\nget diagnostics affected = row_count;\nif affected <> 2 then raise exception 'Cleanup affected-row mismatch: ${t}'; end if;`,
+      )
       .join("\n") +
-    "\ncommit;"
+    "\nend $$;\ncommit;"
   );
 }

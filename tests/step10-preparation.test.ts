@@ -121,4 +121,23 @@ describe("STEP10 fixture scoping", () => {
     expect(s).toContain("Fixture FK schema drift");
     expect(s).toContain("Fixture count mismatch");
   });
+  it("aborts the transaction when any UUID deletion affects other than two rows", () => {
+    const s = cleanupSQL(plan());
+    const guarded = [
+      ...s.matchAll(
+        /delete from public\.(\w+) where id in \([^;]+\);\nget diagnostics affected = row_count;\nif affected <> 2 then raise exception 'Cleanup affected-row mismatch: \1'; end if;/g,
+      ),
+    ];
+    expect(guarded.map((m) => m[1])).toEqual([
+      "consultation_turns",
+      "consultation_threads",
+      "consultation_subjects",
+      "diagnosis_answers",
+      "free_reports",
+      "diagnoses",
+    ]);
+    expect(s).toMatch(/do \$\$ declare affected bigint; begin/);
+    expect(s.endsWith("end $$;\ncommit;")).toBe(true);
+    expect(s).not.toMatch(/exception\s+when|commit;[\s\S]+delete from/i);
+  });
 });
