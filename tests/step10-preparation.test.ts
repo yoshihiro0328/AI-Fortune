@@ -26,6 +26,10 @@ describe("STEP10 preparation cannot execute hosted writes", () => {
       authUsersCreated: 0,
       profilesCreated: 0,
     }));
+  it("rejects even false as a dynamic diagnosis identifier", () =>
+    expect(() =>
+      preparation(["--plan"], { DYNAMIC_DIAGNOSTIC: "false" }),
+    ).toThrow());
   for (const flag of externalFlags)
     it("rejects external flag " + flag, () =>
       expect(() => preparation(["--plan"], { [flag]: "1" })).toThrow(),

@@ -15,7 +15,13 @@ export function preparation(args, env) {
     throw new Error(
       "Only --plan is supported; hosted writes are not authorized",
     );
-  if (externalFlags.some((k) => env[k] && !["0", "false"].includes(env[k])))
+  if (
+    externalFlags.some((k) =>
+      k === "DYNAMIC_DIAGNOSTIC"
+        ? Boolean(env[k])
+        : env[k] && !["0", "false"].includes(env[k]),
+    )
+  )
     throw new Error("External test flag rejected");
   if (
     Object.keys(env).some(
