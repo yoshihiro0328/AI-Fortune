@@ -3,6 +3,8 @@
  * All resources are uniquely named and removed in finally, including on failure.
  */
 import assert from "node:assert/strict";
+import { step10Isolated } from "./step10-isolated.mjs";
+import { preparation } from "./step10-prepare.mjs";
 import { spawn, spawnSync } from "node:child_process";
 import { createHmac, randomBytes, randomUUID } from "node:crypto";
 import {
@@ -20,6 +22,14 @@ const root = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
+// Refuse inherited live flags/credentials and Next's implicit .env loading.
+preparation(["--plan"], process.env);
+if (
+  readdirSync(root).some(
+    (name) => name.startsWith(".env") && name !== ".env.example",
+  )
+)
+  throw new Error("Isolated integration refuses real .env files");
 const temp = mkdtempSync(path.join(tmpdir(), "yorisoi-integration-"));
 const prefix = `yorisoi-integration-${process.pid}`;
 const pg = prefix + "-db",
@@ -318,19 +328,6 @@ try {
       `insert into auth.users(id,email_confirmed_at) values('${u.id}',${u.email_confirmed_at ? "now()" : "null"});`,
     );
   const [owner, other, unconfirmed] = users;
-  sql(
-    `insert into public.billing_customers(user_id,stripe_customer_id) values('${other.id}','cus_synthetic');`,
-  );
-  sql(
-    `insert into public.subscriptions(id,user_id,stripe_customer_id,price_version,amount,status,period_start,period_end,paid_through,is_test,created_at) values('sub_synthetic','${other.id}','cus_synthetic','plus-2026-10-980',980,'active',now()-interval '1 day',now()+interval '29 days',now()+interval '29 days',true,now());`,
-  );
-  for (const amount of [1980, 980])
-    sql(
-      `with d as (insert into public.diagnoses(user_id,anonymous_session_id,diagnosis_type_id) values('${owner.id}','synthetic',(select id from public.diagnosis_types limit 1)) returning id) insert into public.payments(user_id,diagnosis_id,amount,status) select '${owner.id}',id,${amount},'paid' from d;`,
-    );
-  const regressionQuery =
-    "select jsonb_build_object('payments',(select jsonb_agg(to_jsonb(p) order by id) from public.payments p),'subscriptions',(select jsonb_agg(to_jsonb(s) order by id) from public.subscriptions s),'settings',(select to_jsonb(s) from public.service_settings s));";
-  const baseline = object(regressionQuery);
   const childEnv = {
     PATH: process.env.PATH,
     HOME: temp,
@@ -391,6 +388,31 @@ try {
       return false;
     }
   });
+  const ownership = await step10Isolated({
+    sql,
+    object,
+    request,
+    restURL,
+    jwt,
+    authCookie,
+    users,
+    sessionSecret: childEnv.SESSION_SECRET,
+    eventCount,
+  });
+  reset();
+  sql(
+    `insert into public.billing_customers(user_id,stripe_customer_id) values('${other.id}','cus_synthetic');`,
+  );
+  sql(
+    `insert into public.subscriptions(id,user_id,stripe_customer_id,price_version,amount,status,period_start,period_end,paid_through,is_test,created_at) values('sub_synthetic','${other.id}','cus_synthetic','plus-2026-10-980',980,'active',now()-interval '1 day',now()+interval '29 days',now()+interval '29 days',true,now());`,
+  );
+  for (const amount of [1980, 980])
+    sql(
+      `with d as (insert into public.diagnoses(user_id,anonymous_session_id,diagnosis_type_id) values('${owner.id}','synthetic',(select id from public.diagnosis_types limit 1)) returning id) insert into public.payments(user_id,diagnosis_id,amount,status) select '${owner.id}',id,${amount},'paid' from d;`,
+    );
+  const regressionQuery =
+    "select jsonb_build_object('payments',(select jsonb_agg(to_jsonb(p) order by id) from public.payments p),'subscriptions',(select jsonb_agg(to_jsonb(s) order by id) from public.subscriptions s),'settings',(select to_jsonb(s) from public.service_settings s));";
+  const baseline = object(regressionQuery);
   await test("01 HTTP session / secure cookie / 24h retention", async () => {
     const s = await session();
     const cookie = s.response.headers.get("set-cookie");
@@ -929,6 +951,7 @@ try {
   });
   const report = {
     docker: dbResults,
+    ownership,
     http: {
       passed: checks.length,
       checks,
