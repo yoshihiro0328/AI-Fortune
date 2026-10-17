@@ -140,7 +140,19 @@ export async function step10Isolated({
       );
   });
   await test("06 API no login / invalid JWT / unconfirmed denied", async () => {
-    for (const c of [undefined, authCookie(a, true), authCookie(unconfirmed)])
+    for (const c of [
+      undefined,
+      authCookie(a, true),
+      authCookie(unconfirmed),
+      "sb-127-auth-token=base64-" +
+        Buffer.from(
+          JSON.stringify({
+            access_token: "invalid.jwt.value",
+            refresh_token: "invalid",
+            expires_at: Math.floor(Date.now() / 1000) + 3600,
+          }),
+        ).toString("base64url"),
+    ])
       for (const suffix of ["", "?thread=" + p.rows.consultation_threads[0]])
         assert.equal(
           (await request("/api/consultations" + suffix, { cookie: c })).status,
