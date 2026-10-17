@@ -1,0 +1,110 @@
+{
+  "project": "ukdzggjfkcwjssjmnqim",
+  "baseCommit": "156be1908c64bf77e075b20c353cf93f273ba824",
+  "sqlSha256": "faf7ec38fd9fa3a38edeac2bd4c94f5a609fca25520da84a82911810fb27000e",
+  "insertionAttempts": 1,
+  "insertedRows": 12,
+  "retainedRows": 12,
+  "hostedVerificationGroups": 14,
+  "claims": {
+    "A": 1,
+    "B": 1,
+    "concurrentReplay": [
+      0,
+      0
+    ],
+    "subsequentReplays": [
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "changedFixtureFields": [
+    "diagnoses.user_id (2 rows)",
+    "diagnoses.updated_at (2 rows)"
+  ],
+  "unchangedOtherFixtureRows": 10,
+  "profilesUnchanged": true,
+  "authUsersUnchangedSinceRefresh": true,
+  "authUsers": 2,
+  "confirmedUsers": 2,
+  "authSessions": 3,
+  "all42RlsUnchanged": true,
+  "serviceAuthSelectDenied": true,
+  "migrations": 17,
+  "rateLimits": {
+    "previous": 22,
+    "current": 26,
+    "newRows": 4,
+    "existingRowsUnchanged": true,
+    "newCounters": {
+      "ip": 9,
+      "anonymousA": 5,
+      "anonymousB": 3,
+      "forged": 1
+    }
+  },
+  "payments": 0,
+  "subscriptions": 0,
+  "billingCustomers": 0,
+  "aiCalls": 0,
+  "trialEnabled": false,
+  "activePrices": 0,
+  "unexpectedRelatedRows": 0,
+  "cleanupExecuted": false,
+  "previousFailureRecordsUnchanged": true,
+  "outboundRequests": 180,
+  "requestSummary": {
+    "GET /auth/v1/user 200": 41,
+    "GET /rest/v1/consultation_subjects 200": 13,
+    "GET /rest/v1/consultation_threads 200": 15,
+    "GET /rest/v1/consultation_turns 200": 11,
+    "GET /rest/v1/diagnoses 200": 24,
+    "GET /rest/v1/diagnosis_answers 200": 5,
+    "GET /rest/v1/free_reports 200": 5,
+    "GET /rest/v1/consultation_subjects 401": 2,
+    "GET /rest/v1/consultation_threads 401": 2,
+    "GET /rest/v1/consultation_turns 401": 2,
+    "GET /rest/v1/diagnoses 401": 2,
+    "GET /rest/v1/diagnosis_answers 401": 2,
+    "GET /rest/v1/free_reports 401": 2,
+    "GET /rest/v1/payment_environment 200": 6,
+    "GET /rest/v1/subject_diagnoses 200": 2,
+    "GET /rest/v1/subscriptions 200": 2,
+    "GET /rest/v1/billing_customers 200": 2,
+    "POST /rest/v1/rpc/consultation_entitlement 200": 2,
+    "GET /auth/v1/user 403": 2,
+    "POST /rest/v1/rpc/claim_anonymous_diagnoses 401": 1,
+    "POST /rest/v1/rpc/claim_anonymous_diagnoses 403": 2,
+    "POST /rest/v1/rpc/consume_limit 200": 18,
+    "POST /rest/v1/rpc/claim_anonymous_diagnoses 200": 9,
+    "PATCH /rest/v1/consultation_subjects 403": 2,
+    "PATCH /rest/v1/consultation_threads 403": 2,
+    "PATCH /rest/v1/consultation_turns 403": 2,
+    "PATCH /rest/v1/diagnoses 403": 2
+  },
+  "authRefresh": {
+    "userActions": {
+      "A": 1,
+      "B": 1
+    },
+    "tokenEndpointRequests": 4,
+    "getUserRequests": 2,
+    "allSuccessful": true,
+    "reason": "Existing expired-token refresh during getUser plus explicit refreshSession; no retry after failure",
+    "sessionsAfter": 3
+  },
+  "qualityBaseline": {
+    "unitTestsPassed": 726,
+    "externalTestsUnverified": 33,
+    "ciRun": "39004877409",
+    "ciConclusion": "success",
+    "httpDockerScenarios": 16,
+    "ownershipDockerScenarios": 18,
+    "stripeInitializationDockerChecks": 29,
+    "frozenSqlDockerChecks": 20,
+    "newTestsThisTurn": 0,
+    "applicationCodeChanged": false
+  }
+}
