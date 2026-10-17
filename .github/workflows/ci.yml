@@ -20,6 +20,8 @@ jobs:
       - name: Offline local recipient form checks
         run: python3 scripts/phase6/auth-recipient-input-test.py
       - run: npm run build
+      - name: Frozen complete STEP10 SQL in isolated PostgreSQL
+        run: python3 scripts/phase6/step10-complete-sql-verify.py --synthetic-ci --report phase6-complete-sql-results.json
       - name: Offline scoped Stripe catalog initialization
         run: python3 scripts/phase6/stripe-init-verify.py
         env:
@@ -35,3 +37,4 @@ jobs:
           path: |
             phase6-integration-results.json
             phase6-stripe-init-results.json
+            phase6-complete-sql-results.json
