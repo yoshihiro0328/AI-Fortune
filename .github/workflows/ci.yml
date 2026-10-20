@@ -31,6 +31,13 @@ jobs:
       - name: Offline local recipient form checks
         run: python3 scripts/phase6/auth-recipient-input-test.py
       - run: npm run build
+      - name: Prepare identical PostgreSQL image from official Docker Hub source
+        env:
+          POSTGRES_SOURCE: docker.io/supabase/postgres@sha256:e85bc10ac5b141223b289e1e8dc8d448cf3df92501917149db0366b9c5aaf053
+        run: |
+          docker pull --platform linux/amd64 "$POSTGRES_SOURCE"
+          test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$POSTGRES_SOURCE")" = linux/amd64
+          docker tag "$POSTGRES_SOURCE" public.ecr.aws/supabase/postgres:17.11.0.004
       - name: Frozen complete STEP10 SQL in isolated PostgreSQL
         run: python3 scripts/phase6/step10-complete-sql-verify.py --synthetic-ci --report phase6-complete-sql-results.json
       - name: Offline scoped Stripe catalog initialization

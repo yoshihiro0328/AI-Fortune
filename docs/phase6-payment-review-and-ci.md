@@ -38,3 +38,11 @@ Gitへ含めるのはコード、合成fixture、テスト、整理済みの文�
 完了済み実検証では、比較対象14テーブルが不変、利用制限は32行のうち許可された5行のみ更新、追加購入・AI生成なし、専用環境の終了と一時資格情報削除を確認済み。Authシステムテーブル全体が不変とした記録ではない。
 
 外部33件は[分類表](phase6-external-test-matrix.md)の最新節を参照。月額Plus/Portal、実AI生成、公開環境での配送・運用、Production公開判定は今回の完了に含めない。mainマージ・デプロイも実施しない。
+
+## CIイメージ取得制限への対応
+
+CI `39378731945` と `39379317832` は、アプリとスクリプトの検証後にECR Publicの `registry_rate_limit`（コンテナー開始の終了コード125）で失敗した。これらをCI全体の成功とは扱わない。
+
+[Supabase公式の配信定義](https://github.com/supabase/postgres/blob/develop/.github/workflows/mirror.yml)では、Docker Hubの `supabase/postgres` をECR Publicへミラーしている。2026年10月20日に両者の `17.11.0.004` の公開マニフェストが完全一致することを確認した。Ubuntu CIは同じlinux/amd64イメージをDocker Hubからdigest指定で取得し、既存の検証用ローカルタグを付ける。SQL、migration、試験項目、実サービス接続先は変更しない。
+
+固定digest：`sha256:e85bc10ac5b141223b289e1e8dc8d448cf3df92501917149db0366b9c5aaf053`。取得またはOS/architecture照合に失敗したらCIを失敗させ、テストを省略して成功扱いにしない。追加のサービス資格情報・契約は使用しない。
