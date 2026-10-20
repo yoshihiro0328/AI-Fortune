@@ -13,6 +13,7 @@ test("local human receiver rejects wrong origin, standard/duplicate keys and nev
     const page = await fetch(r.url);
     const html = await page.text();
     assert.equal(page.headers.get("cache-control"), "no-store");
+    assert.equal(page.headers.get("referrer-policy"), "same-origin");
     const csrf = html.match(/name="csrf" value="([^"]+)"/)[1];
     const values = {
       csrf, listener: "rk_test_" + "a".repeat(32),
@@ -22,6 +23,12 @@ test("local human receiver rejects wrong origin, standard/duplicate keys and nev
       method: "POST", headers: { Origin: origin }, body: new URLSearchParams(v),
     });
     assert.equal((await post(values, "http://example.invalid")).status, 403);
+    assert.equal((await post(values, "null")).status, 403);
+    assert.equal((await fetch(r.url, {
+      method: "POST", body: new URLSearchParams(values),
+    })).status, 403);
+    assert(!fs.existsSync(path.join(dir, "stripe-keys.json")));
+    assert.deepEqual(r.status(), { received: false, failed: false });
     assert.equal((await post({ ...values, csrf: "wrong" })).status, 400);
     assert.equal((await post({ ...values, app: "sk_test_" + "d".repeat(32) })).status, 400);
     assert.equal((await post({ ...values, app: values.listener })).status, 400);

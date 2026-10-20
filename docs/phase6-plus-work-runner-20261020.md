@@ -60,3 +60,7 @@ operator-bridgeは同じ専用ディレクトリへrequest-N.jsonを出す。Wor
 connected.test.mjsは同じscenario/supervisorを実HTTP送信、暗号化記録、17マイグレーション適用済み隔離PostgreSQL/RLSへ接続する。正常・画面確認失敗・入力切断・請求安全確認失敗を検証する。既存provider-http.test.mjsで権限エラー、応答不明、タイムアウト、独立終了も検証する。
 
 Linux CIではブラウザーを代替し、実送信先はloopbackのみ。MacではPLUS_CONNECTED_BROWSER=1で同じ処理を実Next/専用Chromeへ接続し、外部ネットワークをOSで禁止する。Stripe Checkout/Portal・Auth・請求エンジン・通知は合成であり、実サービスの成功とはしない。実TTY待機は別にPLUS_CONNECTED_TTY=1とNodeの--test-isolation=noneを使い、同一execセッションでstatus/next/finishを操作する。テスト実行器の子プロセスにTTYを置き換えさせない。実実行のrun-approved.mjsはテスト実行器を使わない。
+
+キー受信フォームは `npm run test:subscription-key-form` で、別途、専用ブラウザーから合成値を実際に入力・送信する。実キー・利用者のブラウザープロファイル・画面取得は使わない。Linux CIでもこのフォーム検証はChromiumで実施し、契約シナリオ全体のブラウザー検証とは区別する。Macローカルではフォームのloopbackポート以外への通信をOSで禁止する。各ブラウザーのページ通信も対象originに限定する。
+
+受信フォームのReferrer-Policyはsame-originとする。no-referrerではブラウザーがフォームPOSTのOriginをnullにし、正規送信も403になることを合成値で再現した。Originの一致必須・null/欠落の拒否・CSRF照合・保存先の排他作成は緩めない。HTTPクライアントがOriginを手動指定するテストだけでは、この不具合は検出できない。拒否を実キーで繰り返さず、受信状況を確認して安全停止し、一時入力を削除する。同じ試行を別セッションから自動再開しない。

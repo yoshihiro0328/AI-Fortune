@@ -17,6 +17,7 @@
     "test:payment-runtime:http": "node scripts/phase6/payment-runtime/offline-http.mjs",
     "test:subscription-scripts": "node --import ./scripts/phase6/payment-ci-guard.mjs --test --test-concurrency=1 scripts/phase6/subscription-runtime/*.test.mjs",
     "test:subscription-browser": "node scripts/phase6/subscription-runtime/offline.mjs",
+    "test:subscription-key-form": "node scripts/phase6/subscription-runtime/key-receiver.browser.mjs",
     "test:subscription-browser-connected": "PLUS_CONNECTED_BROWSER=1 node --import ./scripts/phase6/payment-ci-guard.mjs --test --test-concurrency=1 scripts/phase6/subscription-runtime/connected.test.mjs"
   },
   "keywords": [],
