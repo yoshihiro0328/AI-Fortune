@@ -27,6 +27,7 @@ export async function fixture(mode, clockApproval) {
     c: { ...db.m.c, id: randomUUID() },
     d: { ...db.m.d, id: randomUUID() },
     frozenTime: 1800000000,
+    ...(mode === "catalog-active" ? { stripePriceInitiallyActive: true } : {}),
   };
   const protectedState = async () => {
     const v = JSON.parse(await db.protectedState());
@@ -43,7 +44,7 @@ export async function fixture(mode, clockApproval) {
       price: {
         id: m.price,
         product: m.product,
-        active: false,
+        active: mode === "catalog-active",
         livemode: false,
         unit_amount: 980,
         currency: "jpy",
@@ -355,6 +356,12 @@ export async function fixture(mode, clockApproval) {
     record: (x) => records.push(x),
     human: {
       price: async (active) => {
+        if (mode === "catalog-active")
+          assert.equal(
+            active,
+            false,
+            "already-active catalog must not be re-enabled",
+          );
         if (mode === "human-price-fail" && !active) return false;
         objects.price.active = active;
         return true;

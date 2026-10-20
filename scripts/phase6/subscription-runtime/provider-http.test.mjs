@@ -18,6 +18,35 @@ const secrets = {
   service: "syntheticService",
   anon: "syntheticAnon",
 };
+test("retained active Stripe catalog stays active during preparation, then closes inactive", async () => {
+  const t = await fixture("catalog-active");
+  try {
+    const expected = await t.ops.observe();
+    await t.ops.inspect(expected);
+    assert(expected.price_versions.every((p) => p.active === false));
+    await t.ops.prepare({
+      c: "synthetic-password-C",
+      d: "synthetic-password-D",
+    });
+    assert.equal(t.objects.price.active, true);
+    const closed = await t.ops.cleanup();
+    assert.equal(closed.complete, true);
+    assert.equal(t.objects.price.active, false);
+    assert((await t.ops.inspectAfter()).protectedUnchanged);
+  } finally {
+    await t.close();
+  }
+});
+test("active Stripe price without matching retained baseline stops before mutations", async () => {
+  const t = await fixture("normal");
+  try {
+    t.objects.price.active = true;
+    await assert.rejects(t.ops.inspect(await t.ops.observe()), /PRICE_MISMATCH/);
+    assert.equal(t.calls.filter((c) => c.method !== "GET").length, 0);
+  } finally {
+    await t.close();
+  }
+});
 for (const mode of [
   "normal",
   "permission",

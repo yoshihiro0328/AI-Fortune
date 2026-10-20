@@ -8,6 +8,8 @@
 
 plan.jsonの固定キーはattemptId / manifest / expected / cli / clockApproval。manifestは既承認の対象・既存価格・保護対象・保持済み行・新C/Dを指定する構成入力であり、送信コマンドではない。expectedは元manifestと最新完了後の暗号化観測資料を復号・照合した値を用いる。現在値を取得して比較基準に採用してはいけない。旧基準・旧試行を上書きしない。cliは既存の固定バイナリとSHA256。clockApprovalは本人の5回承認の参照を必須とし、テストの合成承認を転用しない。
 
+StripeカタログのactiveとDBの価格公開フラグは別に照合する。保持済みカタログがStripe価格active=trueの場合だけmanifest.stripePriceInitiallyActive=trueを指定する（省略時はfalse）。APIでその値を事前照合・暗号化保存し、準備時にも一致を確認する。既に有効なら有効化APIを送らず、対象DB行だけを承認範囲内で有効化する。終了時は元のカタログ状態にかかわらず、承認済みの終了方針どおりStripe・DBの対象価格を無効化する。現在値に合わせた基準変更や追加の無効化→再有効化は行わない。
+
 credentials.jsonの固定フィールドはanon / service / listener / app / lifecycle / cPassword / dPassword / vaultKey。前2つは指定新DB専用の既存情報、Stripe3件は用途別制限付きキー、vaultKeyは32バイト鍵のbase64。これらをチャット・引数・ログへ記載しない。平文の一時入力は専用ディレクトリだけに置き、受渡し元を重複保存しない。暗号化記録を復号する鍵は本人の安全な保管先に保持する。
 
 plan.jsonもCookie・セッション用情報を含み得る一時入力として扱う。開始時に暗号化と復号照合を行い、終了時はcredentials.jsonと独立して削除する。一方の削除失敗で他方を省略せず、削除未確認は完了としない。

@@ -37,6 +37,9 @@ export function providerOperations({
   );
   for (const value of [m.price, m.version])
     check(/^[A-Za-z0-9_-]+$/.test(value));
+  // Supplied from the retained Stripe catalog, independently of DB availability.
+  const initialStripePriceActive = m.stripePriceInitiallyActive ?? false;
+  check(typeof initialStripePriceActive === "boolean", "PRICE_BASELINE_REQUIRED");
   check(
     Object.keys(m.retained).sort().join(",") ===
       "diagnoses,diagnosis_answers,free_reports,paid_reports,payments",
@@ -360,13 +363,14 @@ export function providerOperations({
         p.id === m.price &&
           p.product === m.product &&
           p.livemode === false &&
-          p.active === false &&
+          p.active === initialStripePriceActive &&
           p.unit_amount === 980 &&
           p.currency === "jpy" &&
           p.recurring?.interval === "month" &&
           p.recurring?.interval_count === 1,
         "PRICE_MISMATCH",
       );
+      check(save("stripe-price-before.enc", p).verified);
       baseline = observed;
       check(save("baseline.enc", baseline).verified);
       checked = true;
@@ -491,9 +495,21 @@ export function providerOperations({
         state.portalRef = true;
       });
       await change("activatePrice", m.price, async () => {
+        const before = await get(
+          "stripe",
+          "/v1/prices/" + m.price,
+          "read_price_before_enable",
+        );
+        check(
+          before.id === m.price &&
+            before.livemode === false &&
+            before.active === initialStripePriceActive,
+          "PRICE_BASELINE_CHANGED",
+        );
         state.stripePrice = true;
         persist(); // Human outcome can be unknown; always inspect at cleanup.
-        check(await humanPrice(true), "HUMAN_PRICE_UNCONFIRMED");
+        if (!before.active)
+          check(await humanPrice(true), "HUMAN_PRICE_UNCONFIRMED");
         const p = await get("stripe", "/v1/prices/" + m.price, "confirm_price");
         check(p.id === m.price && p.livemode === false && p.active === true);
         const rows = await db(
