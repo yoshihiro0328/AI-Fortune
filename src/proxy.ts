@@ -1,4 +1,8 @@
 import {
+  localSubscriptionIntegration,
+  subscriptionRequestAllowed,
+} from "@/lib/stripe/local-subscription";
+import {
   localPaymentIntegration,
   paymentIntegrationRequestAllowed,
 } from "@/lib/stripe/local-integration";
@@ -17,6 +21,17 @@ function protect(response: NextResponse) {
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
   try {
+    if (localSubscriptionIntegration()) {
+      const response = subscriptionRequestAllowed(request.method, path)
+        ? NextResponse.next()
+        : NextResponse.json(
+            { error: "Outside local subscription test" },
+            { status: 403 },
+          );
+      response.headers.set("Cache-Control", "private, no-store");
+      response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+      return response;
+    }
     if (localPaymentIntegration()) {
       const response = paymentIntegrationRequestAllowed(request.method, path)
         ? NextResponse.next()

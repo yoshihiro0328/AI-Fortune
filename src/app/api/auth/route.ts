@@ -1,3 +1,4 @@
+import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import { localPaymentIntegration } from "@/lib/stripe/local-integration";
 import { cookies } from "next/headers";
 import {
@@ -32,7 +33,10 @@ export async function POST(req: Request) {
   return api(async () => {
     csrf(req);
     const input = await body(req, authSchema);
-    if (localPaymentIntegration() && input.action !== "login")
+    if (
+      (localPaymentIntegration() || localSubscriptionIntegration()) &&
+      input.action !== "login"
+    )
       throw new HttpError(
         403,
         "決済検証では既存アカウントのログインだけを使用します。",

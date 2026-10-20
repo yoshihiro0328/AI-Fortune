@@ -28,6 +28,8 @@ jobs:
       - run: npm test
       - name: Portable payment script regressions (synthetic only; no Mac browser or OS sandbox)
         run: npm run test:payment-scripts
+      - name: Portable Plus script regressions (synthetic only; no Mac browser or OS sandbox)
+        run: npm run test:subscription-scripts
       - name: Offline local recipient form checks
         run: python3 scripts/phase6/auth-recipient-input-test.py
       - run: npm run build

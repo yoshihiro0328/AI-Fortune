@@ -1,0 +1,182 @@
+{
+  "scope": "local isolation only; no real credentials or provider calls",
+  "baselineCommit": "6da5bdd1e814a46301e665b6be41ff53f8c4b3d4",
+  "baselineCI": "39379931083",
+  "currentGitHubCI": "Awaiting CI for reviewed commit; consult commit-associated GitHub Actions run",
+  "applicationTests": {
+    "passed": 821,
+    "externalSkippedUnverified": 33
+  },
+  "portableSubscriptionRegressions": {
+    "passed": 51,
+    "failed": 0,
+    "skipped": 0,
+    "database": "PGlite, 17 repository migrations; synthetic Auth"
+  },
+  "lint": "passed, no warnings",
+  "typecheck": "passed",
+  "nextBuild": "passed",
+  "browser": {
+    "actualNext": true,
+    "actualChrome": true,
+    "provider": "local Checkout/Portal substitutes",
+    "auth": "synthetic",
+    "rls": "PostgreSQL authenticated role with synthetic JWT claims; no real Supabase JWT validation",
+    "passedChecks": [
+      "real browser C login and account free",
+      "real plans -> substitute Checkout -> signed webhook -> Plus account",
+      "Portal substitute navigation and return",
+      "D and anonymous billing operations denied; no ownership from request body",
+      "CSRF denied before provider changes",
+      "duplicate signed event no duplicate subscription or invoice",
+      "period-end cancellation retains Plus; older event cannot revert latest state",
+      "renewal paid snapshot and current-period entitlement",
+      "future Test Clock period does not move DB time or grant current entitlement",
+      "failed renewal outside paid period falls back to free 3",
+      "ended subscription free; no paid report entitlement added",
+      "resubscription second Checkout isolated from first",
+      "scheduled end renders canceled and free account",
+      "real PostgreSQL RLS C own rows / D zero (synthetic JWT claims)",
+      "retained A/B purchase/report/fixture and profiles unchanged",
+      "normal closure processes, temporary, scoped price and portal restored; synthetic no keys"
+    ],
+    "checkCount": 16,
+    "closure": {
+      "stopProcesses": "verified",
+      "endContracts": "verified",
+      "deactivatePrice": "verified",
+      "restorePortalBinding": "verified",
+      "eraseTemporary": "verified",
+      "revokeKeys": "verified",
+      "complete": true
+    },
+    "retainedUnchanged": true,
+    "localContractsEnded": true,
+    "localPriceDisabled": true
+  },
+  "postPurchaseFailures": [
+    {
+      "case": "injected failure",
+      "expectedFailureCode": "INJECTED_POST_PURCHASE_FAILURE",
+      "exitCode": 1,
+      "closureComplete": true,
+      "retainedUnchanged": true,
+      "contractsEnded": true,
+      "priceDisabled": true
+    },
+    {
+      "case": "child interruption",
+      "expectedFailureCode": "INJECTED_APP_INTERRUPTION",
+      "exitCode": 1,
+      "closureComplete": true,
+      "retainedUnchanged": true,
+      "contractsEnded": true,
+      "priceDisabled": true
+    }
+  ],
+  "interactiveTTY": {
+    "tty": true,
+    "login": true,
+    "sameSessionUntilEnd": true,
+    "waitAcrossToolCalls": true,
+    "normal": {
+      "statusAndIntermediateChecks": true,
+      "exitCode": 0,
+      "closureComplete": true
+    },
+    "inputEOF": {
+      "exitCode": 2,
+      "closureComplete": true
+    },
+    "upstreamFailure": {
+      "exitCode": 2,
+      "closureComplete": true
+    },
+    "realCLI": false
+  },
+  "osIsolation": {
+    "passed": true,
+    "checks": 4,
+    "rawTCP": "denied",
+    "http": "denied",
+    "childProcess": "denied",
+    "privateRead": "denied",
+    "trapHits": 0,
+    "providerConnections": 0
+  },
+  "newExternalConnections": 0,
+  "realDataWrites": 0,
+  "realLogins": 0,
+  "realKeysIssued": 0,
+  "realStripeOperations": 0,
+  "limitations": [
+    "External 33 unchanged and unverified",
+    "RAK dependencies and actual CLI listen require future bounded verification",
+    "Actual Checkout, Portal, Stripe delivery and Test Clock not exercised",
+    "Test Clock cannot advance DB now()",
+    "Synthetic RLS claims are not real JWT authentication",
+    "Mac-specific browser and OS isolation are not Linux CI tests"
+  ],
+  "reviewPreviousSourceSHA256": {
+    "scripts/phase6/subscription-runtime/broker.test.mjs": "dd0eac497d5e707c91f905204a08b9f274087d591e677aa8cf63c5a578ddddff",
+    "scripts/phase6/subscription-runtime/control.mjs": "e348dbe7130855ef04efaadabdc8a1500522634d92abf5e2d912b786daf9f4ad",
+    "scripts/phase6/subscription-runtime/control.test.mjs": "9cd4148630737d5bfea9f227e0450997b23e194685208028b32fced161eefa25",
+    "scripts/phase6/subscription-runtime/entitlement.test.mjs": "6295ff52aa98147c4a1d7800d6664ac00a4e277035876be2b18587b2a9683aaf",
+    "scripts/phase6/subscription-runtime/fetch.mjs": "240275b53b8a90d9b261aaa22a4ec3b38342b44541fb739138c532a9a74c2f24",
+    "scripts/phase6/subscription-runtime/isolated.mjs": "08624a0804a45b8702648d76ea4b7596e3f858804093cc03afecd8fad240ce83",
+    "scripts/phase6/subscription-runtime/journal.mjs": "8142803c68cd215c18d2c6278adefa187fe72f5664e29600608f1aa74e02ce77",
+    "scripts/phase6/subscription-runtime/launch.mjs": "108293ba29473d5c84e3ebbeddb1ef0c7cd0ad7d55700a9bfab827b11fe7ba9e",
+    "scripts/phase6/subscription-runtime/launch.test.mjs": "984c89f66576b1841155b56871dc4698ce4ec349c28c79c690edd4018560884f",
+    "scripts/phase6/subscription-runtime/lifecycle.mjs": "03605735008d8053c6591d9394fa88c87901d89e9f0e19b8d10e9358c343e83a",
+    "scripts/phase6/subscription-runtime/lifecycle.test.mjs": "7596cf990f21676748414c22acef0174a5f11fc299ac1433dd1091b44dc383f8",
+    "scripts/phase6/subscription-runtime/listener-worker.mjs": "ce92976a8184f69788e6d1931dce4c6f8054b233083888a762afcce7e0e5efb3",
+    "scripts/phase6/subscription-runtime/listener.mjs": "1a950da057be6dee62a989fcc1e7eb1c017604bb54fc44af6307763bdbbc0b64",
+    "scripts/phase6/subscription-runtime/listener.test.mjs": "1fa808b2684cacecd92a12ce3595aec429ecdaec6eb6558e54ac30f9719c5a7e",
+    "scripts/phase6/subscription-runtime/offline-control.mjs": "ebf1b84d9ca118bc24f7b5ff9b1f233ae30218342a7291806154e73047831b4e",
+    "scripts/phase6/subscription-runtime/offline.mjs": "20142531e75983fe5463c09902e8c47a9aed3e46079b54310b679494d5d59f96",
+    "scripts/phase6/subscription-runtime/os-isolation.mjs": "0f3b561d0252ca75776e84ae9d42d136b4487c0ff9614595e9ffcbe26d40f5ee",
+    "scripts/phase6/subscription-runtime/policy.mjs": "b524cdd42b5f28ea75f542f8fa6d4a3c6ad48d9103cbb593af89867b77a1c78e",
+    "scripts/phase6/subscription-runtime/policy.test.mjs": "2d10eff5281557fc8aa3bb66b392be60f7ed13404397dc8ae4a6e2775b3857f6",
+    "scripts/phase6/subscription-runtime/preflight.test.mjs": "51b8382daa7b890c85545670f5622c3f10923bc0c13cabf7dc10247e0594bbc4",
+    "scripts/phase6/subscription-runtime/runtime.mjs": "9615511282b23b6865a1f49b14a3b5fb0300b76e4e5e4dde42e32cf2f7801e73",
+    "scripts/phase6/subscription-runtime/server.mjs": "9d355bbb040f68750a641e5bef9b4da73f961c7709969d32c7511e91e246ab4f"
+  },
+  "sourceSHA256": {
+    "scripts/phase6/subscription-runtime/broker.test.mjs": "dd0eac497d5e707c91f905204a08b9f274087d591e677aa8cf63c5a578ddddff",
+    "scripts/phase6/subscription-runtime/control.mjs": "e348dbe7130855ef04efaadabdc8a1500522634d92abf5e2d912b786daf9f4ad",
+    "scripts/phase6/subscription-runtime/control.test.mjs": "9cd4148630737d5bfea9f227e0450997b23e194685208028b32fced161eefa25",
+    "scripts/phase6/subscription-runtime/entitlement.test.mjs": "6295ff52aa98147c4a1d7800d6664ac00a4e277035876be2b18587b2a9683aaf",
+    "scripts/phase6/subscription-runtime/fetch.mjs": "240275b53b8a90d9b261aaa22a4ec3b38342b44541fb739138c532a9a74c2f24",
+    "scripts/phase6/subscription-runtime/isolated.mjs": "d09d48d0df12395f1d46c66fd63dd62d6013b7b22c8a1072565165d173939771",
+    "scripts/phase6/subscription-runtime/journal.mjs": "8142803c68cd215c18d2c6278adefa187fe72f5664e29600608f1aa74e02ce77",
+    "scripts/phase6/subscription-runtime/launch.mjs": "3bb6d70598733ae04522bf5d5035ac83d521c3ba45668775dcdaaf317759d6a0",
+    "scripts/phase6/subscription-runtime/launch.test.mjs": "ddb111e38b8d193d5eb58f363a651a79b742d8cbf887224df6769c66248b98ae",
+    "scripts/phase6/subscription-runtime/lifecycle.mjs": "9fe720130d66d7d1219394e0db7048c8fe2027e7342edaf9907f4d760ec47b7c",
+    "scripts/phase6/subscription-runtime/lifecycle.test.mjs": "afcfd39b5ecbc4906ae46870ea68ab22c3cc9578e4807849fa3a94ce2825f1ad",
+    "scripts/phase6/subscription-runtime/listener-worker.mjs": "ce92976a8184f69788e6d1931dce4c6f8054b233083888a762afcce7e0e5efb3",
+    "scripts/phase6/subscription-runtime/listener.mjs": "0f14f0b521d7cc910a20421af3ef1f82ed478d7fa00e091289d33356805a808d",
+    "scripts/phase6/subscription-runtime/listener.test.mjs": "1fa808b2684cacecd92a12ce3595aec429ecdaec6eb6558e54ac30f9719c5a7e",
+    "scripts/phase6/subscription-runtime/offline-control.mjs": "ebf1b84d9ca118bc24f7b5ff9b1f233ae30218342a7291806154e73047831b4e",
+    "scripts/phase6/subscription-runtime/offline.mjs": "8a16cb597fe3068b1b8e161b2c9a07b3c39de4396da9b2c0e94a307ffc9c4e96",
+    "scripts/phase6/subscription-runtime/os-isolation.mjs": "0f3b561d0252ca75776e84ae9d42d136b4487c0ff9614595e9ffcbe26d40f5ee",
+    "scripts/phase6/subscription-runtime/policy.mjs": "64ea661ab5af83eceb25cfd7e68dde1ba7288fbfe77bb534fe4d14df4e98175a",
+    "scripts/phase6/subscription-runtime/policy.test.mjs": "c0e34fbd9c7a5b608dca9b835321ec3d95730a59546ae55384f57716e49879a6",
+    "scripts/phase6/subscription-runtime/preflight.test.mjs": "51b8382daa7b890c85545670f5622c3f10923bc0c13cabf7dc10247e0594bbc4",
+    "scripts/phase6/subscription-runtime/runtime.mjs": "9615511282b23b6865a1f49b14a3b5fb0300b76e4e5e4dde42e32cf2f7801e73",
+    "scripts/phase6/subscription-runtime/server.mjs": "9d355bbb040f68750a641e5bef9b4da73f961c7709969d32c7511e91e246ab4f"
+  },
+  "review": {
+    "globalUniqueInvoiceCap": 4,
+    "invoiceSubscriptionBinding": true,
+    "clockConfirmationBoundToRequestedTarget": true,
+    "missingAPIVersionRejected": true,
+    "browserRerun": {
+      "passed": true,
+      "checks": 16,
+      "providerConnections": 0,
+      "closureComplete": true
+    },
+    "testExpectationCorrection": "First review browser run reached 13 checks and correctly stopped on old expected count 5 vs actual 4; expected count corrected to approved cap 4 and complete rerun passed; cleanup passed on both runs",
+    "externalExecutionGate": "blocked before keys: RAK dependencies, actual Clock/Checkout/Portal compatibility and advance budget unresolved"
+  }
+}

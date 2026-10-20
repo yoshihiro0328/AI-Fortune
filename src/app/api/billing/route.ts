@@ -1,3 +1,4 @@
+import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import { assertCheckoutPrice } from "@/lib/stripe/checkout";
 import { stripeId } from "@/lib/stripe/subscriptions";
 import { stripeEnvironment } from "@/lib/stripe/environment";
@@ -70,6 +71,11 @@ export async function POST(req: Request) {
         consent: z.boolean().optional(),
       }),
     );
+    if (
+      localSubscriptionIntegration() &&
+      user !== process.env.SUBSCRIPTION_BUYER_ID
+    )
+      throw new HttpError(403, "この検証では契約操作を利用できません。");
     await rate("billing:" + user, 20, 3600);
     return lock("billing:" + user, async () => {
       const environment = await stripeEnvironment();

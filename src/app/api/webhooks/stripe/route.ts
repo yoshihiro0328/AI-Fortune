@@ -1,3 +1,4 @@
+import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import {
   localPaymentIntegration,
   assertIntegrationDiagnosis,
@@ -47,6 +48,29 @@ export async function POST(req: Request) {
   }
   try {
     const local = localPaymentIntegration();
+    if (localSubscriptionIntegration()) {
+      if (
+        ![
+          "checkout.session.completed",
+          "customer.subscription.created",
+          "customer.subscription.updated",
+          "customer.subscription.deleted",
+          "invoice.paid",
+          "invoice.payment_failed",
+        ].includes(e.type)
+      )
+        throw Error("Outside subscription test");
+      const object = e.data.object as unknown as {
+        customer?: string;
+        mode?: string;
+      };
+      if (
+        object.customer !== process.env.SUBSCRIPTION_CUSTOMER_ID ||
+        (e.type === "checkout.session.completed" &&
+          object.mode !== "subscription")
+      )
+        throw Error("Outside subscription customer");
+    }
     const environment = await stripeEnvironment();
     if (e.account && e.account !== environment.stripe_account_id)
       throw new Error("Webhook account mismatch");

@@ -1,3 +1,4 @@
+import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import { localPaymentIntegration } from "@/lib/stripe/local-integration";
 import { paymentEnvironment } from "../stripe/environment";
 import {
@@ -262,7 +263,7 @@ export async function analyzeDiagnosis(id: string) {
   });
 }
 export async function generatePaid(id: string) {
-  if (localPaymentIntegration())
+  if (localPaymentIntegration() || localSubscriptionIntegration())
     throw new Error("AI generation is disabled during payment verification");
   await paymentEnvironment();
   const options = { deadline: Date.now() + 265000 };

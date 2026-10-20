@@ -61,6 +61,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </header>
         {!demo &&
         process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        process.env.SUBSCRIPTION_INTEGRATION_LOCAL !== "true" &&
         !(
           process.env.PAYMENT_VERIFY_ONLY === "true" &&
           process.env.PAYMENT_INTEGRATION_LOCAL === "true"

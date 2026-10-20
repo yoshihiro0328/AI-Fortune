@@ -1,3 +1,4 @@
+import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import "server-only";
 import { localPaymentIntegration } from "./local-integration";
 import Stripe from "stripe";
@@ -8,7 +9,7 @@ export function stripe() {
   const mode = stripeMode();
   const prefix = mode === "live" ? /^(sk|rk)_live_/ : /^(sk|rk)_test_/;
   if (!prefix.test(key)) throw new Error("Stripe key environment mismatch");
-  const local = localPaymentIntegration();
+  const local = localPaymentIntegration() || localSubscriptionIntegration();
   if (local && !key.startsWith("rk_test_"))
     throw new Error(
       "Local payment verification requires a restricted Sandbox key",
