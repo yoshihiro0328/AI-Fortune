@@ -67,7 +67,12 @@ async function fixture(mode, clockApproval) {
         text && req.headers["content-type"] === "application/json"
           ? JSON.parse(text)
           : {};
-    calls.push({ p, method, role: req.headers.authorization });
+    calls.push({
+      p,
+      method,
+      role: req.headers.authorization,
+      idempotency: req.headers["idempotency-key"],
+    });
     const send = (data, status = 200) => {
       res.writeHead(status, { "content-type": "application/json" });
       res.end(JSON.stringify(data));
@@ -570,6 +575,13 @@ for (const scenario of ["normal", "unknown", "interrupt", "postcheck-mismatch"])
           d: "synthetic-password-D",
         });
         assert.equal(result.complete, scenario === "normal");
+        assert.deepEqual(
+          t.records
+            .filter((r) => r.event === "provider_finished")
+            .map((r) => r.complete),
+          [scenario === "normal"],
+        );
+        assert(fs.existsSync(path.join(t.root, "completion.enc")));
         assert.equal(result.exitCode, scenario === "normal" ? 0 : 2);
         assert.equal(ready, scenario !== "unknown");
         assert(!app && !cli);
@@ -673,6 +685,11 @@ test("proposed five-advance timeline uses four scoped invoices; explicit approva
         .length,
       5,
     );
+    const advances = t.calls.filter(
+      (c) => c.p.endsWith("/advance") && c.method === "POST",
+    );
+    assert(advances.every((c) => typeof c.idempotency === "string"));
+    assert.equal(new Set(advances.map((c) => c.idempotency)).size, 5);
     assert((await t.ops.cleanup()).complete);
     assert((await t.ops.inspectAfter()).protectedUnchanged);
   } finally {

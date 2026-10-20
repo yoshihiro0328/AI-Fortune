@@ -162,7 +162,7 @@ export function providerOperations({
       body,
       operation,
       signal: cleanup ? undefined : signal,
-      idempotencyKey: `${attemptId}-${operation}-${sha(path).slice(0, 16)}`,
+      idempotencyKey: `${attemptId}-${operation}-${sha([method, path, body]).slice(0, 24)}`,
     });
   const db = (method, path, body, operation, cleanup = false) =>
     wire({
@@ -1013,6 +1013,7 @@ export function providerOperations({
       result.complete = Object.values(result).every(
         (v) => v === "verified" || v === 0,
       );
+      state.cleanupResult = result;
       persist();
       return result;
     },

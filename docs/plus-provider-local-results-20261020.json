@@ -31,14 +31,20 @@
   "ci": "must be checked against resulting commit; previous CI is not substitution",
   "sha256": {
     "provider-entry.mjs": "bc76924b94c744dd02c82634eb59547abd2825c8580efe58472f717be7a19751",
-    "provider-ops.mjs": "145962433bb88d16afb7c5e5b6551345fc4009cf04cb5828636f01e9dd8c54ed",
+    "provider-ops.mjs": "5699236bf67fdd717e397c00758d7243a2b10b702c05975fd522994c288ff4a8",
     "app-transport.mjs": "c38cdeda787d98fb9dee540ffd8d8575c62e716ba8628c28894c66f7ac908b2a",
     "wire.mjs": "09c61b1bc8150c9818a43ab4d1838027a890eeb0deaa12799210657c22665e04",
     "vault.mjs": "31bdfe8ddcf2f22d8338f25656b96fb3b3a8ec9739e9fb9839749126bda20450",
-    "supervisor.mjs": "ea7c0f0687b4ca1be9b08b1aa1817ec9dbfc4ac4ef410a06c5f85adfbef0eb6d",
-    "provider-http.test.mjs": "a3a23bbe6fec21b32c8032043b68202905cd2f373005201d9c77793b863a18e9",
+    "supervisor.mjs": "46a437475cee1b76662a8f0885e0d1a1550bb03a8f0fcb28e583caf9ec2b3bdb",
+    "provider-http.test.mjs": "54747694d0c336c68999b5db7c74789d4849fe1b541ce20ea1588d3f7188a4c7",
     "launch.mjs": "6a84e53e2e7dcae2a9332890a36039e810af81e3a012f0eccda6c3d97ffd721e",
     "runtime.mjs": "e973c360b3a5ae159588af499bc1b293223ee0e441c196f4a2969c16dc569910",
     "policy.mjs": "a9b47e527c6a419a0d2666e3988f80f3c3bfd9aeed11faaa3d1b2f8d5bf1606b"
-  }
+  },
+  "review_fixes": [
+    "Clock idempotency keys bind method/path/body, not path alone",
+    "Final provider outcome and encrypted completion record are distinct from control-loop completion",
+    "Unresolved operations keep cleanup incomplete",
+    "Other protected price rows retain full timestamp comparison"
+  ]
 }

@@ -31,7 +31,7 @@ export function supervisor({
   attemptId,
   wire,
   save,
-  record,
+  record = () => {},
   human,
   listener,
   input,
@@ -91,6 +91,27 @@ export function supervisor({
     },
     revokeKeys: async () => human.revokeKeys(),
   };
+  const finish = (result) => {
+    try {
+      check(save("completion.enc", result).verified);
+    } catch {
+      result.complete = false;
+      result.exitCode = 2;
+      result.recording = "failed";
+    }
+    try {
+      record({
+        event: "provider_finished",
+        complete: result.complete,
+        exitCode: result.exitCode,
+      });
+    } catch {
+      result.complete = false;
+      result.exitCode = 2;
+      result.recording = "failed";
+    }
+    return result;
+  };
   return {
     // Called only by the single bounded scenario driver; changes are individually
     // reserved and validated by ops, and unknown results latch STOP.
@@ -132,7 +153,12 @@ export function supervisor({
           listener,
           reserve: ops.reserveRuntime,
           beforeClose: stop,
-          record,
+          record: (entry) =>
+            record(
+              entry.event === "finished"
+                ? { ...entry, event: "control_finished" }
+                : entry,
+            ),
           input,
           output,
           timeoutMs: Math.max(1, budget - (Date.now() - start)),
@@ -160,7 +186,7 @@ export function supervisor({
             result.postcheck = "failed_or_unknown";
           }
         }
-        return result;
+        return finish(result);
       } catch {
         closure = await closeAttempt({
           ...cleanup,
@@ -169,12 +195,23 @@ export function supervisor({
             return !listener.alive();
           },
         });
-        return {
+        if (providerClosure) {
+          try {
+            const p = await providerClosure;
+            if (!p.complete) {
+              closure.complete = false;
+              closure.unresolvedOperations = p.unresolvedOperations;
+            }
+          } catch {
+            closure.complete = false;
+          }
+        }
+        return finish({
           complete: false,
           exitCode: 2,
           reason: "preparation_failed",
           closure,
-        };
+        });
       } finally {
         passwords = undefined;
         clearTimeout(timer);
