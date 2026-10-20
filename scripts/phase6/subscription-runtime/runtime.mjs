@@ -49,6 +49,7 @@ export async function startRuntime({
   record = () => {},
   onStop = () => {},
   webhookSecret,
+  reserve,
 }) {
   check(
     m.synthetic === true || /^whsec_[A-Za-z0-9]+$/.test(webhookSecret || ""),
@@ -62,7 +63,7 @@ export async function startRuntime({
   const token = randomBytes(32).toString("hex"),
     forward = randomBytes(32).toString("hex"),
     secret = webhookSecret || "whsec_" + randomBytes(32).toString("hex"),
-    policy = new Policy(m);
+    policy = new Policy(m, reserve);
   policy.signedEvent = (e, raw) => policy.signed(e, raw);
   const authorize = policy.authorize.bind(policy);
   policy.authorize = (r) => {

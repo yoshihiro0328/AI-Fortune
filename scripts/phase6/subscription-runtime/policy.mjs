@@ -68,9 +68,10 @@ const ownTables = [
   "billing_customers",
 ];
 export class Policy {
-  constructor(m) {
+  constructor(m, reserve = () => {}) {
     validate(m);
     this.m = m;
+    this.reserve = reserve;
     this.stopped = false;
     this.counts = new Map();
     this.ids = new Set();
@@ -83,6 +84,7 @@ export class Policy {
   once(key, limit = 1) {
     const n = (this.counts.get(key) || 0) + 1;
     check(n <= limit, "OPERATION_LIMIT");
+    this.reserve(key, n);
     this.counts.set(key, n);
     this.journal.push({ operation: key, attempt: n, state: "reserved" });
   }
@@ -418,12 +420,17 @@ export class Policy {
           d.data.length <= 4 &&
           d.data.every(
             (i) =>
-              typeof i.id === "string" && i.id.startsWith("in_") &&
-              i.customer === m.customer && i.livemode === false &&
+              typeof i.id === "string" &&
+              i.id.startsWith("in_") &&
+              i.customer === m.customer &&
+              i.livemode === false &&
               i.parent?.subscription_details?.subscription === t.subscription,
           ),
       );
-      const observed = new Set([...this.invoiceIds, ...d.data.map((i) => i.id)]);
+      const observed = new Set([
+        ...this.invoiceIds,
+        ...d.data.map((i) => i.id),
+      ]);
       check(observed.size <= 4, "INVOICE_LIMIT");
       this.invoiceIds = observed;
     }

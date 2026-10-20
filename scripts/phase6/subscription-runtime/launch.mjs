@@ -15,6 +15,8 @@ export async function runPreparedAttempt({
   execute,
   cleanup,
   record = () => {},
+  reserve,
+  beforeClose = () => {},
   input = process.stdin,
   output = process.stdout,
   timeoutMs,
@@ -23,6 +25,7 @@ export async function runPreparedAttempt({
   let runtime, received, closure;
   const close = async () => {
     if (closure) return closure;
+    beforeClose();
     closure = await closeAttempt({
       ...cleanup,
       stopProcesses: async () => {
@@ -59,6 +62,7 @@ export async function runPreparedAttempt({
       transport,
       webhookSecret: received.secret,
       record,
+      reserve,
     });
     check(runtime.alive() && listener.alive(), "NOT_READY");
     const result = await control({
