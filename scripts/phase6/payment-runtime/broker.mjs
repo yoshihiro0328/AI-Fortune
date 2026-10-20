@@ -84,7 +84,16 @@ export async function startBroker({
         insist(req.headers["x-payment-token"] === token);
         const request = JSON.parse(await bounded(req));
         const result = await serial(async () => {
-          const t = policy.authorize(request);
+          let t;
+          try {
+            t = policy.authorize(request);
+          } catch {
+            if (!policy.stopped) {
+              policy.stopped = true;
+              onStop("UNAUTHORIZED_PROVIDER_REQUEST");
+            }
+            throw Error("POLICY_DENIED");
+          }
           try {
             const out = await transport(request);
             const parsed = out.text ? JSON.parse(out.text) : null;

@@ -98,7 +98,7 @@ await deny(()=>net.connect(${trapPort},'127.0.0.1'));
 await new Promise((resolve,reject)=>{http.get('http://127.0.0.1:${trapPort}',()=>reject(Error('HTTP_BYPASS'))).on('error',resolve);});
 let denied=false;try{fs.readFileSync(${JSON.stringify(path.join(privateDir, "fake-secret"))});}catch{denied=true;}if(!denied)throw Error('FILE_BYPASS');
 const child=spawnSync(process.execPath,['--input-type=module','-e',"import net from 'node:net';let s=net.connect(${trapPort},'127.0.0.1');s.on('connect',()=>process.exit(1));s.on('error',()=>process.exit(0));"],{timeout:3000});if(child.status!==0)throw Error('CHILD_BYPASS');
-const r=await fetch('http://127.0.0.1:5209/proxy',{method:'POST',headers:{'x-payment-token':'${token}'},body:JSON.stringify({url:'https://api.openai.com/v1/models',method:'GET',headers:{}})});if(r.status!==403)throw Error('BROKER_BYPASS');console.log('offline isolation passed');`;
+console.log('offline isolation passed');`;
       const child = spawn(
         "/usr/bin/sandbox-exec",
         [
@@ -286,6 +286,25 @@ const r=await fetch('http://127.0.0.1:5209/proxy',{method:'POST',headers:{'x-pay
         state.calls.filter((s) => s === "POST /v1/checkout/sessions").length,
         1,
       );
+    },
+  );
+  await check(
+    "unauthorized provider freezes broker and blocks later valid requests",
+    async () => {
+      const count = state.calls.length;
+      for (const url of [
+        "https://api.openai.com/v1/models",
+        "https://api.stripe.com/v1/account",
+      ]) {
+        const response = await fetch("http://127.0.0.1:5209/proxy", {
+          method: "POST",
+          headers: { "x-payment-token": token },
+          body: JSON.stringify({ url, method: "GET", headers: {} }),
+        });
+        assert.equal(response.status, 403);
+        assert.equal(p.stopped, true);
+        assert.equal(state.calls.length, count);
+      }
     },
   );
   await check("child terminated on explicit shutdown", async () => {
