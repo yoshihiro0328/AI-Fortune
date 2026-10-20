@@ -98,6 +98,7 @@ beforeEach(() => {
   mocks.rpc.mockResolvedValue({ data: true, error: null });
   mocks.payment = {
     id: payment,
+    user_id: "00000000-0000-4000-8000-000000000001",
     diagnosis_id: diagnosis,
     amount: 980,
     currency: "jpy",
@@ -337,3 +338,112 @@ it("Live fulfillment is tested with mocks only and requires every object to agre
     expect.objectContaining({ p_is_test: false }),
   );
 });
+
+it("rejects a signed event from a different connected account before any mutation", async () => {
+  const e = event();
+  e.account = "acct_other";
+  mocks.env.mockResolvedValue({
+    mode: "sandbox",
+    isTest: true,
+    stripe_account_id: "acct_1UQlQdI73kTcvXz8",
+  });
+  expect((await deliver(e)).status).toBe(500);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+it("normal webhook still schedules report generation", async () => {
+  expect((await deliver(event())).status).toBe(200);
+  expect(mocks.after).toHaveBeenCalledOnce();
+});
+it("local verification fulfills the real purchase RPC without scheduling AI", async () => {
+  const { localPaymentEnv } = await import("./helpers/payment-integration");
+  localPaymentEnv();
+  expect((await deliver(event())).status).toBe(200);
+  expect(mocks.rpc).toHaveBeenCalledOnce();
+  expect(mocks.after).not.toHaveBeenCalled();
+  expect(mocks.generate).not.toHaveBeenCalled();
+});
+it("invalid local configuration fails before purchase mutation", async () => {
+  vi.stubEnv("PAYMENT_INTEGRATION_LOCAL", "true");
+  expect((await deliver(event())).status).toBe(500);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  expect(mocks.after).not.toHaveBeenCalled();
+});
+it("local verification rejects a different diagnosis and subscription events", async () => {
+  const { localPaymentEnv } = await import("./helpers/payment-integration");
+  localPaymentEnv();
+  vi.stubEnv(
+    "PAYMENT_INTEGRATION_DIAGNOSIS_ID",
+    "00000000-0000-4000-8000-000000000099",
+  );
+  expect((await deliver(event())).status).toBe(500);
+  expect((await deliver(event("customer.subscription.updated"))).status).toBe(
+    500,
+  );
+  expect(
+    (
+      await deliver(
+        event(undefined, { mode: "subscription", subscription: "sub_fixture" }),
+      )
+    ).status,
+  ).toBe(500);
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+
+it("signed handler and real PostgreSQL fulfillment commit once together (offline providers)", async () => {
+  const { isolatedDb, applyIsolation, migrationName } =
+    await import("./helpers/isolated-db");
+  const { readFile, readdir } = await import("node:fs/promises");
+  const { localPaymentEnv } = await import("./helpers/payment-integration");
+  localPaymentEnv();
+  const pg = await isolatedDb();
+  try {
+    await applyIsolation(pg);
+    for (const name of (await readdir("supabase/migrations"))
+      .filter((n) => n.endsWith(".sql") && n > migrationName)
+      .sort())
+      await pg.exec(await readFile("supabase/migrations/" + name, "utf8"));
+    await pg.query(
+      "insert into auth.users(id,email_confirmed_at) values($1,now())",
+      [mocks.payment.user_id],
+    );
+    await pg.query(
+      "insert into diagnoses(id,user_id,anonymous_session_id,diagnosis_type_id,status) values($1,$2,'synthetic-only',(select id from diagnosis_types limit 1),'free_result_ready')",
+      [diagnosis, mocks.payment.user_id],
+    );
+    await pg.query(
+      "insert into payments(id,diagnosis_id,user_id,amount,stripe_checkout_session_id) values($1,$2,$3,980,'cs_fixture')",
+      [payment, diagnosis, mocks.payment.user_id],
+    );
+    mocks.rpc.mockImplementation(async (name, p) => {
+      expect(name).toBe("apply_stripe_event_v2");
+      const result = await pg.query<{ applied: boolean }>(
+        "select apply_stripe_event_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) applied",
+        [
+          p.p_event,
+          p.p_type,
+          p.p_hash,
+          p.p_session,
+          p.p_intent,
+          p.p_payment,
+          p.p_amount,
+          p.p_currency,
+          p.p_state,
+          p.p_is_test,
+          p.p_customer,
+        ],
+      );
+      return { data: result.rows[0].applied, error: null };
+    });
+    expect((await deliver(event())).status).toBe(200);
+    expect((await deliver(event())).status).toBe(200);
+    const counts = await pg.query(
+      "select (select count(*)::int from payments where status='paid') purchases,(select count(*)::int from paid_reports) reports,(select count(*)::int from stripe_events) events,(select count(*)::int from ai_calls) ai",
+    );
+    expect(counts.rows).toEqual([
+      { purchases: 1, reports: 1, events: 1, ai: 0 },
+    ]);
+    expect(mocks.after).not.toHaveBeenCalled();
+  } finally {
+    await pg.close();
+  }
+}, 30000);

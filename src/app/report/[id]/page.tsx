@@ -7,5 +7,13 @@ export default async function Page({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  return <Report id={(await params).id} />;
+  return (
+    <Report
+      id={(await params).id}
+      verificationOnly={
+        process.env.PAYMENT_VERIFY_ONLY === "true" &&
+        process.env.PAYMENT_INTEGRATION_LOCAL === "true"
+      }
+    />
+  );
 }

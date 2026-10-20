@@ -1,3 +1,7 @@
+import {
+  assertIntegrationDiagnosis,
+  localPaymentIntegration,
+} from "@/lib/stripe/local-integration";
 import { assertCheckoutPrice } from "@/lib/stripe/checkout";
 import { stripeEnvironment } from "@/lib/stripe/environment";
 import { assertCheckoutEnabled, assertStripeMode } from "@/lib/stripe/mode";
@@ -14,7 +18,13 @@ export async function POST(
   return api(async () => {
     csrf(req);
     const { id } = await params;
+    assertIntegrationDiagnosis(id);
     const d = await owned(id);
+    if (
+      localPaymentIntegration() &&
+      d.user_id !== process.env.PAYMENT_INTEGRATION_BUYER_ID
+    )
+      throw new HttpError(403, "承認済みの検証購入者ではありません。");
     await rate("checkout:" + id, 15, 3600);
     if (d.status === "safety" || d.classification_json?.risk_detected)
       throw new HttpError(403, "この相談は安全確保を優先します。");
@@ -68,6 +78,12 @@ export async function POST(
           p.stripe_checkout_session_id,
         );
         assertStripeMode(previous, environment.mode);
+        if (
+          previous.metadata?.payment_id !== p.id ||
+          previous.metadata?.diagnosis_id !== id ||
+          previous.client_reference_id !== id
+        )
+          throw new Error("Stored Checkout ownership binding mismatch");
         if (previous.status === "open" && previous.url) {
           if (
             previous.amount_total === price.unit_amount &&

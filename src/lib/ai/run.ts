@@ -1,3 +1,4 @@
+import { localPaymentIntegration } from "@/lib/stripe/local-integration";
 import "server-only";
 import { randomUUID, createHash } from "node:crypto";
 import OpenAI from "openai";
@@ -22,6 +23,8 @@ export async function runAI<T>(
   input: unknown,
   options: RunOptions = {},
 ) {
+  if (localPaymentIntegration())
+    throw new Error("AI generation is disabled during payment verification");
   const model = required("OPENAI_MODEL");
   const inputHash = createHash("sha256")
     .update(JSON.stringify({ prompt, input }))

@@ -22,7 +22,13 @@ export default async function Page({
           </Link>
         </div>
       )}
-      <Account testEmailOnly={process.env.AUTH_EMAIL_MODE !== "custom"} />
+      <Account
+        testEmailOnly={process.env.AUTH_EMAIL_MODE !== "custom"}
+        verificationOnly={
+          process.env.PAYMENT_VERIFY_ONLY === "true" &&
+          process.env.PAYMENT_INTEGRATION_LOCAL === "true"
+        }
+      />
     </>
   );
 }

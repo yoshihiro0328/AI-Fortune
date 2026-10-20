@@ -59,7 +59,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             </Link>
           </nav>
         </header>
-        {!demo && process.env.NEXT_PUBLIC_SUPABASE_URL ? <Visit /> : null}
+        {!demo &&
+        process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        !(
+          process.env.PAYMENT_VERIFY_ONLY === "true" &&
+          process.env.PAYMENT_INTEGRATION_LOCAL === "true"
+        ) ? (
+          <Visit />
+        ) : null}
         {demo ? children : <Phase6Shell>{children}</Phase6Shell>}
         <footer>
           <div className="brand">

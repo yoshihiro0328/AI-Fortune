@@ -1,3 +1,4 @@
+import { localPaymentIntegration } from "@/lib/stripe/local-integration";
 import { cookies } from "next/headers";
 import {
   api,
@@ -31,6 +32,11 @@ export async function POST(req: Request) {
   return api(async () => {
     csrf(req);
     const input = await body(req, authSchema);
+    if (localPaymentIntegration() && input.action !== "login")
+      throw new HttpError(
+        403,
+        "決済検証では既存アカウントのログインだけを使用します。",
+      );
     const who = await identity(true);
     const action = input.action;
     await rateIP(req, "auth", 40, 3600);

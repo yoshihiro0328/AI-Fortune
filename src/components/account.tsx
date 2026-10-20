@@ -14,8 +14,10 @@ const labels: Record<Mode, string> = {
 };
 export default function Account({
   testEmailOnly = false,
+  verificationOnly = false,
 }: {
   testEmailOnly?: boolean;
+  verificationOnly?: boolean;
 }) {
   const [mode, setMode] = useState<Mode>("login"),
     [email, setEmail] = useState(""),
@@ -277,7 +279,14 @@ export default function Account({
               </p>
             </div>
           )}
-          {user && mode !== "update" && <ConsultationSummary />}
+          {verificationOnly && (
+            <p className="fine">
+              購入済みレポートの閲覧確認中です。契約管理・新規相談はこの検証では使用しません。
+            </p>
+          )}
+          {user && mode !== "update" && !verificationOnly && (
+            <ConsultationSummary />
+          )}
           <h2>{user ? "保存した診断" : "このブラウザの診断"}</h2>
           {rows.length === 0 ? (
             <p>まだ診断はありません。</p>

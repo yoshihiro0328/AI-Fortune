@@ -1,3 +1,4 @@
+import { localPaymentIntegration } from "@/lib/stripe/local-integration";
 import { paymentEnvironment } from "../stripe/environment";
 import {
   advanceFlow,
@@ -261,6 +262,8 @@ export async function analyzeDiagnosis(id: string) {
   });
 }
 export async function generatePaid(id: string) {
+  if (localPaymentIntegration())
+    throw new Error("AI generation is disabled during payment verification");
   await paymentEnvironment();
   const options = { deadline: Date.now() + 265000 };
   const ready = await lock("diagnosis:" + id, () =>

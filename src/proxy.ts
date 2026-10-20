@@ -1,3 +1,7 @@
+import {
+  localPaymentIntegration,
+  paymentIntegrationRequestAllowed,
+} from "@/lib/stripe/local-integration";
 import { NextRequest, NextResponse } from "next/server";
 import { demoEnabled, isolatedReviewProject } from "@/lib/demo/config";
 
@@ -12,6 +16,24 @@ function protect(response: NextResponse) {
 }
 export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname;
+  try {
+    if (localPaymentIntegration()) {
+      const response = paymentIntegrationRequestAllowed(request.method, path)
+        ? NextResponse.next()
+        : NextResponse.json(
+            { error: "Outside the local payment test" },
+            { status: 403 },
+          );
+      response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+      response.headers.set("Cache-Control", "private, no-store");
+      return response;
+    }
+  } catch {
+    return NextResponse.json(
+      { error: "Invalid local test configuration" },
+      { status: 503 },
+    );
+  }
   if (!demoEnabled()) {
     if (isolatedReviewProject())
       return protect(

@@ -1,0 +1,27 @@
+{
+  "relationship_analysis": "【合成データ・決済検証用】架空の診断です。AI生成・実在人物の情報は含みません。",
+  "behavior_patterns": "【合成データ】架空の人物甲と乙が会話する表示例です。",
+  "distance_reasons": ["合成の理由1", "合成の理由2"],
+  "positive_signals": [],
+  "attention_signals": [],
+  "improvement_points": ["表示確認用の項目です"],
+  "avoid_actions": ["本物の助言として使用しないでください"],
+  "contact_advice": "合成データの表示例です。",
+  "messages": {
+    "natural": "検証用の文章1",
+    "proactive": "検証用の文章2",
+    "respectful_distance": "検証用の文章3"
+  },
+  "next_meeting": "予定を提案するものではありません。",
+  "seven_day_plan": [
+    { "period": "例1", "action": "表示確認" },
+    { "period": "例2", "action": "表示確認" },
+    { "period": "例3", "action": "表示確認" }
+  ],
+  "thirty_day_plan": [
+    { "period": "例1", "action": "表示確認" },
+    { "period": "例2", "action": "表示確認" },
+    { "period": "例3", "action": "表示確認" }
+  ],
+  "overall_advice": "【合成データ・決済検証用】購入権限の確認用であり、AIによる相談回答ではありません。"
+}

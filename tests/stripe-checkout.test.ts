@@ -177,7 +177,12 @@ beforeEach(() => {
     currency: "jpy",
     url: "https://checkout.stripe.com/fixture",
     customer: "cus_fixture",
-    metadata: { user_id: "user_fixture", payment_id: "payment_fixture" },
+    metadata: {
+      user_id: "user_fixture",
+      payment_id: "payment_fixture",
+      diagnosis_id: "diagnosis_fixture",
+    },
+    client_reference_id: "diagnosis_fixture",
   }));
   m.lines.mockImplementation(async () => ({
     has_more: false,
@@ -298,3 +303,19 @@ it("Portal refuses a configuration from the opposite environment", async () => {
   m.portalLive = false;
   expect((await buyPlus("portal")).status).toBe(200);
 });
+
+it.each(["diagnosis", "reference", "payment"])(
+  "refuses reused Checkout with wrong %s binding, without expiring or recreating it",
+  async (kind) => {
+    await buyReport();
+    const previous = await m.retrieve();
+    if (kind === "reference") previous.client_reference_id = "other";
+    else
+      previous.metadata[kind === "diagnosis" ? "diagnosis_id" : "payment_id"] =
+        "other";
+    m.retrieve.mockResolvedValue(previous);
+    expect((await buyReport()).status).toBe(503);
+    expect(m.created).toHaveBeenCalledTimes(1);
+    expect(m.expire).not.toHaveBeenCalled();
+  },
+);

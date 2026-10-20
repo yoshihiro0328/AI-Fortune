@@ -7,7 +7,13 @@ import type { Question } from "@/lib/client";
 import SaveResultNote from "./save-result-note";
 import { request, track } from "@/lib/client";
 import type { PaidReport } from "@/lib/ai/schemas";
-export default function Report({ id }: { id: string }) {
+export default function Report({
+  id,
+  verificationOnly = false,
+}: {
+  id: string;
+  verificationOnly?: boolean;
+}) {
   const router = useRouter();
   const [report, setReport] = useState<PaidReport | null>(null),
     [status, setStatus] = useState("waiting"),
@@ -46,6 +52,7 @@ export default function Report({ id }: { id: string }) {
   useEffect(() => {
     let n = 0;
     const initial = setTimeout(() => void load(), 0);
+    if (verificationOnly) return () => clearTimeout(initial);
     const timer = setInterval(() => {
       n++;
       if (n >= 60) {
@@ -58,13 +65,13 @@ export default function Report({ id }: { id: string }) {
       clearTimeout(initial);
       clearInterval(timer);
     };
-  }, [load]);
+  }, [load, verificationOnly]);
   useEffect(() => {
-    if (report && !tracked.current) {
+    if (report && !tracked.current && !verificationOnly) {
       track("paid_report_viewed", id);
       tracked.current = true;
     }
-  }, [report, id]);
+  }, [report, id, verificationOnly]);
   async function retry() {
     setBusy(true);
     setStatus("generating");
@@ -124,7 +131,8 @@ export default function Report({ id }: { id: string }) {
           <button className="button secondary" onClick={load} disabled={busy}>
             状況を確認する
           </button>
-          {["queued", "failed", "generating"].includes(status) &&
+          {!verificationOnly &&
+            ["queued", "failed", "generating"].includes(status) &&
             attempts < 5 && (
               <p>
                 <button className="button" onClick={retry} disabled={busy}>
@@ -143,7 +151,7 @@ export default function Report({ id }: { id: string }) {
           <p className="fine">
             回答に基づく可能性の整理です。相手の気持ちや未来を保証するものではありません。
           </p>
-          <SaveResultNote />
+          {!verificationOnly && <SaveResultNote />}
           {[
             [
               "1. 今のふたりの関係",

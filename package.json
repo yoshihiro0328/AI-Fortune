@@ -11,7 +11,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:http": "node scripts/http-smoke.mjs",
-    "test:integration": "node scripts/phase6/integration.mjs"
+    "test:integration": "node scripts/phase6/integration.mjs",
+    "test:payment-runtime": "node --test scripts/phase6/payment-runtime/*.test.mjs",
+    "test:payment-scripts": "node --import ./scripts/phase6/payment-ci-guard.mjs --test --test-concurrency=1 scripts/phase6/payment-runtime/*.test.mjs scripts/phase6/payment-continuation/*.test.mjs scripts/phase6/payment-verification/*.test.mjs",
+    "test:payment-runtime:http": "node scripts/phase6/payment-runtime/offline-http.mjs"
   },
   "keywords": [],
   "author": "",

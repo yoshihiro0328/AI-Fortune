@@ -7,6 +7,15 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NEXT_TELEMETRY_DISABLED: "1"
+      RUN_CONSULTATION_LIVE: "0"
+      RUN_SUBSCRIPTION_LIVE: "0"
+      RUN_FOLLOWUP_LIVE: "false"
+      RUN_EDITORIAL_LIVE: "false"
+      RUN_EDITORIAL_BACKFILL: "false"
+      DYNAMIC_DIAGNOSTIC: ""
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -17,6 +26,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Portable payment script regressions (synthetic only; no Mac browser or OS sandbox)
+        run: npm run test:payment-scripts
       - name: Offline local recipient form checks
         run: python3 scripts/phase6/auth-recipient-input-test.py
       - run: npm run build

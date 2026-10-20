@@ -13,3 +13,9 @@ supabase/.temp/
 
 # Local handoff notes are not part of published source.
 docs/resume.md
+
+# Private operational observations stay local; publish a curated summary in docs instead.
+review-evidence/
+private-*/
+*.aesgcm
+*.pgpass

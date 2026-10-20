@@ -1,3 +1,7 @@
+import {
+  localPaymentIntegration,
+  assertIntegrationDiagnosis,
+} from "@/lib/stripe/local-integration";
 import { boundedText, HttpError } from "@/lib/http";
 import { createHash } from "node:crypto";
 import { after } from "next/server";
@@ -42,7 +46,20 @@ export async function POST(req: Request) {
     return Response.json({ error: "Environment mismatch" }, { status: 400 });
   }
   try {
-    await stripeEnvironment();
+    const local = localPaymentIntegration();
+    const environment = await stripeEnvironment();
+    if (e.account && e.account !== environment.stripe_account_id)
+      throw new Error("Webhook account mismatch");
+    if (
+      local &&
+      ![
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+      ].includes(e.type)
+    )
+      throw new Error("Event outside the approved local test");
+    if (local && (e.data.object as Stripe.Checkout.Session).mode !== "payment")
+      throw new Error("Subscription outside the approved local test");
     const subscription = await subscriptionFromEvent(e);
     if (subscription) {
       await syncSubscription(subscription, {
@@ -56,6 +73,7 @@ export async function POST(req: Request) {
     if (!purchase) return Response.json({ received: true });
     const { session, intent, payment, amount, currency, state, diagnosis } =
       purchase;
+    if (diagnosis) assertIntegrationDiagnosis(diagnosis);
     checked(
       await db().rpc("apply_stripe_event_v2", {
         p_event: e.id,
@@ -71,7 +89,7 @@ export async function POST(req: Request) {
         p_customer: purchase.customer,
       }),
     );
-    if (state === "paid" && diagnosis)
+    if (state === "paid" && diagnosis && !local)
       after(async () => {
         try {
           await generatePaid(diagnosis!);

@@ -1,3 +1,7 @@
+import {
+  localPaymentIntegration,
+  assertIntegrationDiagnosis,
+} from "./local-integration";
 import "server-only";
 import type Stripe from "stripe";
 import { db, checked } from "@/lib/supabase/admin";
@@ -51,6 +55,11 @@ export async function reportEvent(e: Stripe.Event, mode: StripeMode) {
   if (!p) {
     if (payment) throw new Error("Unknown purchase");
     return null;
+  }
+  if (localPaymentIntegration()) {
+    assertIntegrationDiagnosis(p.diagnosis_id);
+    if (p.user_id !== process.env.PAYMENT_INTEGRATION_BUYER_ID)
+      throw new Error("Payment fixture buyer mismatch");
   }
   if (
     p.is_test !== (mode === "sandbox") ||
