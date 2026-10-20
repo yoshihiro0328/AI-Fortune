@@ -31,6 +31,7 @@ function build({ secrets, record = () => {}, endpoints, timeoutMs = 15000 }) {
     signal,
     idempotencyKey,
     bearer,
+    accept = "application/json",
   }) => {
     check(["stripe", "supabase"].includes(provider));
     check(/^[a-z][a-z0-9_]{0,63}$/.test(operation), "OPERATION_NAME_REQUIRED");
@@ -44,7 +45,13 @@ function build({ secrets, record = () => {}, endpoints, timeoutMs = 15000 }) {
     );
     if (provider === "supabase")
       check(/^\/(rest|auth)\/v1\//.test(url.pathname));
-    const headers = new Headers({ accept: "application/json" });
+    check(
+      ["application/json", "application/vnd.pgrst.object+json"].includes(
+        accept,
+      ),
+      "ACCEPT_HEADER_DENIED",
+    );
+    const headers = new Headers({ accept });
     if (provider === "stripe") {
       check(["app", "listener", "lifecycle"].includes(role));
       check(

@@ -353,6 +353,10 @@ export class Policy {
       r.method === "POST" &&
       [...this.ids].some((id) => path === "/v1/subscriptions/" + id)
     ) {
+      check(
+        m.synthetic === true && m.portalOnlyCancellation !== true,
+        "PERIOD_END_CANCEL_PORTAL_ONLY",
+      );
       check(b.size === 1 && b.get("cancel_at_period_end") === "true");
       this.once("cancel:" + path, 1);
       return { kind: "subscription" };

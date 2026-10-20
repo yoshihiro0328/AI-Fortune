@@ -12,7 +12,12 @@ import { closeAttempt } from "./runtime.mjs";
 export function privateInput(file, root) {
   const dir = fs.lstatSync(root),
     st = fs.lstatSync(file);
-  check(dir.isDirectory() && !dir.isSymbolicLink() && (dir.mode & 0o077) === 0);
+  check(
+    dir.isDirectory() &&
+      !dir.isSymbolicLink() &&
+      dir.uid === process.getuid() &&
+      (dir.mode & 0o077) === 0,
+  );
   check(
     st.isFile() &&
       !st.isSymbolicLink() &&
@@ -25,6 +30,19 @@ export function privateInput(file, root) {
   );
   check(st.size > 0 && st.size < 65536);
   return JSON.parse(fs.readFileSync(file, "utf8"));
+}
+export function erasePrivateInputs(files, root) {
+  let complete = true;
+  for (const file of files) {
+    try {
+      privateInput(file, root);
+      fs.unlinkSync(file);
+      check(!fs.existsSync(file));
+    } catch {
+      complete = false;
+    }
+  }
+  return complete;
 }
 export function supervisor({
   m,
@@ -41,6 +59,9 @@ export function supervisor({
   runtimeFactory,
   timeoutMs,
   clockApproval,
+  billing,
+  evidence,
+  afterCleanup = () => true,
 }) {
   check(typeof wire.settle === "function" && typeof execute === "function");
   const abort = new AbortController();
@@ -83,15 +104,38 @@ export function supervisor({
       (await providerClose()).deactivatePrice === "verified",
     restorePortalBinding: async () =>
       (await providerClose()).restorePortalBinding === "verified",
+    ...(billing
+      ? {
+          restoreBillingSettings: async () => {
+            const p = await providerClose();
+            const restored = await billing.restore(
+              p.endContracts === "verified" && p.invoiceSafety === "verified",
+            );
+            check(save("billing-restoration.enc", restored).verified);
+            return restored.complete;
+          },
+        }
+      : {}),
     eraseTemporary: async () => {
       // Only a caller-validated private input file, never an arbitrary directory tree.
-      privateInput(temporary.file, temporary.root);
-      fs.unlinkSync(temporary.file);
-      return !fs.existsSync(temporary.file);
+      const erased = erasePrivateInputs(
+        [temporary.file, ...(temporary.planFile ? [temporary.planFile] : [])],
+        temporary.root,
+      );
+      evidence?.erase();
+      return erased;
     },
     revokeKeys: async () => human.revokeKeys(),
   };
   const finish = (result) => {
+    try {
+      check(afterCleanup());
+    } catch {
+      result.complete = false;
+      result.exitCode = 2;
+      result.operatorCleanup = "failed";
+      result.closure.complete = false;
+    }
     try {
       check(save("completion.enc", result).verified);
     } catch {
@@ -138,6 +182,7 @@ export function supervisor({
           "INTERACTIVE_TTY_REQUIRED",
         );
         await ops.inspect(expected);
+        if (billing) await billing.prepare(abort.signal);
         prepared = await ops.prepare(passwords);
         const expectedPrepared = await observePreflight(prepared, read);
         check(save("prepared.enc", expectedPrepared).verified);
@@ -163,8 +208,12 @@ export function supervisor({
           output,
           timeoutMs: Math.max(1, budget - (Date.now() - start)),
           runtimeFactory,
-          execute: async (command, context) =>
-            execute(command, { ...context, operations: ops, m: prepared }),
+          evidence,
+          execute: Object.assign(
+            async (command, context) =>
+              execute(command, { ...context, operations: ops, m: prepared }),
+            { commands: execute.commands },
+          ),
           cleanup,
         });
         closure = result.closure;

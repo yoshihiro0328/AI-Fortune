@@ -50,6 +50,7 @@ export async function startRuntime({
   onStop = () => {},
   webhookSecret,
   reserve,
+  evidence,
 }) {
   check(
     m.synthetic === true || /^whsec_[A-Za-z0-9]+$/.test(webhookSecret || ""),
@@ -98,6 +99,8 @@ export async function startRuntime({
       forwardToken: forward,
       onStop: stop,
       onDeny: () => record({ event: "denied" }),
+      onAccepted: (type, data) => evidence?.accepted(type, data),
+      onWebhookSuccess: (raw) => evidence?.delivered(raw),
       forward: async (raw, sig, key) => {
         const r = await fetch(TARGET.app + "/api/webhooks/stripe", {
           method: "POST",
@@ -146,6 +149,7 @@ export async function startRuntime({
       privateDir,
       app,
       policy,
+      evidence,
       secret,
       token,
       forward,
@@ -157,18 +161,32 @@ export async function startRuntime({
       async stop() {
         closing = true;
         policy.stopped = true;
-        await stopChild(app);
-        await broker.stop();
+        const stopped = await Promise.allSettled([
+          stopChild(app),
+          broker.stop(),
+        ]);
         fs.rmSync(dir, { recursive: true, force: true });
-        check(!fs.existsSync(dir));
+        check(
+          !fs.existsSync(dir) &&
+            stopped.every((x) => x.status === "fulfilled") &&
+            (app.exitCode !== null || app.signalCode !== null),
+        );
       },
       failure: () => failure,
     };
   } catch (e) {
     closing = true;
-    await stopChild(app);
-    await broker?.stop();
-    fs.rmSync(dir, { recursive: true, force: true });
+    const results = await Promise.allSettled([stopChild(app), broker?.stop()]);
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      e.cleanupFailed = true;
+    }
+    if (
+      results.some((x) => x.status === "rejected") ||
+      (app && app.exitCode === null && app.signalCode === null)
+    )
+      e.cleanupFailed = true;
     throw e;
   }
 }
@@ -180,6 +198,7 @@ export async function closeAttempt(actions) {
     "endContracts",
     "deactivatePrice",
     "restorePortalBinding",
+    ...(actions.restoreBillingSettings ? ["restoreBillingSettings"] : []),
     "eraseTemporary",
     "revokeKeys",
   ]) {

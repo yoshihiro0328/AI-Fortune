@@ -69,7 +69,7 @@ for (const cause of ["timeout", "eof"])
       cleanup: async () => ({ complete: true }),
       timeoutMs: cause === "timeout" ? 20 : 1000,
     });
-    input.write("finish\n");
+    input.write("status\nfinish\n");
     if (cause === "eof") setTimeout(() => input.end(), 10);
     const r = await p;
     assert.equal(r.exitCode, 2);

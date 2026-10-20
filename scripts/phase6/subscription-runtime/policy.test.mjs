@@ -49,6 +49,19 @@ for (const [field, value] of [
   );
 test("protected A/B cannot become dedicated users", () =>
   assert.throws(() => validate({ ...m, protectedUsers: [m.c.id, m.d.id] })));
+test("approved Portal-only cancellation never dispatches an app cancellation", () => {
+  const policy = new Policy({ ...m, portalOnlyCancellation: true });
+  policy.ids.add("sub_known");
+  assert.throws(
+    () =>
+      policy.authorize({
+        method: "POST",
+        url: TARGET.stripe + "/v1/subscriptions/sub_known",
+        body: "cancel_at_period_end=true",
+      }),
+    /PORTAL_ONLY/,
+  );
+});
 for (const [method, url, body] of [
   ["GET", "https://api.openai.com/v1/models"],
   ["GET", "https://rnvrdrfdbapfafwjbygo.supabase.co/rest/v1/profiles"],
@@ -175,15 +188,26 @@ for (const failing of [
 
 test("invoice cap is four unique IDs across both subscriptions; rereads do not spend budget", () => {
   const p = new Policy(m);
-  const invoice = (id, subscription) => ({ id, customer: m.customer, livemode: false,
-    parent: { subscription_details: { subscription } } });
-  const accept = (subscription, ids) => p.accept({ kind: "invoices", subscription }, 200,
-    { has_more: false, data: ids.map(id => invoice(id, subscription)) });
+  const invoice = (id, subscription) => ({
+    id,
+    customer: m.customer,
+    livemode: false,
+    parent: { subscription_details: { subscription } },
+  });
+  const accept = (subscription, ids) =>
+    p.accept({ kind: "invoices", subscription }, 200, {
+      has_more: false,
+      data: ids.map((id) => invoice(id, subscription)),
+    });
   accept("sub_first", ["in_1", "in_2", "in_3"]);
   accept("sub_first", ["in_1", "in_2", "in_3"]);
   accept("sub_second", ["in_4"]);
   assert.throws(() => accept("sub_second", ["in_4", "in_5"]), /INVOICE_LIMIT/);
   assert.equal(p.invoiceIds.size, 4);
-  assert.throws(() => p.accept({ kind: "invoices", subscription: "sub_first" }, 200,
-    { has_more: false, data: [invoice("in_1", "sub_unrelated")] }));
+  assert.throws(() =>
+    p.accept({ kind: "invoices", subscription: "sub_first" }, 200, {
+      has_more: false,
+      data: [invoice("in_1", "sub_unrelated")],
+    }),
+  );
 });

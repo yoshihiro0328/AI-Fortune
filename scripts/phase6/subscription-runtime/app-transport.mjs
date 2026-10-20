@@ -31,6 +31,7 @@ export function appTransport({ wire, operations, signal }) {
         path: u.pathname + u.search,
         body: r.body || undefined,
         bearer,
+        accept: headers.get("accept") || "application/json",
         signal,
         operation: "application_request",
       });

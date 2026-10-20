@@ -21,6 +21,7 @@ export async function runPreparedAttempt({
   output = process.stdout,
   timeoutMs,
   runtimeFactory = startRuntime,
+  evidence,
 }) {
   let runtime, received, closure;
   const close = async () => {
@@ -63,6 +64,7 @@ export async function runPreparedAttempt({
       webhookSecret: received.secret,
       record,
       reserve,
+      evidence,
     });
     check(runtime.alive() && listener.alive(), "NOT_READY");
     const result = await control({
@@ -71,6 +73,7 @@ export async function runPreparedAttempt({
       timeoutMs,
       alive: () => runtime.alive() && listener.alive(),
       execute: (command, signal) => execute(command, { runtime, signal }),
+      commands: execute.commands,
       cleanup: close,
     });
     record({
@@ -79,8 +82,12 @@ export async function runPreparedAttempt({
       exitCode: result.exitCode,
     });
     return result;
-  } catch {
+  } catch (error) {
     const closure = await close();
+    if (error.cleanupFailed) {
+      closure.stopProcesses = "failed_or_unknown";
+      closure.complete = false;
+    }
     record({ event: "startup_failed", complete: false, exitCode: 2 });
     return { complete: false, exitCode: 2, reason: "startup_failed", closure };
   } finally {

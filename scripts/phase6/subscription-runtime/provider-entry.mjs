@@ -1,10 +1,15 @@
 import fs from "node:fs";
 import { createHash } from "node:crypto";
-import { privateInput, supervisor } from "./supervisor.mjs";
+import { privateInput, erasePrivateInputs, supervisor } from "./supervisor.mjs";
 import { providerWire } from "./wire.mjs";
 import { vault } from "./vault.mjs";
 import { listener, API_VERSION } from "./listener.mjs";
 import { check } from "./policy.mjs";
+import { operatorBridge } from "./operator-bridge.mjs";
+import { billingSettings } from "./billing-settings.mjs";
+import { sessionEvidence } from "./evidence.mjs";
+import { scenario } from "./scenario.mjs";
+import { verifyRevocation } from "./revocation.mjs";
 // Programmatic entry for the existing private local receiver / same interactive TTY.
 // Importing this file never reads a secret or opens a connection. No CLI/env fallback.
 export function createProviderRun({
@@ -21,6 +26,7 @@ export function createProviderRun({
   output = process.stdout,
   record = () => {},
   clockApproval,
+  planFile,
 }) {
   check(
     input.isTTY === true && !input.destroyed && !input.readableEnded,
@@ -44,7 +50,34 @@ export function createProviderRun({
       "CLI_HASH_MISMATCH",
     );
     const store = vault(evidenceDirectory, key);
+    if (planFile)
+      check(
+        store.save("private-plan.enc", privateInput(planFile, root)).verified,
+      );
     const wire = providerWire({ secrets: received, record });
+    let operator, billing, evidence;
+    if (!execute) {
+      operator = operatorBridge(root);
+      billing = billingSettings({
+        read: (signal) => operator.request("billing-read", {}, signal),
+        write: (data, signal) =>
+          operator.request("billing-write", data, signal),
+        save: store.save,
+      });
+      evidence = sessionEvidence({ m, wire, save: store.save });
+      execute = scenario({ wire, evidence, operator, save: store.save });
+      human = {
+        price: async (active, signal) =>
+          (await operator.request("price", { id: m.price, active }, signal)) ===
+          true,
+        revokeKeys: async () => {
+          check((await operator.request("revoke-keys", { count: 3 })) === true);
+          const result = await verifyRevocation(wire);
+          check(store.save("key-revocation.enc", result).verified);
+          return true;
+        },
+      };
+    }
     const cliListener = listener({
       binary: cli.binary,
       checksum: cli.checksum,
@@ -69,9 +102,12 @@ export function createProviderRun({
       listener: cliListener,
       input,
       output,
-      temporary: { file, root },
+      temporary: { file, root, planFile },
       execute,
       clockApproval,
+      billing,
+      evidence,
+      afterCleanup: () => (operator ? operator.close() : true),
     });
     return {
       operations: runner.operations,
@@ -88,7 +124,7 @@ export function createProviderRun({
       },
     };
   } catch (error) {
-    fs.unlinkSync(file);
+    erasePrivateInputs([file, ...(planFile ? [planFile] : [])], root);
     for (const name of Object.keys(received)) received[name] = undefined;
     key?.fill(0);
     throw error;

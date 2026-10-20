@@ -102,7 +102,10 @@ export function providerOperations({
   };
   const snapshot = () => structuredClone(state);
   const persist = () =>
-    save(`state-${String(++seq).padStart(4, "0")}.enc`, snapshot());
+    check(
+      save(`state-${String(++seq).padStart(4, "0")}.enc`, snapshot()).verified,
+      "STATE_BACKUP_UNVERIFIED",
+    );
   const get = (
     provider,
     path,
@@ -869,6 +872,51 @@ export function providerOperations({
       result.endContracts = contractResults.every(Boolean)
         ? "verified"
         : "failed_or_unknown";
+      await step("invoiceSafety", async () => {
+        check(
+          result.endContracts === "verified" && state.unknown.length === 0,
+          "UNKNOWN_RESOURCE_OR_CONTRACT",
+        );
+        for (const id of state.subscriptions) {
+          const invoices = await get(
+            "stripe",
+            `/v1/invoices?subscription=${id}&limit=5`,
+            "cleanup_invoice_safety",
+            "app",
+            true,
+          );
+          check(invoices.has_more === false && Array.isArray(invoices.data));
+          for (const i of invoices.data) {
+            check(
+              /^in_[A-Za-z0-9_]+$/.test(i.id) &&
+                i.livemode === false &&
+                i.customer === state.customer &&
+                i.parent?.subscription_details?.subscription === id &&
+                i.currency === "jpy" &&
+                i.total === 980 &&
+                Number.isInteger(i.attempt_count) &&
+                i.attempt_count <= 1 &&
+                i.attempt_count >= 0,
+              "CLEANUP_INVOICE_MISMATCH",
+            );
+            invoiceIds.add(i.id);
+            check(invoiceIds.size <= 4, "INVOICE_LIMIT");
+            check(
+              ["paid", "void", "uncollectible"].includes(i.status) ||
+                (["open", "draft"].includes(i.status) &&
+                  i.auto_advance === false &&
+                  i.next_payment_attempt === null),
+              "INVOICE_COLLECTION_NOT_STOPPED",
+            );
+          }
+          check(
+            save(
+              `invoice-safety-${String(++seq).padStart(4, "0")}.enc`,
+              invoices,
+            ).verified,
+          );
+        }
+      });
       await step("deactivateStripePrice", async () => {
         if (!checked) return;
         const p = await get(

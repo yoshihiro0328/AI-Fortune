@@ -31,6 +31,14 @@ process.on("message", (m) => {
       res.end();
     }
   }
+  if (m?.portalCanceled) {
+    const res = pending.get("portal");
+    pending.delete("portal");
+    if (res) {
+      res.writeHead(303, { Location: "/account" });
+      res.end();
+    }
+  }
 });
 await app.prepare();
 const handle = app.getRequestHandler();
@@ -95,8 +103,22 @@ server = http.createServer((req, res) => {
     if (req.method === "GET" && u.pathname === "/__subscription/portal") {
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       return res.end(
-        '<h1>ローカル代替 Customer Portal</h1><a href="/account">よりそいへ戻る</a>',
+        "<h1>ローカル代替 Customer Portal</h1>" +
+          (u.searchParams.get("session") === "2"
+            ? '<form method="post" action="/__subscription/portal-cancel"><button>期間末で解約する（ローカル代替）</button></form>'
+            : "") +
+          '<a href="/account">よりそいへ戻る</a>',
       );
+    }
+    if (
+      req.method === "POST" &&
+      u.pathname === "/__subscription/portal-cancel" &&
+      req.headers.origin === TARGET.app &&
+      !pending.has("portal")
+    ) {
+      pending.set("portal", res);
+      process.send({ portalCancel: true });
+      return;
     }
     res.writeHead(403);
     return res.end();

@@ -16,6 +16,8 @@ jobs:
       RUN_EDITORIAL_LIVE: "false"
       RUN_EDITORIAL_BACKFILL: "false"
       DYNAMIC_DIAGNOSTIC: ""
+      PLUS_CONNECTED_BROWSER: "0"
+      PLUS_CONNECTED_TTY: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,7 +30,7 @@ jobs:
       - run: npm test
       - name: Portable payment script regressions (synthetic only; no Mac browser or OS sandbox)
         run: npm run test:payment-scripts
-      - name: Portable Plus regressions and provider HTTP (synthetic only; no Mac browser or OS sandbox)
+      - name: Portable Plus connected scenario, restoration and provider HTTP (synthetic only; no Mac browser or OS sandbox)
         run: npm run test:subscription-scripts
       - name: Offline local recipient form checks
         run: python3 scripts/phase6/auth-recipient-input-test.py

@@ -10,11 +10,14 @@ for (const mode of [
   "preflight-mismatch",
   "listener-mismatch",
   "app-failure",
+  "startup-cleanup-failed",
+  "app-stop-failed",
   "missing-api-version",
 ])
   test("prepared supervisor with migrated DB: " + mode, async () => {
     const db = await isolatedSubscription();
-    db.m.apiVersion = mode === "missing-api-version" ? undefined : "2026-09-30.endive";
+    db.m.apiVersion =
+      mode === "missing-api-version" ? undefined : "2026-09-30.endive";
     const read = async (p) =>
       JSON.parse(
         (
@@ -74,11 +77,14 @@ for (const mode of [
       },
       runtimeFactory: async () => {
         if (mode === "app-failure") throw Error("synthetic");
+        if (mode === "startup-cleanup-failed")
+          throw Object.assign(Error("synthetic"), { cleanupFailed: true });
         app = true;
         return {
           alive: () => app,
           stop: async () => {
             app = false;
+            if (mode === "app-stop-failed") throw Error("synthetic");
           },
         };
       },
@@ -97,8 +103,14 @@ for (const mode of [
     try {
       const r = await p;
       assert.equal(r.complete, mode === "normal");
-      assert(r.closure.complete);
-      assert.equal(executed, mode === "normal" ? 3 : 0);
+      assert.equal(
+        r.closure.complete,
+        !["startup-cleanup-failed", "app-stop-failed"].includes(mode),
+      );
+      assert.equal(
+        executed,
+        ["normal", "app-stop-failed"].includes(mode) ? 3 : 0,
+      );
       assert.equal(cleanupCalls, 5);
       assert(!live && !app);
     } finally {

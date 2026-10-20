@@ -8,6 +8,7 @@ export async function control({
   execute,
   cleanup,
   timeoutMs = 20 * 60 * 1000,
+  commands = ["portal-check", "lifecycle-check"],
 }) {
   check(
     input.isTTY === true && !input.destroyed && !input.readableEnded,
@@ -16,7 +17,8 @@ export async function control({
   const lines = readline.createInterface({ input, terminal: false });
   let reason = "input_closed",
     complete = false,
-    stopping = false;
+    stopping = false,
+    statusChecked = false;
   const abort = new AbortController();
   let resolveStopped;
   const stopped = new Promise((r) => {
@@ -44,19 +46,22 @@ export async function control({
     if (!alive()) stop("process_failed");
   }, 250);
   try {
-    output.write("ready: status / portal-check / lifecycle-check / finish\n");
+    output.write(`ready: status / ${commands.join(" / ")} / finish / stop\n`);
     for await (const line of lines) {
       if (stopping) break;
       check(line.length <= 80 && alive(), "CONTROL_OR_PROCESS_FAILED");
       const cmd = line.trim();
+      if (cmd === "stop") {
+        reason = "operator_stop";
+        break;
+      }
       if (cmd === "status") {
-        output.write("status: app and broker alive\n");
+        statusChecked = true;
+        output.write("status: app, CLI and broker alive\n");
         continue;
       }
-      check(
-        ["portal-check", "lifecycle-check", "finish"].includes(cmd),
-        "CONTROL_COMMAND_DENIED",
-      );
+      check([...commands, "finish"].includes(cmd), "CONTROL_COMMAND_DENIED");
+      check(statusChecked, "STATUS_REQUIRED_BEFORE_CHECK");
       const result = await Promise.race([
         execute(cmd === "finish" ? "verify-complete" : cmd, abort.signal),
         stopped,
