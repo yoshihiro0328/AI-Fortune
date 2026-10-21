@@ -3,6 +3,60 @@ import assert from "node:assert/strict";
 import { fixture } from "./provider-fixture.mjs";
 import { MINIMAL_LIMITS, minimalRequest } from "./minimal-profile.mjs";
 import { Policy } from "./policy.mjs";
+import { observePreflight } from "./journal.mjs";
+import { sessionEvidence } from "./evidence.mjs";
+
+test("minimal Auth provisioning leaves profiles empty until application login", async () => {
+  const t = await fixture("connected", undefined, true);
+  try {
+    await t.ops.inspect(await t.ops.observe());
+    const m = await t.ops.prepare({
+      c: "synthetic-pass-C",
+      d: "synthetic-pass-D",
+    });
+    const read = (p) =>
+      t.wire({
+        provider: "supabase",
+        role: "service",
+        path: "/rest/v1/" + p,
+        operation: "synthetic_preflight",
+      });
+    const observed = await observePreflight(m, read);
+    for (const user of [m.c, m.d])
+      assert.equal(observed["profiles:" + user.id].length, 0);
+    const evidence = sessionEvidence({ m, wire: t.wire, save: t.store.save });
+    for (const user of [m.c, m.d]) {
+      const login = await t.wire({
+        provider: "supabase",
+        role: "anon",
+        method: "POST",
+        path: "/auth/v1/token?grant_type=password",
+        body: { email: user.email, password: "SyntheticOnly123!" },
+        operation: "synthetic_login",
+      });
+      evidence.accepted({ kind: "login", user: user.id }, login);
+    }
+    await assert.rejects(evidence.logins(), /LOGIN_PROFILE_NOT_INITIALIZED/);
+    for (const user of [m.c, m.d])
+      await t.wire({
+        provider: "supabase",
+        role: "service",
+        method: "POST",
+        path: "/rest/v1/rpc/claim_anonymous_diagnoses",
+        body: { p_user: user.id, p_session: "synthetic-new-session" },
+        operation: "synthetic_login_profile",
+      });
+    assert.equal(await evidence.logins(), true);
+    await assert.rejects(
+      observePreflight(m, read),
+      /PRELOGIN_PROFILE_STATE_MISMATCH/,
+    );
+    assert.equal((await t.ops.cleanup()).complete, true);
+    assert.equal((await t.ops.inspectAfter()).protectedUnchanged, true);
+  } finally {
+    await t.close();
+  }
+});
 
 test("minimal sender rejects removed operations before sending", () => {
   for (const [method, path] of [

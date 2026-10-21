@@ -327,6 +327,15 @@ for (const { minimal, mode } of cases) {
                 operation: "synthetic_login",
               });
               evidence.accepted({ kind: "login", user: u.id }, login);
+              if (minimal)
+                await t.wire({
+                  provider: "supabase",
+                  role: "service",
+                  method: "POST",
+                  path: "/rest/v1/rpc/claim_anonymous_diagnoses",
+                  body: { p_user: u.id, p_session: "synthetic-new-session" },
+                  operation: "synthetic_login_profile",
+                });
             }
           if (data.checkpoint === "checkout-first-display")
             await newCheckout(1, run.operations, false);

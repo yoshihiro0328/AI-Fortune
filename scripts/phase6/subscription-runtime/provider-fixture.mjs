@@ -140,7 +140,10 @@ export async function fixture(mode, clockApproval, minimal = false) {
           "insert into auth.users(id,email_confirmed_at) values($1,now())",
           [b.id],
         );
-        await pg.query("insert into profiles(user_id) values($1)", [b.id]);
+        // Hosted Auth does not create application profiles. Minimal runs must
+        // exercise the application's login RPC before expecting a profile.
+        if (!minimal)
+          await pg.query("insert into profiles(user_id) values($1)", [b.id]);
         return send({
           id: b.id,
           email: b.email,

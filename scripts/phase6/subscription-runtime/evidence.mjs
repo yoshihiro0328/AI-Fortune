@@ -44,6 +44,17 @@ export function sessionEvidence({ m, wire, save }) {
           observed.id === user.id && observed.email_confirmed_at,
           "JWT_IDENTITY_MISMATCH",
         );
+        if (m.scenario === "minimal-plus-v1") {
+          const profiles = await read(
+            `/rest/v1/profiles?select=user_id&user_id=eq.${user.id}`,
+            user.id,
+            signal,
+          );
+          check(
+            profiles.length === 1 && profiles[0].user_id === user.id,
+            "LOGIN_PROFILE_NOT_INITIALIZED",
+          );
+        }
       }
       record({ ownerLogins: "verified" });
       return true;
