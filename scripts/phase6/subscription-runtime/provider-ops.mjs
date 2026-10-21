@@ -2,9 +2,14 @@ import { check, sha, TARGET } from "./policy.mjs";
 import { setTimeout as delay } from "node:timers/promises";
 import { API_VERSION } from "./listener.mjs";
 import { minimal, MINIMAL_LIMITS } from "./minimal-profile.mjs";
+import {
+  retainedResume,
+  retainedPortal,
+  inspectRetained,
+} from "./retained-resume.mjs";
 import { LIMITS } from "./journal.mjs";
 // Scoped provisioning and closure; never accepts caller-supplied endpoints or SQL.
-// m contains planned new C/D UUIDs and the retained fixture manifest, not credentials.
+// m contains dedicated C/D identities (new or explicitly retained), not credentials.
 export function providerOperations({
   m,
   wire,
@@ -16,7 +21,20 @@ export function providerOperations({
   clockApproval,
 }) {
   const isMinimal = minimal(m);
-  const limits = isMinimal ? MINIMAL_LIMITS : LIMITS;
+  const resume = retainedResume(m, attemptId);
+  const limits = resume
+    ? {
+        ...MINIMAL_LIMITS,
+        createUsers: 0,
+        createCustomer: 0,
+        createPortalConfiguration: 0,
+        bindCustomer: 0,
+        resetDedicatedPasswords: 2,
+        reactivateRetainedPortal: 1,
+      }
+    : isMinimal
+      ? MINIMAL_LIMITS
+      : LIMITS;
   const contractLimit = isMinimal ? 1 : 2;
   const invoiceLimit = isMinimal ? 1 : 4;
   check(m.apiVersion === API_VERSION, "API_VERSION_MISMATCH");
@@ -72,7 +90,7 @@ export function providerOperations({
   const state = {
     attemptId,
     fixtureRun: m.run,
-    previousAttemptId: m.previousAttemptId ?? null,
+    previousAttemptId: resume?.sourceAttemptId ?? m.previousAttemptId ?? null,
     clockAdvanceLimit: advanceLimit,
     clockApprovalReference: clockApproval?.reference ?? null,
     users: [],
@@ -388,6 +406,7 @@ export function providerOperations({
         "PRICE_MISMATCH",
       );
       check(save("stripe-price-before.enc", p).verified);
+      if (resume) await inspectRetained({ m, get, save, observed });
       priceBefore = p;
       baseline = observed;
       check(save("baseline.enc", baseline).verified);
@@ -396,111 +415,156 @@ export function providerOperations({
     },
     async prepare(passwords) {
       check(checked && !state.stopped, "PREFLIGHT_REQUIRED");
-      for (const [label, user] of [
-        ["c", m.c],
-        ["d", m.d],
-      ]) {
-        check(
-          typeof passwords[label] === "string" && passwords[label].length >= 12,
-        );
-        await change("createUsers", user.id, async () => {
-          const raw = await db(
-            "POST",
-            "/auth/v1/admin/users",
-            {
-              id: user.id,
-              email: user.email,
-              password: passwords[label],
-              email_confirm: true,
-              app_metadata: { integration_run: m.run },
-            },
-            "create_user",
-          );
-          const u = raw.user ?? raw;
+      if (resume) {
+        state.users = [m.c.id, m.d.id];
+        state.customer = resume.customer;
+        state.portal = resume.portal;
+        state.binding = true;
+        persist();
+        for (const [label, user] of [
+          ["c", m.c],
+          ["d", m.d],
+        ]) {
           check(
-            u.id === user.id && u.email === user.email && u.email_confirmed_at,
-            "USER_RESPONSE_MISMATCH",
+            typeof passwords[label] === "string" &&
+              passwords[label].length >= 12,
           );
-          state.users.push(u.id);
+          await change("resetDedicatedPasswords", user.id, async () => {
+            const raw = await db(
+              "PUT",
+              "/auth/v1/admin/users/" + user.id,
+              { password: passwords[label] },
+              "reset_retained_password",
+            );
+            const u = raw.user ?? raw;
+            check(
+              u.id === user.id &&
+                u.email === user.email &&
+                u.email_confirmed_at &&
+                u.app_metadata?.integration_run === m.run,
+              "RETAINED_USER_MISMATCH",
+            );
+          });
+        }
+        await change("reactivateRetainedPortal", state.portal, async () => {
+          const p = await stripe(
+            "POST",
+            "/v1/billing_portal/configurations/" + state.portal,
+            { active: true },
+            "reactivate_retained_portal",
+          );
+          retainedPortal(p, m, true);
         });
-      }
-      if (!isMinimal)
-        await change("createClock", m.run, async () => {
+      } else {
+        for (const [label, user] of [
+          ["c", m.c],
+          ["d", m.d],
+        ]) {
+          check(
+            typeof passwords[label] === "string" &&
+              passwords[label].length >= 12,
+          );
+          await change("createUsers", user.id, async () => {
+            const raw = await db(
+              "POST",
+              "/auth/v1/admin/users",
+              {
+                id: user.id,
+                email: user.email,
+                password: passwords[label],
+                email_confirm: true,
+                app_metadata: { integration_run: m.run },
+              },
+              "create_user",
+            );
+            const u = raw.user ?? raw;
+            check(
+              u.id === user.id &&
+                u.email === user.email &&
+                u.email_confirmed_at,
+              "USER_RESPONSE_MISMATCH",
+            );
+            state.users.push(u.id);
+          });
+        }
+        if (!isMinimal)
+          await change("createClock", m.run, async () => {
+            const c = await stripe(
+              "POST",
+              "/v1/test_helpers/test_clocks",
+              { frozen_time: m.frozenTime, name: "yorisoi-plus-" + m.run },
+              "create_clock",
+            );
+            check(
+              /^clock_[A-Za-z0-9_]+$/.test(c.id) &&
+                c.livemode === false &&
+                c.status === "ready" &&
+                c.frozen_time === m.frozenTime,
+              "CLOCK_RESPONSE_MISMATCH",
+            );
+            state.clock = c.id;
+          });
+        await change("createCustomer", m.c.id, async () => {
           const c = await stripe(
             "POST",
-            "/v1/test_helpers/test_clocks",
-            { frozen_time: m.frozenTime, name: "yorisoi-plus-" + m.run },
-            "create_clock",
+            "/v1/customers",
+            {
+              ...(!isMinimal ? { test_clock: state.clock } : {}),
+              metadata: { run: m.run, user_id: m.c.id },
+            },
+            "create_customer",
+          );
+          check(/^cus_[A-Za-z0-9_]+$/.test(c.id));
+          state.customer = c.id;
+          customerCheck(c);
+        });
+        await change("createPortalConfiguration", m.run, async () => {
+          const c = await stripe(
+            "POST",
+            "/v1/billing_portal/configurations",
+            {
+              business_profile: { headline: "よりそい検証" },
+              default_return_url: TARGET.app + "/account",
+              metadata: { run: m.run },
+              features: {
+                subscription_update: { enabled: false },
+                customer_update: { enabled: false },
+                subscription_cancel: isMinimal
+                  ? { enabled: false }
+                  : { enabled: true, mode: "at_period_end" },
+                invoice_history: { enabled: true },
+                payment_method_update: { enabled: !isMinimal },
+              },
+            },
+            "create_portal_configuration",
           );
           check(
-            /^clock_[A-Za-z0-9_]+$/.test(c.id) &&
+            /^bpc_[A-Za-z0-9_]+$/.test(c.id) &&
+              c.active &&
               c.livemode === false &&
-              c.status === "ready" &&
-              c.frozen_time === m.frozenTime,
-            "CLOCK_RESPONSE_MISMATCH",
+              c.metadata?.run === m.run,
+            "PORTAL_RESPONSE_MISMATCH",
           );
-          state.clock = c.id;
+          state.portal = c.id;
         });
-      await change("createCustomer", m.c.id, async () => {
-        const c = await stripe(
-          "POST",
-          "/v1/customers",
-          {
-            ...(!isMinimal ? { test_clock: state.clock } : {}),
-            metadata: { run: m.run, user_id: m.c.id },
-          },
-          "create_customer",
-        );
-        check(/^cus_[A-Za-z0-9_]+$/.test(c.id));
-        state.customer = c.id;
-        customerCheck(c);
-      });
-      await change("createPortalConfiguration", m.run, async () => {
-        const c = await stripe(
-          "POST",
-          "/v1/billing_portal/configurations",
-          {
-            business_profile: { headline: "よりそい検証" },
-            default_return_url: TARGET.app + "/account",
-            metadata: { run: m.run },
-            features: {
-              subscription_update: { enabled: false },
-              customer_update: { enabled: false },
-              subscription_cancel: isMinimal
-                ? { enabled: false }
-                : { enabled: true, mode: "at_period_end" },
-              invoice_history: { enabled: true },
-              payment_method_update: { enabled: !isMinimal },
+        await change("bindCustomer", m.c.id, async () => {
+          const rows = await db(
+            "POST",
+            "/rest/v1/billing_customers",
+            {
+              user_id: m.c.id,
+              stripe_customer_id: state.customer,
+              is_test: true,
             },
-          },
-          "create_portal_configuration",
-        );
-        check(
-          /^bpc_[A-Za-z0-9_]+$/.test(c.id) &&
-            c.active &&
-            c.livemode === false &&
-            c.metadata?.run === m.run,
-          "PORTAL_RESPONSE_MISMATCH",
-        );
-        state.portal = c.id;
-      });
-      await change("bindCustomer", m.c.id, async () => {
-        const rows = await db(
-          "POST",
-          "/rest/v1/billing_customers",
-          {
-            user_id: m.c.id,
-            stripe_customer_id: state.customer,
-            is_test: true,
-          },
-          "bind_customer",
-        );
-        check(
-          exactRow(rows, m.c.id, "user_id").stripe_customer_id ===
-            state.customer,
-        );
-        state.binding = true;
-      });
+            "bind_customer",
+          );
+          check(
+            exactRow(rows, m.c.id, "user_id").stripe_customer_id ===
+              state.customer,
+          );
+          state.binding = true;
+        });
+      }
       await change("bindPortal", m.run, async () => {
         const old = baseline.service_settings[0].portal_configuration_id;
         const condition =
@@ -1069,6 +1133,7 @@ export function providerOperations({
             p.livemode === false &&
             p.metadata?.run === m.run,
         );
+        if (resume) retainedPortal(p, m, p.active);
         if (p.active)
           await change(
             "disablePortal",
@@ -1082,6 +1147,7 @@ export function providerOperations({
                 "lifecycle",
                 true,
               );
+              if (resume) retainedPortal(out, m, false);
               check(
                 out.id === state.portal &&
                   out.active === false &&

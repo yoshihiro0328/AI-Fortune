@@ -26,8 +26,16 @@ function build({
   endpoints,
   timeoutMs = 15000,
   minimal = false,
+  passwordResetUsers = [],
 }) {
   check(timeoutMs > 0 && timeoutMs <= 15000);
+  check(
+    Array.isArray(passwordResetUsers) &&
+      passwordResetUsers.length <= 2 &&
+      new Set(passwordResetUsers).size === passwordResetUsers.length &&
+      passwordResetUsers.every((id) => /^[a-f0-9-]{36}$/.test(id)),
+    "PASSWORD_RESET_SCOPE_DENIED",
+  );
   const send = async ({
     provider,
     role,
@@ -43,7 +51,20 @@ function build({
     if (minimal) minimalRequest({ provider, method, path, body });
     check(["stripe", "supabase"].includes(provider));
     check(/^[a-z][a-z0-9_]{0,63}$/.test(operation), "OPERATION_NAME_REQUIRED");
-    check(["GET", "POST", "PATCH", "DELETE"].includes(method));
+    check(["GET", "POST", "PUT", "PATCH", "DELETE"].includes(method));
+    if (method === "PUT")
+      check(
+        provider === "supabase" &&
+          role === "service" &&
+          operation === "reset_retained_password" &&
+          passwordResetUsers.includes(path.split("/").at(-1)) &&
+          /^\/auth\/v1\/admin\/users\/[a-f0-9-]{36}$/.test(path) &&
+          body &&
+          Object.keys(body).join(",") === "password" &&
+          typeof body.password === "string" &&
+          body.password.length >= 12,
+        "PASSWORD_RESET_SCOPE_DENIED",
+      );
     check(path.startsWith(provider === "stripe" ? "/v1/" : "/"));
     const origin = endpoints[provider],
       url = new URL(path, origin);

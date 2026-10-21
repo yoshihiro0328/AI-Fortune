@@ -61,6 +61,7 @@ export function createProviderRun({
       secrets: received,
       record,
       minimal: minimal(m),
+      passwordResetUsers: m.resume ? [m.c.id, m.d.id] : [],
     });
     let operator, billing, evidence;
     if (!execute) {

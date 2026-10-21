@@ -5,7 +5,8 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { PassThrough } from "node:stream";
 import Stripe from "stripe";
-import { fixture } from "./provider-fixture.mjs";
+import { retainedPlan } from "./retained-plan.mjs";
+import { fixture, retainedRecords } from "./provider-fixture.mjs";
 import { supervisor } from "./supervisor.mjs";
 import { scenario, STEPS, MINIMAL_STEPS } from "./scenario.mjs";
 import { sessionEvidence } from "./evidence.mjs";
@@ -21,16 +22,28 @@ import { assembleHandoff } from "./private-handoff.mjs";
 
 // Actual HTTP sender + encrypted journal + migrated PostgreSQL/RLS + signed local
 // broker + production scenario/supervisor. Auth, Stripe engine and UI are substitutes.
-const cases = [false, true].flatMap((minimal) =>
+const cases = [
+  [false, false],
+  [true, false],
+  [true, true],
+].flatMap(([minimal, resume]) =>
   ["normal", "browser-failure", "input-disconnect", "unsafe-invoice"].map(
-    (mode) => ({ minimal, mode }),
+    (mode) => ({ minimal, resume, mode }),
   ),
 );
-for (const { minimal, mode } of cases) {
-  if (process.env.PLUS_MINIMAL_ONLY === "1" && (!minimal || mode !== "normal"))
+for (const { minimal, resume, mode } of cases) {
+  if (process.env.PLUS_RETAINED_ONLY === "1" && (!resume || mode !== "normal"))
+    continue;
+  if (
+    process.env.PLUS_MINIMAL_ONLY === "1" &&
+    (!minimal || resume || mode !== "normal")
+  )
     continue;
   const name =
-    "connected scenario to closure: " + (minimal ? "minimal " : "") + mode;
+    "connected scenario to closure: " +
+    (resume ? "retained " : "") +
+    (minimal ? "minimal " : "") +
+    mode;
   test(name, async () => {
     if (realTTY)
       assert(process.stdin.isTTY, "use --test-isolation=none with a real TTY");
@@ -44,8 +57,11 @@ for (const { minimal, mode } of cases) {
             reference: "synthetic-approval",
           },
       minimal,
+      resume,
     );
-    const { m, objects: o } = t;
+    const { objects: o } = t;
+    const resumePlan = resume ? retainedPlan(await retainedRecords(t)) : null;
+    const m = resumePlan?.manifest ?? t.m;
     m.frozenTime = Math.floor(Date.now() / 1000) - 10;
     m.portalOnlyCancellation = true;
     const now = () => (minimal ? m.frozenTime : o.clock.frozen_time);
@@ -434,7 +450,7 @@ for (const { minimal, mode } of cases) {
     let revoke = false;
     run = supervisor({
       m,
-      attemptId: randomUUID(),
+      attemptId: resumePlan?.attemptId ?? randomUUID(),
       wire: t.wire,
       save: t.store.save,
       input,
@@ -544,7 +560,7 @@ for (const { minimal, mode } of cases) {
         }
       });
     try {
-      const expected = await t.ops.observe();
+      const expected = resumePlan?.expected ?? (await t.ops.observe());
       const result = await run.run(expected, {
         c: "SyntheticOnly123!",
         d: "SyntheticOnly123!",
@@ -569,6 +585,45 @@ for (const { minimal, mode } of cases) {
       assert(!fs.existsSync(file));
       assert.equal(o.price.active, minimal);
       assert.equal(o.portal.active, false);
+      if (resume) {
+        for (const p of [
+          "/auth/v1/admin/users",
+          "/v1/customers",
+          "/v1/billing_portal/configurations",
+          "/rest/v1/billing_customers",
+        ])
+          assert.equal(
+            t.calls.filter((c) => c.p === p && c.method === "POST").length,
+            0,
+            p,
+          );
+        assert.equal(t.calls.filter((c) => c.method === "PUT").length, 2);
+        assert.equal(
+          t.calls.filter(
+            (c) =>
+              c.p === "/v1/billing_portal/configurations/bpc_http" &&
+              c.method === "POST" &&
+              c.form.active === "true",
+          ).length,
+          1,
+        );
+        const binding = (
+          await t.pg.query("select * from billing_customers where user_id=$1", [
+            m.c.id,
+          ])
+        ).rows;
+        assert.equal(binding.length, 1);
+        assert.equal(binding[0].stripe_customer_id, m.resume.customer);
+        for (const user of [m.c, m.d])
+          assert.equal(
+            (
+              await t.pg.query("select * from auth.users where id=$1", [
+                user.id,
+              ])
+            ).rows.length,
+            1,
+          );
+      }
       if (minimal) {
         assert.equal(settingWrites.length, 0);
         assert.equal(o.clock, undefined);

@@ -17,7 +17,12 @@ const secrets = {
   service: "syntheticService",
   anon: "syntheticAnon",
 };
-export async function fixture(mode, clockApproval, minimal = false) {
+export async function fixture(
+  mode,
+  clockApproval,
+  minimal = false,
+  resume = false,
+) {
   const db = await isolatedSubscription(),
     pg = db.pg;
   await pg.exec("update price_versions set active=false");
@@ -58,6 +63,58 @@ export async function fixture(mode, clockApproval, minimal = false) {
         recurring: { interval: "month", interval_count: 1 },
       },
     };
+  const authUsers = new Map(),
+    passwords = new Map();
+  if (resume) {
+    assert(minimal);
+    m.resume = {
+      sourceAttemptId: randomUUID(),
+      customer: "cus_http",
+      portal: "bpc_http",
+      approval: {
+        resetDedicatedPasswords: true,
+        reactivateRetainedPortal: true,
+        reference: "synthetic-approval",
+      },
+    };
+    for (const user of [m.c, m.d]) {
+      await pg.query(
+        "insert into auth.users(id,email_confirmed_at) values($1,now())",
+        [user.id],
+      );
+      authUsers.set(user.id, {
+        id: user.id,
+        email: user.email,
+        email_confirmed_at: new Date().toISOString(),
+        app_metadata: { integration_run: m.run },
+      });
+      passwords.set(user.email, "synthetic-erased-old-password");
+    }
+    objects.customer = {
+      id: "cus_http",
+      test_clock: null,
+      livemode: false,
+      metadata: { run: m.run, user_id: m.c.id },
+    };
+    objects.portal = {
+      id: "bpc_http",
+      active: false,
+      livemode: false,
+      metadata: { run: m.run },
+      default_return_url: m.app + "/account",
+      features: {
+        invoice_history: { enabled: true },
+        subscription_update: { enabled: false },
+        customer_update: { enabled: false },
+        subscription_cancel: { enabled: false },
+        payment_method_update: { enabled: false },
+      },
+    };
+    await pg.query(
+      "insert into billing_customers(user_id,stripe_customer_id,is_test) values($1,'cus_http',true)",
+      [m.c.id],
+    );
+  }
   const calls = [];
   let failed = false;
   const server = http.createServer(async (req, res) => {
@@ -85,6 +142,21 @@ export async function fixture(mode, clockApproval, minimal = false) {
       res.end(JSON.stringify(data));
     };
     try {
+      if (resume && p === "/auth/v1/token")
+        assert.equal(b.password, passwords.get(b.email));
+      if (p.startsWith("/auth/v1/admin/users/")) {
+        const user = authUsers.get(p.split("/").at(-1));
+        assert(user);
+        if (method === "PUT") {
+          assert.deepEqual(Object.keys(b), ["password"]);
+          passwords.set(user.email, b.password);
+          if (mode === "resume-password-unknown") {
+            req.socket.destroy();
+            return;
+          }
+        } else assert.equal(method, "GET");
+        return send(user);
+      }
       if (
         ["connected", "browser"].includes(mode) &&
         (p === "/auth/v1/token" ||
@@ -289,6 +361,7 @@ export async function fixture(mode, clockApproval, minimal = false) {
           livemode: false,
           active: true,
           metadata: { run: f.get("metadata[run]") },
+          default_return_url: f.get("default_return_url"),
           features: {
             subscription_update: { enabled: false },
             customer_update: { enabled: false },
@@ -303,9 +376,15 @@ export async function fixture(mode, clockApproval, minimal = false) {
       }
       if (p === "/v1/billing_portal/configurations/bpc_http") {
         if (method === "POST") {
-          if (mode === "cleanup-fail")
+          if (mode === "cleanup-fail" && f.get("active") === "false")
             return send({ error: { message: "do not log" } }, 500);
-          objects.portal.active = false;
+          assert.deepEqual([...f.keys()], ["active"]);
+          assert(["true", "false"].includes(f.get("active")));
+          objects.portal.active = f.get("active") === "true";
+          if (mode === "resume-portal-unknown" && objects.portal.active) {
+            req.socket.destroy();
+            return;
+          }
         }
         return send(objects.portal);
       }
@@ -319,15 +398,18 @@ export async function fixture(mode, clockApproval, minimal = false) {
         }
         return send(c);
       }
-      if (p === "/v1/invoices")
+      if (p === "/v1/invoices") {
+        assert.equal(req.headers.authorization, "Bearer " + secrets.app);
         return send({
           has_more: false,
-          data: (objects.invoices ?? []).filter(
-            (i) =>
-              i.parent.subscription_details.subscription ===
-              u.searchParams.get("subscription"),
+          data: (objects.invoices ?? []).filter((i) =>
+            u.searchParams.has("customer")
+              ? i.customer === u.searchParams.get("customer")
+              : i.parent.subscription_details.subscription ===
+                u.searchParams.get("subscription"),
           ),
         });
+      }
       if (p.startsWith("/v1/subscriptions/")) {
         const sub = objects[p.split("/").at(-1)];
         assert(sub);
@@ -365,6 +447,7 @@ export async function fixture(mode, clockApproval, minimal = false) {
     origin: "http://127.0.0.1:" + server.address().port,
     secrets,
     minimal,
+    passwordResetUsers: resume ? [m.c.id, m.d.id] : [],
     record: (x) => records.push(x),
     timeoutMs: mode === "timeout" ? 100 : mode === "browser" ? 15000 : 1000,
   });
@@ -399,6 +482,7 @@ export async function fixture(mode, clockApproval, minimal = false) {
     m,
     ops,
     objects,
+    authUsers,
     protectedState,
     calls,
     records,
@@ -411,5 +495,52 @@ export async function fixture(mode, clockApproval, minimal = false) {
       await db.close();
       fs.rmSync(root, { recursive: true, force: true });
     },
+  };
+}
+
+// Synthetic counterpart of the retained attempt files, passed to the real planner.
+export async function retainedRecords(t) {
+  const after = await t.ops.observe();
+  return {
+    priorPlan: {
+      attemptId: t.m.resume.sourceAttemptId,
+      manifest: structuredClone(t.m),
+      expected: structuredClone(after),
+      clockApproval: null,
+    },
+    retained: {
+      sourceAttemptId: t.m.resume.sourceAttemptId,
+      account: t.m.account,
+      project: t.m.project,
+      c: { ...t.m.c, profileCount: 0 },
+      d: { ...t.m.d, profileCount: 0 },
+      customer: t.m.resume.customer,
+      portal: t.m.resume.portal,
+      portalActive: false,
+      customerBinding: "retained",
+      dbPriceActive: false,
+      stripePriceActive: true,
+      checkoutCount: 0,
+      subscriptionCount: 0,
+      paymentCount: 0,
+      passwords: "erased_not_recoverable",
+    },
+    closure: {
+      completion: { closure: { complete: true } },
+      revocation: {
+        apiComplete: true,
+        api: { listener: "revoked", app: "revoked", lifecycle: "revoked" },
+      },
+      temporaryFiles: Object.fromEntries(
+        [
+          "base-credentials.json",
+          "stripe-keys.json",
+          "credentials.json",
+          "plan.json",
+        ].map((k) => [k, "absent"]),
+      ),
+    },
+    after,
+    approval: structuredClone(t.m.resume.approval),
   };
 }

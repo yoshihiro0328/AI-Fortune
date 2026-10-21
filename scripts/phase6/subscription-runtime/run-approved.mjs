@@ -8,7 +8,8 @@ import { minimal } from "./minimal-profile.mjs";
 import { verifyHandoffWindow } from "./receiver-session.mjs";
 import { ownerKeyWindow } from "./owner-key-window.mjs";
 
-// Production entry. No env file, injected JS driver, arbitrary API or resume switch.
+// Production entry. No env file, injected JS driver or arbitrary API.
+// Retained resources require the reviewed manifest.resume identity/approval contract.
 // Call with exec_command tty:true, login:true; retain returned session until exit.
 const [root] = process.argv.slice(2);
 try {
