@@ -199,8 +199,9 @@ export async function closeAttempt(actions) {
     "deactivatePrice",
     "restorePortalBinding",
     ...(actions.restoreBillingSettings ? ["restoreBillingSettings"] : []),
-    "eraseTemporary",
     "revokeKeys",
+    // Always erase, including after failed/unknown revocation; never reacquire keys.
+    "eraseTemporary",
   ]) {
     try {
       check(await actions[name]());

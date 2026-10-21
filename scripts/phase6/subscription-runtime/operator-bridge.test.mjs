@@ -41,3 +41,20 @@ for (const mode of ["normal", "wrong-id", "timeout", "interrupt", "unknown"]) {
     }
   });
 }
+
+test("revocation mailbox reserves time for API verification and erasure", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "plus-revoke-"));
+  const bridge = operatorBridge(root);
+  const abort = new AbortController();
+  try {
+    const before = Date.now();
+    const promise = bridge.request("revoke-keys", { count: 3 }, abort.signal);
+    const r = JSON.parse(fs.readFileSync(path.join(root, "request-1.json")));
+    assert(r.expiresAt - before >= 40000 && r.expiresAt - before < 41000);
+    abort.abort();
+    await assert.rejects(promise);
+  } finally {
+    bridge.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

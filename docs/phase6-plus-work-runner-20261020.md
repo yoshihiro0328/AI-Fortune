@@ -8,7 +8,7 @@
 
 plan.jsonの固定キーはattemptId / manifest / expected / cli / clockApproval。manifestは既承認の対象・既存価格・保護対象・保持済み行・新C/Dを指定する構成入力であり、送信コマンドではない。expectedは元manifestと最新完了後の暗号化観測資料を復号・照合した値を用いる。現在値を取得して比較基準に採用してはいけない。旧基準・旧試行を上書きしない。cliは既存の固定バイナリとSHA256。clockApprovalは本人の5回承認の参照を必須とし、テストの合成承認を転用しない。
 
-StripeカタログのactiveとDBの価格公開フラグは別に照合する。保持済みカタログがStripe価格active=trueの場合だけmanifest.stripePriceInitiallyActive=trueを指定する（省略時はfalse）。APIでその値を事前照合・暗号化保存し、準備時にも一致を確認する。既に有効なら有効化APIを送らず、対象DB行だけを承認範囲内で有効化する。終了時は元のカタログ状態にかかわらず、承認済みの終了方針どおりStripe・DBの対象価格を無効化する。現在値に合わせた基準変更や追加の無効化→再有効化は行わない。
+StripeカタログのactiveとDBの価格公開フラグは別に照合する。保持済みカタログがStripe価格active=trueの場合だけmanifest.stripePriceInitiallyActive=trueを指定する（省略時はfalse）。APIでその値を事前照合・暗号化保存し、準備時にも一致を確認する。既に有効なら有効化APIを送らず、対象DB行だけを承認範囲内で有効化する。元の承認済み終了方針はStripe・DBの対象価格を無効化すること。ただし既定価格の無効化が拒否される問題を確認したため、現在は再開禁止。`phase6-plus-closure-review-20261021.md` の終了条件差分が未承認の間、元方針を達成済みと扱わず、商品変更で回避しない。現在値に合わせた基準変更や追加の無効化→再有効化は行わない。
 
 credentials.jsonの固定フィールドはanon / service / listener / app / lifecycle / cPassword / dPassword / vaultKey。前2つは指定新DB専用の既存情報、Stripe3件は用途別制限付きキー、vaultKeyは32バイト鍵のbase64。これらをチャット・引数・ログへ記載しない。平文の一時入力は専用ディレクトリだけに置き、受渡し元を重複保存しない。暗号化記録を復号する鍵は本人の安全な保管先に保持する。
 
@@ -27,12 +27,12 @@ exec_commandのtty=true / login=trueで `node scripts/phase6/subscription-runtim
 operator-bridgeは同じ専用ディレクトリへrequest-N.jsonを出す。Workは期限内の要求を1回処理し、指定responseFileへ0600・原子的置換で `{id,ok,value}` を返す。これは承認の取り直しではなく、実行中プロセスとWorkの正式なツールを接続する経路である。制御TTYを閉じない。
 
 - price: 指定価格のactiveだけを正式API/MCPで変更。プロセスは対象価格を別途読み取り照合する。Prices Writeを制限付きキーに追加しない。
-- billing-read: 対象Sandboxの非秘密の請求設定を読み取る。account/livemode/source/observedAt/settingsを返す。開始時は対象外契約0・未回収請求0・稼働ルールなしの根拠も必要。設定8項目はbilling-settings.mjsのORIGINAL_BILLINGと一致すること。キー画面には移動しない。
-- billing-write: 要求されたcardRetriesまたはexhaustedだけを変更する。再送禁止。保存後の別読み取りで確認する。APIがなければWorkが非秘密の設定画面を操作する。対象外への影響が不明ならok=falseで停止する。
+- billing-read: 対象Sandboxの非秘密の請求設定を読み取る。account/livemode/source/observedAt/settingsを返す。開始時は対象外契約0・未回収請求0・稼働ルールなしの根拠も必要。ON時の設定8項目はbilling-settings.mjsのORIGINAL_BILLINGと一致すること。OFF時に画面上の当該入力欄が無効なことを確認した場合だけretryControlsDisabled=trueを返す。表示値は保存値と断定せず記録し、非適用の3欄だけを有効設定の比較から除外する。キー画面には移動しない。
+- billing-write: 要求されたcardRetriesまたはexhaustedだけを変更する。cardRetries復元時は要求内のretryPolicy（元のsmart・2週間・8回）を明示設定し、無効欄の表示初期値をそのまま保存しない。再送禁止。保存後の別読み取りで確認する。APIがなければWorkが非秘密の設定画面を操作する。対象外への影響が不明ならok=falseで停止する。
 - browser: 下表の非秘密の画面操作をWorkが実施する。本人のログイン・テスト支払い中は画面取得しない。確認結果は `{checkpoint,observed:true}` のみ。HTTP200を画面成功の代わりにせず、ブラウザーで必要な表示・遷移・拒否を確認する。記録にはoperator-observationと明示する。
 - revoke-keys: サービス側で本人に限定される場合だけ本人が3件をまとめて失効する。確認後、プロセスが各キーで1回だけアカウント読取を試み、401とキー無効のコードを確認する。403やタイムアウトは失効済みとしない。
 
-価格・設定・失効確認の要求は最大60秒。本人操作を含むbrowser要求は、同じ制御セッションの残り時間内で待つ（試験全体20分の上限は従来どおり）。期限超過・結果不明ならok=falseとし、変更を再送しない。期限切れの要求を後から実行してはいけない。試験全体の残り時間で終えられない場合、上限を暗黙に延長せず停止する。
+価格・設定の要求は最大60秒。キーの終了確認は従来の合計60秒枠を維持し、画面失効要求を40秒、3キーの並行API読み取りを15秒とし、残り5秒を削除に確保する。本人操作を含むbrowser要求は、同じ制御セッションの残り時間内で待つ（試験全体20分の上限は従来どおり）。期限超過・結果不明ならok=falseとし、変更を再送しない。期限切れの要求を後から実行してはいけない。試験全体の残り時間で終えられない場合、上限を暗黙に延長せず停止する。
 
 ## 固定順序
 
@@ -53,7 +53,7 @@ operator-bridgeは同じ専用ディレクトリへrequest-N.jsonを出す。Wor
 
 ## 終了
 
-正常・失敗・中断すべてで、プロセス停止、送信中処理の収束、既知Checkout限定の照合・未決済終了、既知契約限定終了、価格OFF、DB価格OFF、Portal参照復元、新Portal設定OFF、一時入力削除、キー失効確認を行う。各独立処理は前項の失敗でも続ける。
+正常・失敗・中断すべてで、プロセス停止、送信中処理の収束、既知Checkout限定の照合・未決済終了、既知契約限定終了、価格OFF、DB価格OFF、Portal参照復元、新Portal設定OFF、キー失効・API確認、一時入力削除の順で行う。キー確認が失敗しても削除は必ず行い、期限・削除条件は緩めない。各独立処理は前項の失敗でも続ける。
 
 設定復元前には、既知契約に限定して請求を読む。paid/void/uncollectible、またはopen/draftでauto_advance=falseかつnext_payment_attempt=nullのみ安全と判定する。件数・金額・所有Customer・Subscription・testモードも確認する。未知の作成物や結果不明が残る場合は安全確認済みとしない。追加の請求更新・回収・void・返金で解消しない。
 

@@ -9,7 +9,7 @@ import { operatorBridge } from "./operator-bridge.mjs";
 import { billingSettings } from "./billing-settings.mjs";
 import { sessionEvidence } from "./evidence.mjs";
 import { scenario } from "./scenario.mjs";
-import { verifyRevocation } from "./revocation.mjs";
+import { revokeAndVerify } from "./revocation.mjs";
 // Programmatic entry for the existing private local receiver / same interactive TTY.
 // Importing this file never reads a secret or opens a connection. No CLI/env fallback.
 export function createProviderRun({
@@ -70,12 +70,13 @@ export function createProviderRun({
         price: async (active, signal) =>
           (await operator.request("price", { id: m.price, active }, signal)) ===
           true,
-        revokeKeys: async () => {
-          check((await operator.request("revoke-keys", { count: 3 })) === true);
-          const result = await verifyRevocation(wire);
-          check(store.save("key-revocation.enc", result).verified);
-          return true;
-        },
+        revokeKeys: () =>
+          revokeAndVerify({
+            revoke: (signal) =>
+              operator.request("revoke-keys", { count: 3 }, signal),
+            wire,
+            save: store.save,
+          }),
       };
     }
     const cliListener = listener({

@@ -17,6 +17,27 @@ export const TRIAL_BILLING = Object.freeze({
   cardRetries: false,
   exhausted: "past_due",
 });
+const retryFields = ["retryMode", "retryWeeks", "retryCount"];
+// Disabled UI controls are an observation, not proof of persisted policy values.
+// Retain their raw display separately; never replace the restoration baseline.
+function effectiveSettings(observation) {
+  const settings = { ...observation.settings };
+  if (observation.retryControlsDisabled === true) {
+    check(
+      settings.cardRetries === false && observation.source !== "api",
+      "RETRY_APPLICABILITY_MISMATCH",
+    );
+    for (const field of retryFields) delete settings[field];
+  }
+  return settings;
+}
+function matches(observation, expected) {
+  const actual = effectiveSettings(observation);
+  return equal(
+    actual,
+    Object.fromEntries(Object.keys(actual).map((k) => [k, expected[k]])),
+  );
+}
 
 // read/write are Work's bounded operator bridge, never a credential-screen scraper.
 // Writes are reserved before dispatch. Unknown results permit reads, never resends.
@@ -52,7 +73,11 @@ export function billingSettings({ read, write, save }) {
       source: value.source,
       observedAt: value.observedAt,
       settings: value.settings,
+      retryControlsDisabled: value.retryControlsDisabled === true,
+      retryPolicyPersistence:
+        value.retryControlsDisabled === true ? "unverified" : "observed",
     });
+    effectiveSettings(value);
     return value;
   };
   const mutate = async (field, value, phase, signal) => {
@@ -61,7 +86,22 @@ export function billingSettings({ read, write, save }) {
     check(!reserved.has(key), "SETTINGS_ALREADY_RESERVED");
     reserved.add(key);
     persist({ phase, field, value, state: "reserved" });
-    await write({ account: TARGET.account, field, value, phase }, signal);
+    await write(
+      {
+        account: TARGET.account,
+        field,
+        value,
+        phase,
+        ...(phase === "restore" && field === "cardRetries" && value === true
+          ? {
+              retryPolicy: Object.fromEntries(
+                retryFields.map((k) => [k, baseline[k]]),
+              ),
+            }
+          : {}),
+      },
+      signal,
+    );
     const result = await observe(signal);
     check(result.settings[field] === value, "SETTING_RESULT_UNKNOWN");
     return result;
@@ -82,9 +122,13 @@ export function billingSettings({ read, write, save }) {
         "BILLING_IMPACT_UNCONFIRMED",
       );
       baseline = before.settings;
-      await mutate("cardRetries", false, "prepare", signal);
+      const disabled = await mutate("cardRetries", false, "prepare", signal);
+      check(
+        matches(disabled, { ...ORIGINAL_BILLING, cardRetries: false }),
+        "SETTINGS_UNEXPECTED_CHANGE",
+      );
       const after = await mutate("exhausted", "past_due", "prepare", signal);
-      check(equal(after.settings, TRIAL_BILLING), "SETTINGS_UNEXPECTED_CHANGE");
+      check(matches(after, TRIAL_BILLING), "SETTINGS_UNEXPECTED_CHANGE");
       return true;
     },
     async restore(safe) {

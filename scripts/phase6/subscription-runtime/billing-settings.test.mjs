@@ -64,3 +64,76 @@ for (const mode of [
     assert(saved.length);
   });
 }
+
+for (const mode of [
+  "disabled-display",
+  "unlabelled-drift",
+  "active-drift",
+  "wrong-flag",
+  "other-change",
+]) {
+  test(
+    "retry display applicability and exact restoration: " + mode,
+    async () => {
+      let settings = { ...ORIGINAL_BILLING };
+      const writes = [],
+        saved = [];
+      const billing = billingSettings({
+        read: async () => {
+          const disabled = !settings.cardRetries;
+          return {
+            account: TARGET.account,
+            livemode: false,
+            source: "work-ui",
+            observedAt: Date.now(),
+            settings: {
+              ...settings,
+              ...(disabled ? { retryWeeks: 4, retryCount: 4 } : {}),
+            },
+            retryControlsDisabled:
+              mode === "wrong-flag" ||
+              (disabled && mode !== "unlabelled-drift"),
+            unrelatedContracts: 0,
+            uncollectedInvoices: 0,
+            automationsActive: false,
+          };
+        },
+        write: async (value) => {
+          writes.push(value);
+          settings[value.field] = value.value;
+          if (value.retryPolicy) Object.assign(settings, value.retryPolicy);
+          if (mode === "other-change" && value.phase === "prepare")
+            settings.graceHours = 2;
+          if (mode === "active-drift" && value.phase === "restore")
+            settings.retryCount = 4;
+        },
+        save: (name, data) => {
+          saved.push({ name, data });
+          return { verified: true };
+        },
+      });
+      if (["unlabelled-drift", "wrong-flag", "other-change"].includes(mode)) {
+        await assert.rejects(billing.prepare());
+        assert.equal(writes.filter((x) => x.field === "exhausted").length, 0);
+        return;
+      }
+      await billing.prepare();
+      assert(
+        saved.some(
+          (x) =>
+            x.data.retryPolicyPersistence === "unverified" &&
+            x.data.settings.retryCount === 4,
+        ),
+      );
+      const restored = await billing.restore(true);
+      assert.equal(restored.complete, mode === "disabled-display");
+      assert.deepEqual(
+        writes.find((x) => x.phase === "restore" && x.field === "cardRetries")
+          .retryPolicy,
+        { retryMode: "smart", retryWeeks: 2, retryCount: 8 },
+      );
+      if (mode === "disabled-display")
+        assert.deepEqual(settings, ORIGINAL_BILLING);
+    },
+  );
+}

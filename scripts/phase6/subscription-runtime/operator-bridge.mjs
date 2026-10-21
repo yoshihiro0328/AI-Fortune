@@ -36,7 +36,12 @@ export function operatorBridge(root, { timeoutMs = 60000 } = {}) {
       if (kind === "browser")
         check(signal && !signal.aborted, "BROWSER_CONTROL_REQUIRED");
       const deadline =
-        Date.now() + (kind === "browser" ? 20 * 60 * 1000 : timeoutMs);
+        Date.now() +
+        (kind === "browser"
+          ? 20 * 60 * 1000
+          : kind === "revoke-keys"
+            ? Math.floor((timeoutMs * 2) / 3)
+            : timeoutMs);
       const request = path.join(root, `request-${n}.json`);
       const response = path.join(root, `response-${n}.json`);
       check(!fs.existsSync(response), "STALE_OPERATOR_RESPONSE");
