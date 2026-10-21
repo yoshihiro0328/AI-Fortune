@@ -3,11 +3,16 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { check, TARGET } from "./policy.mjs";
+import { ownerKeyWindow } from "./owner-key-window.mjs";
 
 // Work answers these nonsecret requests using its connector or safe UI tools.
 // No key/password page, clipboard, or raw response is ever requested by this bridge.
 // A separate mailbox keeps the original controlling TTY alive during owner actions.
-export function operatorBridge(root, { timeoutMs = 60000 } = {}) {
+export function operatorBridge(
+  root,
+  { timeoutMs = 60000, ownerApproval, secretDeadline } = {},
+) {
+  if (ownerApproval) ownerKeyWindow(ownerApproval, secretDeadline);
   const stat = fs.lstatSync(root);
   check(
     stat.isDirectory() &&
@@ -40,7 +45,9 @@ export function operatorBridge(root, { timeoutMs = 60000 } = {}) {
         (kind === "browser"
           ? 20 * 60 * 1000
           : kind === "revoke-keys"
-            ? Math.floor((timeoutMs * 2) / 3)
+            ? ownerApproval
+              ? ownerKeyWindow(ownerApproval, secretDeadline).uiMs
+              : Math.floor((timeoutMs * 2) / 3)
             : timeoutMs);
       const request = path.join(root, `request-${n}.json`);
       const response = path.join(root, `response-${n}.json`);

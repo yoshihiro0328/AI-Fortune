@@ -58,3 +58,28 @@ test("revocation mailbox reserves time for API verification and erasure", async 
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("approved owner mailbox cannot outlive the secret erasure reserve", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "plus-owner-"));
+  const secretDeadline = Date.now() + 50000;
+  const bridge = operatorBridge(root, {
+    ownerApproval: {
+      approved: true,
+      waitMs: 300000,
+      reference: "owner-key-wait-5min",
+    },
+    secretDeadline,
+  });
+  const abort = new AbortController();
+  try {
+    const promise = bridge.request("revoke-keys", { count: 3 }, abort.signal);
+    const r = JSON.parse(fs.readFileSync(path.join(root, "request-1.json")));
+    assert(r.expiresAt <= secretDeadline - 19990);
+    assert(r.expiresAt >= secretDeadline - 20010);
+    abort.abort();
+    await assert.rejects(promise);
+  } finally {
+    bridge.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});

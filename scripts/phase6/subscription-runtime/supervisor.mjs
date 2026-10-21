@@ -6,6 +6,8 @@ import { appTransport } from "./app-transport.mjs";
 import { observePreflight } from "./journal.mjs";
 import { runPreparedAttempt } from "./launch.mjs";
 import { closeAttempt } from "./runtime.mjs";
+import { workLogin } from "./work-login.mjs";
+import { minimal } from "./minimal-profile.mjs";
 // Transport, vault and human controls are injected once before any operation. The
 // production adapter and loopback adapter use the identical sender and supervisor.
 // No .env fallback, shell, arbitrary SQL, recovery/restart or credential-screen access.
@@ -166,6 +168,7 @@ export function supervisor({
     // reserved and validated by ops, and unknown results latch STOP.
     operations: ops,
     async run(expected, passwords) {
+      let login;
       check(!started, "ATTEMPT_ALREADY_STARTED");
       started = true;
       const stop = () => {
@@ -189,6 +192,7 @@ export function supervisor({
         await ops.inspect(expected);
         if (billing) await billing.prepare(abort.signal);
         prepared = await ops.prepare(passwords);
+        if (minimal(prepared)) login = workLogin(prepared, passwords);
         const expectedPrepared = await observePreflight(prepared, read);
         check(save("prepared.enc", expectedPrepared).verified);
         const result = await runPreparedAttempt({
@@ -199,6 +203,7 @@ export function supervisor({
             wire,
             operations: ops,
             signal: abort.signal,
+            login,
           }),
           listener,
           reserve: ops.reserveRuntime,
@@ -258,6 +263,7 @@ export function supervisor({
           closure,
         });
       } finally {
+        login?.close();
         passwords = undefined;
         clearTimeout(timer);
         input.removeListener("end", stop);

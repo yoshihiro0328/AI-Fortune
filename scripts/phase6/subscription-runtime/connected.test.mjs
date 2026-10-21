@@ -399,8 +399,8 @@ for (const { minimal, mode } of cases) {
         JSON.stringify({
           anon: "synthetic",
           service: "synthetic",
-          cPassword: "synthetic-password-C",
-          dPassword: "synthetic-password-D",
+          cPassword: "SyntheticOnly123!",
+          dPassword: "SyntheticOnly123!",
           vaultKey: Buffer.alloc(32, 1).toString("base64"),
         }),
         { mode: 0o600 },
@@ -537,8 +537,8 @@ for (const { minimal, mode } of cases) {
     try {
       const expected = await t.ops.observe();
       const result = await run.run(expected, {
-        c: "synthetic-password-C",
-        d: "synthetic-password-D",
+        c: "SyntheticOnly123!",
+        d: "SyntheticOnly123!",
       });
       assert.equal(
         result.complete,

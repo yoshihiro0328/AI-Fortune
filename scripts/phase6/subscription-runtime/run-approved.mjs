@@ -6,6 +6,7 @@ import { privateInput, erasePrivateInputs } from "./supervisor.mjs";
 import { check } from "./policy.mjs";
 import { minimal } from "./minimal-profile.mjs";
 import { verifyHandoffWindow } from "./receiver-session.mjs";
+import { ownerKeyWindow } from "./owner-key-window.mjs";
 
 // Production entry. No env file, injected JS driver, arbitrary API or resume switch.
 // Call with exec_command tty:true, login:true; retain returned session until exit.
@@ -17,12 +18,13 @@ try {
       !process.stdin.destroyed &&
       !process.stdin.readableEnded,
   );
-  verifyHandoffWindow(root);
+  const secretDeadline = verifyHandoffWindow(root);
   const plan = privateInput(path.join(root, "plan.json"), root);
   check(
     Object.keys(plan).sort().join(",") ===
-      "attemptId,cli,clockApproval,expected,manifest",
+      "attemptId,cli,clockApproval,expected,manifest,ownerKeyClosure",
   );
+  ownerKeyWindow(plan.ownerKeyClosure, secretDeadline);
   check(plan.manifest.synthetic === false);
   check(
     minimal(plan.manifest) && plan.clockApproval === null,
@@ -40,6 +42,8 @@ try {
     cli: plan.cli,
     clockApproval: plan.clockApproval,
     planFile: path.join(root, "plan.json"),
+    ownerApproval: plan.ownerKeyClosure,
+    secretDeadline,
   });
   const result = await run.run();
   // No raw exceptions, manifest, keys, emails, JWTs or URLs printed.

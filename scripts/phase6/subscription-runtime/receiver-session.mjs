@@ -22,6 +22,7 @@ export function verifyHandoffWindow(directory, now = Date.now()) {
       receipt.deadline - now <= SECRET_WINDOW_MS,
     "FRESH_HANDOFF_REQUIRED",
   );
+  return receipt.deadline;
 }
 // Owner confirmation may take arbitrarily long BEFORE any submission. The first
 // POST starts the original two-hour ceiling; invalid/repeated POSTs never reset it.

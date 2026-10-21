@@ -3,6 +3,8 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { chromium } from "@playwright/test";
 import { TARGET } from "./policy.mjs";
+import { minimal } from "./minimal-profile.mjs";
+import { WORK_LOGIN } from "./work-login.mjs";
 // Local regression adapter only. Never used with real credentials or hosted Stripe.
 export async function connectedBrowser({ runtime, m, pay, cancel }) {
   assert.equal(m.synthetic, true);
@@ -73,7 +75,9 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
   async function login(p, user, letter) {
     await p.goto(TARGET.app + "/subscription-test/" + letter);
     await p.locator("#email").fill(user.email);
-    await p.locator("#password").fill("SyntheticOnly123!");
+    await p
+      .locator("#password")
+      .fill(minimal(m) ? WORK_LOGIN : "SyntheticOnly123!");
     await p.getByRole("button", { name: "ログイン", exact: true }).click();
     await p
       .getByRole("heading", { name: "保存した診断", exact: true })

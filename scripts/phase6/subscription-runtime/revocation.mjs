@@ -1,4 +1,5 @@
 import { check } from "./policy.mjs";
+import { ownerKeyWindow } from "./owner-key-window.mjs";
 // One read per already-bound restricted key; no fallback key, no retry.
 export async function verifyRevocation(
   wire,
@@ -35,17 +36,20 @@ export async function verifyRevocation(
   return result;
 }
 
-// Within the existing 60-second closure slot: UI <=40s, concurrent reads <=15s,
-// leave >=5s for local erasure. No new key, mutation retry, or lifetime extension.
+// Legacy closure: UI <=40s, reads <=15s, erasure >=5s. An explicitly approved
+// owner-only window changes UI waiting alone, capped by the secret deadline.
 export async function revokeAndVerify({
   revoke,
   wire,
   save,
   timeoutMs = 60000,
+  ownerApproval,
+  secretDeadline,
 }) {
   check(Number.isInteger(timeoutMs) && timeoutMs >= 60 && timeoutMs <= 60000);
-  const uiMs = Math.floor((timeoutMs * 2) / 3);
-  const readMs = Math.floor(timeoutMs / 4);
+  const uiMs = ownerApproval
+    ? ownerKeyWindow(ownerApproval, secretDeadline).uiMs
+    : Math.floor((timeoutMs * 2) / 3);
   const bounded = async (ms, action) => {
     const abort = new AbortController();
     let timer;
@@ -64,10 +68,15 @@ export async function revokeAndVerify({
   const evidence = { ui: "unconfirmed", api: {}, apiComplete: false };
   try {
     try {
-      if ((await bounded(uiMs, revoke)) === true) evidence.ui = "confirmed";
+      if (uiMs > 0 && (await bounded(uiMs, revoke)) === true)
+        evidence.ui = "confirmed";
     } catch {
       /* A partial UI result still permits one read per existing key. */
     }
+    const readMs = ownerApproval
+      ? ownerKeyWindow(ownerApproval, secretDeadline).readMs
+      : Math.floor(timeoutMs / 4);
+    check(readMs > 0, "SECRET_DEADLINE_REQUIRES_ERASURE");
     await bounded(readMs, (signal) =>
       verifyRevocation(wire, {
         signal,

@@ -1,7 +1,7 @@
 import { TARGET, check } from "./policy.mjs";
 // Called behind the existing request/body/identity policy. Only the parent owns secrets.
 // A single Customer Portal permission is assigned to lifecycle, not added to the app key.
-export function appTransport({ wire, operations, signal }) {
+export function appTransport({ wire, operations, signal, login }) {
   return async (r) => {
     check(!operations.state().stopped && !signal?.aborted, "STOPPED");
     const u = new URL(r.url),
@@ -29,7 +29,7 @@ export function appTransport({ wire, operations, signal }) {
         role,
         method: r.method,
         path: u.pathname + u.search,
-        body: r.body || undefined,
+        body: (login ? login.body(r) : r.body) || undefined,
         bearer,
         accept: headers.get("accept") || "application/json",
         signal,

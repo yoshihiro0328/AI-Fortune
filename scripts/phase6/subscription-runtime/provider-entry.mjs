@@ -28,6 +28,8 @@ export function createProviderRun({
   record = () => {},
   clockApproval,
   planFile,
+  ownerApproval,
+  secretDeadline,
 }) {
   check(
     input.isTTY === true && !input.destroyed && !input.readableEnded,
@@ -62,7 +64,7 @@ export function createProviderRun({
     });
     let operator, billing, evidence;
     if (!execute) {
-      operator = operatorBridge(root);
+      operator = operatorBridge(root, { ownerApproval, secretDeadline });
       if (!minimal(m))
         billing = billingSettings({
           read: (signal) => operator.request("billing-read", {}, signal),
@@ -88,6 +90,8 @@ export function createProviderRun({
               operator.request("revoke-keys", { count: 3 }, signal),
             wire,
             save: store.save,
+            ownerApproval,
+            secretDeadline,
           }),
       };
     }
