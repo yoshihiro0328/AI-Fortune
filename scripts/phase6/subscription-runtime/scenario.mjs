@@ -15,7 +15,16 @@ export const STEPS = [
   "end-second",
   "final",
 ];
-export function scenario({ wire, evidence, operator, save }) {
+export const MINIMAL_STEPS = [
+  "logins",
+  "checkout-display",
+  "first-paid",
+  "portal-display",
+  "end-minimal",
+  "final-minimal",
+];
+export function scenario({ wire, evidence, operator, save, minimal = false }) {
+  const steps = minimal ? MINIMAL_STEPS : STEPS;
   let index = 0,
     stopped = false,
     seq = 0,
@@ -125,9 +134,9 @@ export function scenario({ wire, evidence, operator, save }) {
   };
   const execute = async (command, context) => {
     check(!stopped && !context.signal.aborted, "SCENARIO_STOPPED");
-    if (command === "verify-complete") return index === STEPS.length;
-    check(command === "next" && index < STEPS.length, "SCENARIO_COMMAND");
-    const step = STEPS[index],
+    if (command === "verify-complete") return index === steps.length;
+    check(command === "next" && index < steps.length, "SCENARIO_COMMAND");
+    const step = steps[index],
       ops = context.operations;
     try {
       persist({ step, state: "reserved" });
@@ -136,6 +145,37 @@ export function scenario({ wire, evidence, operator, save }) {
           await screen(step, context);
           await evidence.logins(context.signal);
           await evidence.rls(0, 0, context.signal);
+          break;
+        case "checkout-display": {
+          await screen("checkout-first-display", context);
+          check(
+            ops.state().checkouts.length === 1 &&
+              ops.state().subscriptions.length === 0,
+          );
+          const c = await ops.bindCheckout(ops.state().checkouts[0]);
+          check(c.status === "open" && !c.paid);
+          break;
+        }
+        case "portal-display":
+          await screen("minimal-plus-and-portal-return", context);
+          await evidence.rls(1, 1, context.signal);
+          break;
+        case "end-minimal":
+          await ops.endSubscription(first);
+          await observe(context, first, 1, "canceled", "paid");
+          await sync(
+            context,
+            first,
+            "canceled",
+            "free",
+            1,
+            "customer.subscription.deleted",
+          );
+          break;
+        case "final-minimal":
+          await screen("account-and-denials", context);
+          await evidence.rls(1, 1, context.signal);
+          check(context.runtime.alive(), "PROCESS_FAILED");
           break;
         case "compatibility": {
           await screen("checkout-first-display", context);
@@ -163,6 +203,8 @@ export function scenario({ wire, evidence, operator, save }) {
             1,
             "checkout.session.completed",
           );
+          if (minimal)
+            await sync(context, first, "active", "plus", 1, "invoice.paid");
           break;
         }
         case "renewal": {

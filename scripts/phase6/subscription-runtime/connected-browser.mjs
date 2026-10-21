@@ -95,6 +95,30 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
     await c.waitForURL("**/account?subscription=complete");
     await c.getByRole("heading", { name: "契約状況" }).waitFor();
   }
+  async function denials() {
+    await d.goto(TARGET.app + "/plans");
+    await d.getByRole("checkbox").check();
+    await d
+      .getByRole("button", { name: "Plusのテスト契約へ", exact: true })
+      .click();
+    await d.getByRole("alert").waitFor();
+    await anon.goto(TARGET.app + "/plans");
+    for (const [p, status] of [
+      [d, 403],
+      [anon, 401],
+    ])
+      for (const action of ["checkout", "portal", "cancel"]) {
+        const result = await p.evaluate(async (action) => {
+          const res = await fetch("/api/billing", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ action, consent: true }),
+          });
+          return res.status;
+        }, action);
+        assert.equal(result, status);
+      }
+  }
   return {
     async checkpoint(data) {
       assert(!helperFailed);
@@ -130,6 +154,23 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
           await checkout();
           await payOnce();
           break;
+        case "minimal-plus-and-portal-return":
+          await c.goto(TARGET.app + "/account");
+          await c.getByText("Plus", { exact: false }).first().waitFor();
+          await c
+            .getByRole("button", { name: "解約・支払い方法・請求履歴" })
+            .click();
+          await c
+            .getByRole("heading", { name: "ローカル代替 Customer Portal" })
+            .waitFor();
+          assert.equal(
+            await c.getByRole("button", { name: /期間末で解約/ }).count(),
+            0,
+          );
+          await c.getByRole("link", { name: "よりそいへ戻る" }).click();
+          await c.getByRole("heading", { name: "契約状況" }).waitFor();
+          await denials();
+          break;
         case "portal-second-cancel-once-return":
           await c.goto(TARGET.app + "/account");
           await c
@@ -146,28 +187,7 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
         case "account-and-denials":
           await c.goto(TARGET.app + "/account");
           await c.getByText("解約済み", { exact: false }).waitFor();
-          await d.goto(TARGET.app + "/plans");
-          await d.getByRole("checkbox").check();
-          await d
-            .getByRole("button", { name: "Plusのテスト契約へ", exact: true })
-            .click();
-          await d.getByRole("alert").waitFor();
-          await anon.goto(TARGET.app + "/plans");
-          for (const [p, status] of [
-            [d, 403],
-            [anon, 401],
-          ])
-            for (const action of ["checkout", "portal", "cancel"]) {
-              const result = await p.evaluate(async (action) => {
-                const res = await fetch("/api/billing", {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify({ action, consent: true }),
-                });
-                return res.status;
-              }, action);
-              assert.equal(result, status);
-            }
+          await denials();
           break;
         default:
           assert.fail("unknown browser checkpoint");

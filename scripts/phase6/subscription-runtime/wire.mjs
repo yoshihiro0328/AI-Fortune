@@ -1,4 +1,5 @@
 import { TARGET, check } from "./policy.mjs";
+import { minimalRequest } from "./minimal-profile.mjs";
 import { API_VERSION } from "./listener.mjs";
 // The same HTTP encoder/reader is used for providers and loopback tests. No redirects,
 // retries, global environment credentials, arbitrary headers, or URL credentials.
@@ -19,7 +20,13 @@ function form(value, prefix = "", out = new URLSearchParams()) {
   }
   return out;
 }
-function build({ secrets, record = () => {}, endpoints, timeoutMs = 15000 }) {
+function build({
+  secrets,
+  record = () => {},
+  endpoints,
+  timeoutMs = 15000,
+  minimal = false,
+}) {
   check(timeoutMs > 0 && timeoutMs <= 15000);
   const send = async ({
     provider,
@@ -33,6 +40,7 @@ function build({ secrets, record = () => {}, endpoints, timeoutMs = 15000 }) {
     bearer,
     accept = "application/json",
   }) => {
+    if (minimal) minimalRequest({ provider, method, path, body });
     check(["stripe", "supabase"].includes(provider));
     check(/^[a-z][a-z0-9_]{0,63}$/.test(operation), "OPERATION_NAME_REQUIRED");
     check(["GET", "POST", "PATCH", "DELETE"].includes(method));

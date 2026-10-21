@@ -4,6 +4,7 @@ import { assembleHandoff } from "./private-handoff.mjs";
 import { createProviderRun } from "./provider-entry.mjs";
 import { privateInput, erasePrivateInputs } from "./supervisor.mjs";
 import { check } from "./policy.mjs";
+import { minimal } from "./minimal-profile.mjs";
 import { verifyHandoffWindow } from "./receiver-session.mjs";
 
 // Production entry. No env file, injected JS driver, arbitrary API or resume switch.
@@ -24,7 +25,8 @@ try {
   );
   check(plan.manifest.synthetic === false);
   check(
-    plan.clockApproval?.limit === 5 && plan.clockApproval.explicit === true,
+    minimal(plan.manifest) && plan.clockApproval === null,
+    "MINIMAL_PLAN_REQUIRED",
   );
   const credentials = path.join(root, "credentials.json");
   if (!fs.existsSync(credentials)) assembleHandoff(root);

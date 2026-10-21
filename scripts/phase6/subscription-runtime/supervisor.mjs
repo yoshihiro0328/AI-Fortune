@@ -125,6 +125,11 @@ export function supervisor({
       evidence?.erase();
       return erased;
     },
+    verifyRestoration: async () => {
+      const p = await providerClose();
+      await ops.inspectAfter();
+      return p.complete;
+    },
     revokeKeys: async () => human.revokeKeys(),
   };
   const finish = (result) => {
@@ -224,15 +229,6 @@ export function supervisor({
             result.exitCode = 2;
             result.closure.complete = false;
             result.closure.unresolvedOperations = p.unresolvedOperations;
-          }
-        }
-        if (closure.complete) {
-          try {
-            await ops.inspectAfter();
-          } catch {
-            result.complete = false;
-            result.exitCode = 2;
-            result.postcheck = "failed_or_unknown";
           }
         }
         return finish(result);

@@ -2,6 +2,10 @@
 
 以前の準備資料・完了試験・元manifestは保持する。この文書は実行接続と終了処理の追加仕様。実サービス試験・外部33件・公開可否の判定ではない。
 
+## 現在の実行範囲
+
+2026-10-21の縮小承認により、次回は `phase6-plus-minimal-20261021.md` の `minimal-plus-v1` だけを使用する。以下のClock付き10段階は旧仕様の参照として保持し、今回実行しない。前回停止試行は終了条件差分承認を追記して後片付け完了。
+
 ## 起動
 
 `scripts/phase6/subscription-runtime/run-approved.mjs` が専用の入口。旧subscription-live.test.tsは使わない。新しい所有者専用0700ディレクトリに、0600のplan.json・credentials.jsonと0700のevidenceディレクトリを置く。既存.env.localは使わない。

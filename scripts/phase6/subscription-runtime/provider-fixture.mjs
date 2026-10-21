@@ -17,7 +17,7 @@ const secrets = {
   service: "syntheticService",
   anon: "syntheticAnon",
 };
-export async function fixture(mode, clockApproval) {
+export async function fixture(mode, clockApproval, minimal = false) {
   const db = await isolatedSubscription(),
     pg = db.pg;
   await pg.exec("update price_versions set active=false");
@@ -27,6 +27,13 @@ export async function fixture(mode, clockApproval) {
     c: { ...db.m.c, id: randomUUID() },
     d: { ...db.m.d, id: randomUUID() },
     frozenTime: 1800000000,
+    ...(minimal
+      ? {
+          scenario: "minimal-plus-v1",
+          stripePriceInitiallyActive: true,
+          clock: null,
+        }
+      : {}),
     ...(mode === "catalog-active" ? { stripePriceInitiallyActive: true } : {}),
   };
   const protectedState = async () => {
@@ -44,7 +51,7 @@ export async function fixture(mode, clockApproval) {
       price: {
         id: m.price,
         product: m.product,
-        active: mode === "catalog-active",
+        active: minimal || mode === "catalog-active",
         livemode: false,
         unit_amount: 980,
         currency: "jpy",
@@ -68,6 +75,9 @@ export async function fixture(mode, clockApproval) {
       p,
       method,
       role: req.headers.authorization,
+      ...(method !== "GET" && p.startsWith("/v1/")
+        ? { form: Object.fromEntries(f) }
+        : {}),
       idempotency: req.headers["idempotency-key"],
     });
     const send = (data, status = 200) => {
@@ -107,6 +117,8 @@ export async function fixture(mode, clockApproval) {
         return send({
           id: mode === "wrong-account" ? "acct_wrong" : TARGET.account,
         });
+      if (minimal)
+        assert(!p.includes("test_clocks") && !p.includes("payment_methods"));
       if (p === "/v1/prices/" + m.price) return send(objects.price);
       if (p === "/v1/customers/cus_http") return send(objects.customer);
       if (p === "/v1/subscriptions")
@@ -277,9 +289,11 @@ export async function fixture(mode, clockApproval) {
           features: {
             subscription_update: { enabled: false },
             customer_update: { enabled: false },
-            subscription_cancel: { enabled: true, mode: "at_period_end" },
+            subscription_cancel: minimal
+              ? { enabled: false }
+              : { enabled: true, mode: "at_period_end" },
             invoice_history: { enabled: true },
-            payment_method_update: { enabled: true },
+            payment_method_update: { enabled: !minimal },
           },
         };
         return send(objects.portal);
@@ -326,6 +340,10 @@ export async function fixture(mode, clockApproval) {
               invoice.next_payment_attempt = null;
             }
           await objects.onCancel?.(sub);
+          if (objects.dropCancelResponse) {
+            req.socket.destroy();
+            return;
+          }
         }
         return send(sub);
       }
@@ -343,6 +361,7 @@ export async function fixture(mode, clockApproval) {
   const wire = mockWire({
     origin: "http://127.0.0.1:" + server.address().port,
     secrets,
+    minimal,
     record: (x) => records.push(x),
     timeoutMs: mode === "timeout" ? 100 : mode === "browser" ? 15000 : 1000,
   });
@@ -356,6 +375,7 @@ export async function fixture(mode, clockApproval) {
     record: (x) => records.push(x),
     human: {
       price: async (active) => {
+        assert(!minimal, "minimal catalog writes forbidden");
         if (mode === "catalog-active")
           assert.equal(
             active,

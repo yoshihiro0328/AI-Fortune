@@ -7,7 +7,7 @@ import { PassThrough } from "node:stream";
 import Stripe from "stripe";
 import { fixture } from "./provider-fixture.mjs";
 import { supervisor } from "./supervisor.mjs";
-import { scenario, STEPS } from "./scenario.mjs";
+import { scenario, STEPS, MINIMAL_STEPS } from "./scenario.mjs";
 import { sessionEvidence } from "./evidence.mjs";
 import { billingSettings, ORIGINAL_BILLING } from "./billing-settings.mjs";
 import { startBroker } from "../payment-runtime/broker.mjs";
@@ -21,28 +21,44 @@ import { assembleHandoff } from "./private-handoff.mjs";
 
 // Actual HTTP sender + encrypted journal + migrated PostgreSQL/RLS + signed local
 // broker + production scenario/supervisor. Auth, Stripe engine and UI are substitutes.
-for (const mode of [
-  "normal",
-  "browser-failure",
-  "input-disconnect",
-  "unsafe-invoice",
-]) {
-  test("connected scenario to closure: " + mode, async () => {
+const cases = [false, true].flatMap((minimal) =>
+  ["normal", "browser-failure", "input-disconnect", "unsafe-invoice"].map(
+    (mode) => ({ minimal, mode }),
+  ),
+);
+for (const { minimal, mode } of cases) {
+  if (process.env.PLUS_MINIMAL_ONLY === "1" && (!minimal || mode !== "normal"))
+    continue;
+  const name =
+    "connected scenario to closure: " + (minimal ? "minimal " : "") + mode;
+  test(name, async () => {
     if (realTTY)
       assert(process.stdin.isTTY, "use --test-isolation=none with a real TTY");
-    const t = await fixture(macBrowser ? "browser" : "connected", {
-      limit: 5,
-      explicit: true,
-      reference: "synthetic-approval",
-    });
+    const t = await fixture(
+      macBrowser ? "browser" : "connected",
+      minimal
+        ? undefined
+        : {
+            limit: 5,
+            explicit: true,
+            reference: "synthetic-approval",
+          },
+      minimal,
+    );
     const { m, objects: o } = t;
     m.frozenTime = Math.floor(Date.now() / 1000) - 10;
     m.portalOnlyCancellation = true;
+    const now = () => (minimal ? m.frozenTime : o.clock.frozen_time);
+    const steps = minimal ? MINIMAL_STEPS : STEPS;
     const input = realTTY ? process.stdin : new PassThrough(),
       output = realTTY ? process.stdout : new PassThrough();
     if (!realTTY) input.isTTY = true;
     else assert(input.isTTY);
-    const evidence = sessionEvidence({ m, wire: t.wire, save: t.store.save });
+    const evidence = sessionEvidence({
+      m,
+      wire: t.wire,
+      save: t.store.save,
+    });
     let broker,
       browser,
       realRuntime,
@@ -100,7 +116,7 @@ for (const mode of [
           iso(item.current_period_end),
           paid ? iso(paid.end) : null,
           !!s.cancel_at_period_end,
-          s.status === "canceled" ? iso(o.clock.frozen_time) : null,
+          s.status === "canceled" ? iso(now()) : null,
         ],
       );
       for (const i of invoices)
@@ -147,11 +163,11 @@ for (const mode of [
           currency: "jpy",
           total: 980,
           amount_paid: status === "paid" ? 980 : 0,
-          created: o.clock.frozen_time,
+          created: now(),
           period_start: item.current_period_start,
           period_end: item.current_period_end,
           status_transitions: {
-            paid_at: status === "paid" ? o.clock.frozen_time : null,
+            paid_at: status === "paid" ? now() : null,
           },
           lines: {
             has_more: false,
@@ -200,7 +216,7 @@ for (const mode of [
           customer: "cus_http",
           livemode: false,
           status: "active",
-          created: o.clock.frozen_time,
+          created: now(),
           default_payment_method: "pm_good",
           cancel_at_period_end: false,
           metadata: { user_id: m.c.id },
@@ -209,8 +225,8 @@ for (const mode of [
               {
                 price: { ...o.price },
                 quantity: 1,
-                current_period_start: o.clock.frozen_time,
-                current_period_end: o.clock.frozen_time + 30 * 86400,
+                current_period_start: now(),
+                current_period_end: now() + 30 * 86400,
               },
             ],
           },
@@ -224,6 +240,7 @@ for (const mode of [
         });
         await send("checkout.session.completed", o[id]);
         await send("customer.subscription.created", s);
+        if (minimal) await send("invoice.paid", o.invoices[0]);
       }
       if (ops) await ops.bindCheckout(id);
       return o[id];
@@ -241,16 +258,15 @@ for (const mode of [
       }
       if (advances % 2) {
         const item = s.items.data[0];
-        item.current_period_start = o.clock.frozen_time;
-        item.current_period_end = o.clock.frozen_time + 30 * 86400;
+        item.current_period_start = now();
+        item.current_period_end = now() + 30 * 86400;
         invoice(s, "draft");
       } else {
         const i = o.invoices.at(-1);
         i.status = advances === 2 ? "paid" : "open";
         i.attempt_count = 1;
         i.amount_paid = advances === 2 ? 980 : 0;
-        i.status_transitions.paid_at =
-          advances === 2 ? o.clock.frozen_time : null;
+        i.status_transitions.paid_at = advances === 2 ? now() : null;
         s.status = advances === 2 ? "active" : "past_due";
         await send(
           advances === 2 ? "invoice.paid" : "invoice.payment_failed",
@@ -266,6 +282,7 @@ for (const mode of [
       );
     let run;
     const executeCore = scenario({
+      minimal,
       wire: t.wire,
       evidence,
       save: t.store.save,
@@ -275,12 +292,14 @@ for (const mode of [
           screenCount++;
           if (
             mode === "browser-failure" &&
-            data.checkpoint === "pay-second-once"
+            data.checkpoint ===
+              (minimal ? "minimal-plus-and-portal-return" : "pay-second-once")
           )
             throw Error("synthetic");
           if (
             mode === "input-disconnect" &&
-            data.checkpoint === "pay-second-once"
+            data.checkpoint ===
+              (minimal ? "minimal-plus-and-portal-return" : "pay-second-once")
           ) {
             input.end();
             return new Promise(() => {});
@@ -291,7 +310,10 @@ for (const mode of [
               mode === "unsafe-invoice" &&
               data.checkpoint === "account-and-denials"
             )
-              o.invoices.find((i) => i.status === "open").auto_advance = true;
+              (minimal
+                ? o.invoices[0]
+                : o.invoices.find((i) => i.status === "open")
+              ).auto_advance = true;
             return result;
           }
           if (data.checkpoint === "logins")
@@ -312,6 +334,21 @@ for (const mode of [
             await newCheckout(1, run.operations, true);
           if (data.checkpoint === "pay-second-once")
             await newCheckout(2, run.operations, true);
+          if (minimal && data.checkpoint === "minimal-plus-and-portal-return") {
+            run.operations.reserveRuntime("portal", 1);
+            await t.wire({
+              provider: "stripe",
+              role: "lifecycle",
+              method: "POST",
+              path: "/v1/billing_portal/sessions",
+              body: {
+                customer: "cus_http",
+                configuration: "bpc_http",
+                return_url: TARGET.app + "/account",
+              },
+              operation: "synthetic_portal",
+            });
+          }
           if (data.checkpoint === "portal-second-cancel-once-return") {
             run.operations.reserveRuntime("portal", 2);
             o.sub_connected_2.cancel_at_period_end = true;
@@ -321,7 +358,16 @@ for (const mode of [
             mode === "unsafe-invoice" &&
             data.checkpoint === "account-and-denials"
           )
-            o.invoices.find((i) => i.status === "open").auto_advance = true;
+            (minimal
+              ? o.invoices[0]
+              : o.invoices.find((i) => i.status === "open")
+            ).auto_advance = true;
+          if (
+            minimal &&
+            mode === "unsafe-invoice" &&
+            data.checkpoint === "account-and-denials"
+          )
+            o.invoices[0].total = 981;
           return { checkpoint: data.checkpoint, observed: true };
         },
       },
@@ -387,11 +433,14 @@ for (const mode of [
       temporary: { root: t.root, file },
       execute,
       evidence,
-      billing,
-      clockApproval: { limit: 5, explicit: true, reference: "synthetic-only" },
+      billing: minimal ? undefined : billing,
+      clockApproval: minimal
+        ? undefined
+        : { limit: 5, explicit: true, reference: "synthetic-only" },
       timeoutMs: realTTY ? 20 * 60 * 1000 : macBrowser ? 180000 : 20000,
       human: {
         price: async (active) => {
+          assert(!minimal);
           o.price.active = active;
           return true;
         },
@@ -481,7 +530,7 @@ for (const mode of [
         if (s === "check completed\n") {
           completed++;
           setImmediate(() =>
-            input.write(completed === STEPS.length ? "finish\n" : "next\n"),
+            input.write(completed === steps.length ? "finish\n" : "next\n"),
           );
         }
       });
@@ -509,8 +558,26 @@ for (const mode of [
       assert(revoke);
       assert(!active);
       assert(!fs.existsSync(file));
-      assert.equal(o.price.active, false);
+      assert.equal(o.price.active, minimal);
       assert.equal(o.portal.active, false);
+      if (minimal) {
+        assert.equal(settingWrites.length, 0);
+        assert.equal(o.clock, undefined);
+        assert(
+          t.calls.every(
+            (c) =>
+              !c.p.includes("test_clocks") && !c.p.includes("payment_methods"),
+          ),
+        );
+        assert.equal(o.portal.features.subscription_cancel.enabled, false);
+        assert.equal(o.portal.features.payment_method_update.enabled, false);
+        assert(
+          t.calls.filter(
+            (c) =>
+              c.method === "DELETE" && c.p.startsWith("/v1/subscriptions/"),
+          ).length <= 1,
+        );
+      }
       if (mode === "unsafe-invoice")
         assert.equal(
           settingWrites.filter((x) => x.phase === "restore").length,
@@ -520,10 +587,10 @@ for (const mode of [
       assert(advances <= 5);
       assert.equal(await t.protectedState(), t.original);
       if (mode === "normal") {
-        assert.equal(advances, 5);
-        assert.equal(o.invoices.length, 4);
-        assert.equal(completed, 10);
-        assert(screenCount >= 6);
+        assert.equal(advances, minimal ? 0 : 5);
+        assert.equal(o.invoices.length, minimal ? 1 : 4);
+        assert.equal(completed, steps.length);
+        assert(screenCount >= (minimal ? 5 : 6));
       }
     } finally {
       if (!realTTY) {

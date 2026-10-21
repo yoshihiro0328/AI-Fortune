@@ -57,3 +57,9 @@ Stripe商品自体は現在 `active=true`。対象価格はテスト用・月額
 
 - [Stripe: Manage products and prices](https://docs.stripe.com/products-prices/manage-prices) — `active=false` は新規利用停止。既存契約の終了とは別。
 - [Stripe: Automate payment retries](https://docs.stripe.com/billing/revenue-recovery/smart-retries) — Smart Retriesを外してもカスタム再試行を設定できる。SmartのみOFFと全自動再試行OFFは区別する。
+
+## 終了条件差分の承認・適用（2026-10-21）
+
+本人の追加指示により、直前の停止試行の終了条件差分を承認済みとして適用した。Stripe価格は元のactive=true、DB価格active=falseを維持し、3キーは「Workによる画面上の失効確認済み・API確認未実施」の証跡で**この停止試行の後片付け完了**とする。外部操作は追加していない。旧completionの失敗・未確認記録は上書きせず、この承認記録を追記する。API確認を実施したことにはしない。
+
+次の試行は `phase6-plus-minimal-20261021.md` に従う。Clock・意図的失敗・再契約・再試行設定変更は対象外。前段の「未承認」「再開禁止」は上記承認で解消されたが、旧拡大シナリオを再開する許可ではない。

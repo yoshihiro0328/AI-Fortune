@@ -1,6 +1,7 @@
 import { check, sha, TARGET } from "./policy.mjs";
 import { setTimeout as delay } from "node:timers/promises";
 import { API_VERSION } from "./listener.mjs";
+import { minimal, MINIMAL_LIMITS } from "./minimal-profile.mjs";
 import { LIMITS } from "./journal.mjs";
 // Scoped provisioning and closure; never accepts caller-supplied endpoints or SQL.
 // m contains planned new C/D UUIDs and the retained fixture manifest, not credentials.
@@ -14,9 +15,13 @@ export function providerOperations({
   attemptId,
   clockApproval,
 }) {
+  const isMinimal = minimal(m);
+  const limits = isMinimal ? MINIMAL_LIMITS : LIMITS;
+  const contractLimit = isMinimal ? 1 : 2;
+  const invoiceLimit = isMinimal ? 1 : 4;
   check(m.apiVersion === API_VERSION, "API_VERSION_MISMATCH");
   check(
-    Number.isSafeInteger(m.frozenTime) && m.frozenTime > 0,
+    isMinimal || (Number.isSafeInteger(m.frozenTime) && m.frozenTime > 0),
     "CLOCK_TIME_REQUIRED",
   );
   check(
@@ -39,15 +44,25 @@ export function providerOperations({
     check(/^[A-Za-z0-9_-]+$/.test(value));
   // Supplied from the retained Stripe catalog, independently of DB availability.
   const initialStripePriceActive = m.stripePriceInitiallyActive ?? false;
-  check(typeof initialStripePriceActive === "boolean", "PRICE_BASELINE_REQUIRED");
+  check(
+    typeof initialStripePriceActive === "boolean",
+    "PRICE_BASELINE_REQUIRED",
+  );
   check(
     Object.keys(m.retained).sort().join(",") ===
       "diagnoses,diagnosis_answers,free_reports,paid_reports,payments",
   );
   for (const id of Object.values(m.retained)) check(/^[a-f0-9-]{36}$/.test(id));
-  const advanceLimit = clockApproval?.limit ?? LIMITS.advanceClock;
   check(
-    advanceLimit === 3 ||
+    !isMinimal || (initialStripePriceActive === true && clockApproval == null),
+    "MINIMAL_BASELINE_REQUIRED",
+  );
+  const advanceLimit = isMinimal
+    ? 0
+    : (clockApproval?.limit ?? LIMITS.advanceClock);
+  check(
+    (isMinimal && advanceLimit === 0) ||
+      advanceLimit === 3 ||
       (advanceLimit === 5 &&
         clockApproval?.explicit === true &&
         typeof clockApproval.reference === "string" &&
@@ -74,6 +89,7 @@ export function providerOperations({
     unknown: [],
     stopped: false,
   };
+  let priceBefore;
   let seq = 0,
     baseline,
     checked = false,
@@ -127,7 +143,7 @@ export function providerOperations({
     operation,
     scope,
     fn,
-    { cleanup = false, limit = LIMITS[operation] ?? 1 } = {},
+    { cleanup = false, limit = limits[operation] ?? 1 } = {},
   ) {
     check(cleanup || (!state.stopped && !signal?.aborted), "STOPPED");
     const key = `${cleanup ? "cleanup:" : ""}${operation}:${scope}`;
@@ -270,7 +286,7 @@ export function providerOperations({
               : null;
       if (operation) {
         const n = (runtimeCounts.get(operation) ?? 0) + 1;
-        check(n <= LIMITS[operation], "OPERATION_LIMIT");
+        check(n <= limits[operation], "OPERATION_LIMIT");
         runtimeCounts.set(operation, n);
       }
       state.reservations.push("runtime:" + key + ":" + number);
@@ -282,9 +298,10 @@ export function providerOperations({
       persist();
     },
     async compatibilityPortal() {
+      check(!isMinimal, "MINIMAL_OPERATION_DENIED");
       check(state.customer && state.portal && !state.stopped);
       const n = (runtimeCounts.get("portal") ?? 0) + 1;
-      check(n <= LIMITS.portal, "OPERATION_LIMIT");
+      check(n <= limits.portal, "OPERATION_LIMIT");
       runtimeCounts.set("portal", n);
       return change("compatibilityPortal", state.customer, async () => {
         const p = await stripe(
@@ -371,6 +388,7 @@ export function providerOperations({
         "PRICE_MISMATCH",
       );
       check(save("stripe-price-before.enc", p).verified);
+      priceBefore = p;
       baseline = observed;
       check(save("baseline.enc", baseline).verified);
       checked = true;
@@ -406,28 +424,29 @@ export function providerOperations({
           state.users.push(u.id);
         });
       }
-      await change("createClock", m.run, async () => {
-        const c = await stripe(
-          "POST",
-          "/v1/test_helpers/test_clocks",
-          { frozen_time: m.frozenTime, name: "yorisoi-plus-" + m.run },
-          "create_clock",
-        );
-        check(
-          /^clock_[A-Za-z0-9_]+$/.test(c.id) &&
-            c.livemode === false &&
-            c.status === "ready" &&
-            c.frozen_time === m.frozenTime,
-          "CLOCK_RESPONSE_MISMATCH",
-        );
-        state.clock = c.id;
-      });
+      if (!isMinimal)
+        await change("createClock", m.run, async () => {
+          const c = await stripe(
+            "POST",
+            "/v1/test_helpers/test_clocks",
+            { frozen_time: m.frozenTime, name: "yorisoi-plus-" + m.run },
+            "create_clock",
+          );
+          check(
+            /^clock_[A-Za-z0-9_]+$/.test(c.id) &&
+              c.livemode === false &&
+              c.status === "ready" &&
+              c.frozen_time === m.frozenTime,
+            "CLOCK_RESPONSE_MISMATCH",
+          );
+          state.clock = c.id;
+        });
       await change("createCustomer", m.c.id, async () => {
         const c = await stripe(
           "POST",
           "/v1/customers",
           {
-            test_clock: state.clock,
+            ...(!isMinimal ? { test_clock: state.clock } : {}),
             metadata: { run: m.run, user_id: m.c.id },
           },
           "create_customer",
@@ -447,9 +466,11 @@ export function providerOperations({
             features: {
               subscription_update: { enabled: false },
               customer_update: { enabled: false },
-              subscription_cancel: { enabled: true, mode: "at_period_end" },
+              subscription_cancel: isMinimal
+                ? { enabled: false }
+                : { enabled: true, mode: "at_period_end" },
               invoice_history: { enabled: true },
-              payment_method_update: { enabled: true },
+              payment_method_update: { enabled: !isMinimal },
             },
           },
           "create_portal_configuration",
@@ -532,7 +553,9 @@ export function providerOperations({
       check(
         /^cs_test_[A-Za-z0-9_]+$/.test(id) && !state.stopped && state.customer,
       );
-      check(state.checkouts.includes(id) || state.checkouts.length < 2);
+      check(
+        state.checkouts.includes(id) || state.checkouts.length < contractLimit,
+      );
       const c = await get(
         "stripe",
         "/v1/checkout/sessions/" + id,
@@ -559,7 +582,7 @@ export function providerOperations({
         check(
           /^sub_[A-Za-z0-9_]+$/.test(sid) &&
             (state.subscriptions.includes(sid) ||
-              state.subscriptions.length < 2),
+              state.subscriptions.length < contractLimit),
         );
         const s = await get(
           "stripe",
@@ -604,7 +627,7 @@ export function providerOperations({
         );
         invoiceIds.add(i.id);
       }
-      check(invoiceIds.size <= 4, "INVOICE_LIMIT");
+      check(invoiceIds.size <= invoiceLimit, "INVOICE_LIMIT");
       check(
         save(`invoice-observation-${String(++seq).padStart(4, "0")}.enc`, {
           subscription,
@@ -614,6 +637,7 @@ export function providerOperations({
       return { subscription, invoices: invoices.data };
     },
     async advanceClock(target) {
+      check(!isMinimal, "MINIMAL_OPERATION_DENIED");
       check(
         checked &&
           state.clock &&
@@ -669,6 +693,7 @@ export function providerOperations({
       });
     },
     async paymentMethod(id, failing) {
+      check(!isMinimal, "MINIMAL_OPERATION_DENIED");
       check(
         state.subscriptions.includes(id) &&
           typeof failing === "boolean" &&
@@ -823,7 +848,7 @@ export function providerOperations({
                 : c.subscription.id;
             check(/^sub_[A-Za-z0-9_]+$/.test(sid));
             if (!state.subscriptions.includes(sid)) {
-              check(state.subscriptions.length < 2);
+              check(state.subscriptions.length < contractLimit);
               state.subscriptions.push(sid);
               persist();
             }
@@ -916,7 +941,7 @@ export function providerOperations({
               "CLEANUP_INVOICE_MISMATCH",
             );
             invoiceIds.add(i.id);
-            check(invoiceIds.size <= 4, "INVOICE_LIMIT");
+            check(invoiceIds.size <= invoiceLimit, "INVOICE_LIMIT");
             check(
               ["paid", "void", "uncollectible"].includes(i.status) ||
                 (["open", "draft"].includes(i.status) &&
@@ -943,6 +968,11 @@ export function providerOperations({
           true,
         );
         check(p.id === m.price && p.livemode === false);
+        if (isMinimal) {
+          check(sha(p) === sha(priceBefore), "CATALOG_CHANGED");
+          check(save("stripe-price-after.enc", p).verified);
+          return;
+        }
         if (p.active)
           await change(
             "deactivateStripePrice",

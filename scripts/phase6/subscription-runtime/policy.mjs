@@ -48,7 +48,9 @@ export function validate(m) {
     ["product", "prod_"],
     ["portal", "bpc_"],
   ])
-    check(m[k]?.startsWith(p));
+    if (k === "clock" && m.scenario === "minimal-plus-v1")
+      check(m.clock === null);
+    else check(m[k]?.startsWith(p));
   check(
     m.version &&
       !m.version.includes("plus-2026-10-980") &&
@@ -71,6 +73,9 @@ export class Policy {
   constructor(m, reserve = () => {}) {
     validate(m);
     this.m = m;
+    this.minimal = m.scenario === "minimal-plus-v1";
+    this.contractLimit = this.minimal ? 1 : 2;
+    this.invoiceLimit = this.minimal ? 1 : 4;
     this.reserve = reserve;
     this.stopped = false;
     this.counts = new Map();
@@ -172,7 +177,7 @@ export class Policy {
               s.price_version === m.version,
           );
           check(
-            b.p_invoices.length <= 4 &&
+            b.p_invoices.length <= this.invoiceLimit &&
               b.p_invoices.every(
                 (i) =>
                   i.user_id === m.c.id &&
@@ -259,7 +264,7 @@ export class Policy {
             b.anonymous_session_id === sessionHash(m, m.c.cookie) &&
             Object.keys(b.metadata).length === 0,
         );
-        this.once("analytics", 2);
+        this.once("analytics", this.contractLimit);
         return { kind: "analytics" };
       }
       check(false);
@@ -336,7 +341,7 @@ export class Policy {
           ].includes(k),
         ),
       );
-      this.once("checkout", 2);
+      this.once("checkout", this.contractLimit);
       return { kind: "checkout" };
     }
     if (path === "/v1/billing_portal/sessions" && r.method === "POST") {
@@ -346,7 +351,7 @@ export class Policy {
           b.get("configuration") === m.portal &&
           b.get("return_url") === TARGET.app + "/account",
       );
-      this.once("portal", 2);
+      this.once("portal", this.minimal ? 1 : 2);
       return { kind: "portal" };
     }
     if (
@@ -354,7 +359,9 @@ export class Policy {
       [...this.ids].some((id) => path === "/v1/subscriptions/" + id)
     ) {
       check(
-        m.synthetic === true && m.portalOnlyCancellation !== true,
+        !this.minimal &&
+          m.synthetic === true &&
+          m.portalOnlyCancellation !== true,
         "PERIOD_END_CANCEL_PORTAL_ONLY",
       );
       check(b.size === 1 && b.get("cancel_at_period_end") === "true");
@@ -400,10 +407,12 @@ export class Policy {
           d.active &&
           d.features?.subscription_update?.enabled === false &&
           d.features?.customer_update?.enabled === false &&
-          d.features?.subscription_cancel?.enabled === true &&
-          d.features.subscription_cancel.mode === "at_period_end" &&
+          (this.minimal
+            ? d.features?.subscription_cancel?.enabled === false
+            : d.features?.subscription_cancel?.enabled === true &&
+              d.features.subscription_cancel.mode === "at_period_end") &&
           d.features?.invoice_history?.enabled === true &&
-          d.features?.payment_method_update?.enabled === true,
+          d.features?.payment_method_update?.enabled === !this.minimal,
       );
     if (["subscription", "subscriptions"].includes(t.kind))
       for (const s of t.kind === "subscriptions" ? d.data : [d]) {
@@ -415,13 +424,13 @@ export class Policy {
             s.items.data[0].price.id === m.price,
         );
         this.ids.add(s.id);
-        check(this.ids.size <= 2);
+        check(this.ids.size <= this.contractLimit);
       }
     if (t.kind === "subscriptions") check(d.has_more === false);
     if (t.kind === "invoices") {
       check(
         !d.has_more &&
-          d.data.length <= 4 &&
+          d.data.length <= this.invoiceLimit &&
           d.data.every(
             (i) =>
               typeof i.id === "string" &&
@@ -435,7 +444,7 @@ export class Policy {
         ...this.invoiceIds,
         ...d.data.map((i) => i.id),
       ]);
-      check(observed.size <= 4, "INVOICE_LIMIT");
+      check(observed.size <= this.invoiceLimit, "INVOICE_LIMIT");
       this.invoiceIds = observed;
     }
     if (["checkout", "checkoutRead"].includes(t.kind)) {
@@ -478,7 +487,7 @@ export class Policy {
         : o.subscription;
     check(typeof id === "string" && id.startsWith("sub_"));
     this.ids.add(id);
-    check(this.ids.size <= 2);
+    check(this.ids.size <= this.contractLimit);
     const prev = this.events.get(e.id);
     check(!prev || prev.hash === sha(raw));
     const n = (prev?.count || 0) + 1;

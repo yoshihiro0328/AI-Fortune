@@ -9,6 +9,7 @@ import { operatorBridge } from "./operator-bridge.mjs";
 import { billingSettings } from "./billing-settings.mjs";
 import { sessionEvidence } from "./evidence.mjs";
 import { scenario } from "./scenario.mjs";
+import { minimal } from "./minimal-profile.mjs";
 import { revokeAndVerify } from "./revocation.mjs";
 // Programmatic entry for the existing private local receiver / same interactive TTY.
 // Importing this file never reads a secret or opens a connection. No CLI/env fallback.
@@ -54,18 +55,29 @@ export function createProviderRun({
       check(
         store.save("private-plan.enc", privateInput(planFile, root)).verified,
       );
-    const wire = providerWire({ secrets: received, record });
+    const wire = providerWire({
+      secrets: received,
+      record,
+      minimal: minimal(m),
+    });
     let operator, billing, evidence;
     if (!execute) {
       operator = operatorBridge(root);
-      billing = billingSettings({
-        read: (signal) => operator.request("billing-read", {}, signal),
-        write: (data, signal) =>
-          operator.request("billing-write", data, signal),
-        save: store.save,
-      });
+      if (!minimal(m))
+        billing = billingSettings({
+          read: (signal) => operator.request("billing-read", {}, signal),
+          write: (data, signal) =>
+            operator.request("billing-write", data, signal),
+          save: store.save,
+        });
       evidence = sessionEvidence({ m, wire, save: store.save });
-      execute = scenario({ wire, evidence, operator, save: store.save });
+      execute = scenario({
+        wire,
+        evidence,
+        operator,
+        save: store.save,
+        minimal: minimal(m),
+      });
       human = {
         price: async (active, signal) =>
           (await operator.request("price", { id: m.price, active }, signal)) ===
