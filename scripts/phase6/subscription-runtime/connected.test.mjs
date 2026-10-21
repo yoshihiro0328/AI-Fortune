@@ -16,6 +16,8 @@ import { connectedBrowser } from "./connected-browser.mjs";
 const macBrowser = process.env.PLUS_CONNECTED_BROWSER === "1";
 const realTTY = process.env.PLUS_CONNECTED_TTY === "1";
 import { TARGET } from "./policy.mjs";
+import { receiverSession, SECRET_WINDOW_MS } from "./receiver-session.mjs";
+import { assembleHandoff } from "./private-handoff.mjs";
 
 // Actual HTTP sender + encrypted journal + migrated PostgreSQL/RLS + signed local
 // broker + production scenario/supervisor. Auth, Stripe engine and UI are substitutes.
@@ -332,8 +334,48 @@ for (const mode of [
       },
       { commands: executeCore.commands },
     );
-    const file = path.join(t.root, "input.json");
-    fs.writeFileSync(file, '{"synthetic":true}', { mode: 0o600 });
+    let receptionTime = Date.now();
+    const receiver = await receiverSession({
+      directory: t.root,
+      now: () => receptionTime,
+    });
+    let file;
+    try {
+      receptionTime += 7 * 24 * 60 * 60 * 1000;
+      assert.equal(
+        (await receiver.beforeCreate()).remainingMs,
+        SECRET_WINDOW_MS,
+      );
+      const form = await (await fetch(receiver.url)).text();
+      const csrf = form.match(/name="csrf" value="([^"]+)"/)[1];
+      fs.writeFileSync(
+        path.join(t.root, "base-credentials.json"),
+        JSON.stringify({
+          anon: "synthetic",
+          service: "synthetic",
+          cPassword: "synthetic-password-C",
+          dPassword: "synthetic-password-D",
+          vaultKey: Buffer.alloc(32, 1).toString("base64"),
+        }),
+        { mode: 0o600 },
+      );
+      const submitted = await fetch(receiver.url, {
+        method: "POST",
+        headers: { Origin: new URL(receiver.url).origin },
+        body: new URLSearchParams({
+          csrf,
+          listener: "rk_test_" + "a".repeat(32),
+          app: "rk_test_" + "b".repeat(32),
+          lifecycle: "rk_test_" + "c".repeat(32),
+        }),
+      });
+      assert.equal(submitted.status, 200);
+      await submitted.body.cancel();
+      await receiver.handoff();
+      file = assembleHandoff(t.root);
+    } finally {
+      await receiver.close("test_finished");
+    }
     let revoke = false;
     run = supervisor({
       m,

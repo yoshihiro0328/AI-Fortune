@@ -6,13 +6,28 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { chromium } from "@playwright/test";
-import { keyReceiver } from "./key-receiver.mjs";
+import { receiverSession, SECRET_WINDOW_MS } from "./receiver-session.mjs";
+import { assembleHandoff } from "./private-handoff.mjs";
 
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), "plus-form-browser-"));
 fs.chmodSync(directory, 0o700);
 let receiver, browser;
 try {
-  receiver = await keyReceiver({ directory });
+  let time = Date.now();
+  receiver = await receiverSession({ directory, now: () => time });
+  time += 7 * 24 * 60 * 60 * 1000;
+  assert.equal((await receiver.beforeCreate()).remainingMs, SECRET_WINDOW_MS);
+  fs.writeFileSync(
+    path.join(directory, "base-credentials.json"),
+    JSON.stringify({
+      anon: "synthetic",
+      service: "synthetic",
+      cPassword: "synthetic-c",
+      dPassword: "synthetic-d",
+      vaultKey: Buffer.alloc(32, 1).toString("base64"),
+    }),
+    { mode: 0o600 },
+  );
   const origin = new URL(receiver.url).origin;
   const port = new URL(receiver.url).port;
   let executablePath;
@@ -68,7 +83,9 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
   await page
     .getByRole("heading", { name: "安全に受け取りました", exact: true })
     .waitFor();
-  assert.deepEqual(receiver.status(), { received: true, failed: false });
+  assert.equal(receiver.status().received, true);
+  assert.equal(receiver.status().failed, false);
+  assert.equal(receiver.status().remainingMs, SECRET_WINDOW_MS);
   assert.deepEqual(
     JSON.parse(fs.readFileSync(path.join(directory, "stripe-keys.json"))),
     values,
@@ -76,11 +93,15 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
   await page.reload();
   assert.equal(await page.locator("input").count(), 0);
   assert.equal(blocked, 0, "form must need no external resources");
+  await receiver.handoff();
+  const assembled = assembleHandoff(directory);
+  assert.equal(Object.keys(JSON.parse(fs.readFileSync(assembled))).length, 8);
+  assert(!fs.existsSync(path.join(directory, "stripe-keys.json")));
   console.log(
-    "PASS: synthetic native browser form, same-origin POST, private save, safe reload",
+    "PASS: synthetic owner wait, live probe, native form, private handoff ready for startup",
   );
 } finally {
   await browser?.close();
-  await receiver?.close();
+  await receiver?.close("test_finished");
   fs.rmSync(directory, { recursive: true, force: true });
 }

@@ -16,6 +16,10 @@ plan.jsonもCookie・セッション用情報を含み得る一時入力とし�
 
 既存のキー受信用フォームを使う場合、Workが先にbase-credentials.json（anon / service / cPassword / dPassword / vaultKeyのみ）を0600で準備する。入口は受信済みstripe-keys.jsonと結合し、credentials.jsonを上書きせず作成して読み返した後、元の2ファイルを削除する。標準キー・同一キーの使い回し・前回入力の上書きを拒否する。受信ページの内容や値をWorkのツール出力に取得しない。
 
+確認待ちの入口は `receive-approved.mjs <専用ディレクトリ>`。秘密未送信の所有者確認待ちにはタイマーを置かず、最初の正規OriginのPOSTが到着した時点から2時間の受渡し期限を開始する。無効な入力も期限を開始し、訂正・再送では延長しない。キー作成直前は同じTTYでprepareを送り、受信先への実GET成功と残り30分以上を確認する。statusも秘密値を含まない。受信後handoffは残り30分未満なら拒否し、安全停止・一時入力削除を行う。EOF・中断・停止・期限切れの削除条件は従来どおり。終了したディレクトリは再利用しない。
+
+受信プロセスがhandoffで正常終了した場合だけ、同じTTYの起動処理がrun-approved.mjsへ置換する。起動入口でもreceipt-window.jsonとreceiver-closed.jsonを読み、受渡し完了と残り30分以上を再確認する。確認失敗は再起動せず一時入力を削除する。試験本体の20分上限は受信待ちと別に開始し、延長しない。
+
 exec_commandのtty=true / login=trueで `node scripts/phase6/subscription-runtime/run-approved.mjs <専用ディレクトリ>` を起動する。同じsession_idを最後まで使う。ready後にstatusを実行してアプリ・CLI・中継の生存を確認する。nextを1回ずつ送り、各段階の結果を待つ。10段階の後にfinish。通常の停止はstop。EOF・タイムアウト・プロセス異常・結果不明は停止し、別セッションから同じ試行を自動再開しない。
 
 ## Workへの連絡経路
@@ -64,3 +68,5 @@ Linux CIではブラウザーを代替し、実送信先はloopbackのみ。Mac�
 キー受信フォームは `npm run test:subscription-key-form` で、別途、専用ブラウザーから合成値を実際に入力・送信する。実キー・利用者のブラウザープロファイル・画面取得は使わない。Linux CIでもこのフォーム検証はChromiumで実施し、契約シナリオ全体のブラウザー検証とは区別する。Macローカルではフォームのloopbackポート以外への通信をOSで禁止する。各ブラウザーのページ通信も対象originに限定する。
 
 受信フォームのReferrer-Policyはsame-originとする。no-referrerではブラウザーがフォームPOSTのOriginをnullにし、正規送信も403になることを合成値で再現した。Originの一致必須・null/欠落の拒否・CSRF照合・保存先の排他作成は緩めない。HTTPクライアントがOriginを手動指定するテストだけでは、この不具合は検出できない。拒否を実キーで繰り返さず、受信状況を確認して安全停止し、一時入力を削除する。同じ試行を別セッションから自動再開しない。
+
+確認待ちの回帰検証は7日経過を合成時計で再現し、実ローカルGET、ネイティブフォーム送信、受渡し入力の結合を通す。connected.test.mjsはこの受渡しから既存の模擬HTTP・隔離DBシナリオの起動、正常・失敗・中断・終了まで接続する。CIの既存subscription-scripts対象に新しい期限・中断テストも自動で含まれる。これは実Stripeキー発行や実通知配送の検証ではない。

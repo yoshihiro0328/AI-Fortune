@@ -6,7 +6,7 @@ import { check } from "./policy.mjs";
 
 // Only the human opens this page. Never inspect its DOM, screenshots, clipboard,
 // or request bodies. This loopback receiver makes no outbound requests.
-export async function keyReceiver({ directory }) {
+export async function keyReceiver({ directory, onSubmission = () => {} }) {
   const st = fs.lstatSync(directory);
   check(st.isDirectory() && !st.isSymbolicLink() &&
     st.uid === process.getuid() && !(st.mode & 0o077), "PRIVATE_DIRECTORY_REQUIRED");
@@ -14,7 +14,7 @@ export async function keyReceiver({ directory }) {
   check(!fs.existsSync(target), "RECEIVER_ALREADY_USED");
   const route = "/" + randomBytes(32).toString("base64url");
   const csrf = randomBytes(32).toString("base64url");
-  let received = false, busy = false, failed = false;
+  let received = false, busy = false, failed = false, closed = false;
   let origin;
   const page = `<!doctype html><html lang="ja"><meta charset="utf-8">
 <title>Plus検証：3用途のキーの安全な受渡し</title>
@@ -44,7 +44,7 @@ export async function keyReceiver({ directory }) {
     };
     if (req.headers.host !== origin.slice(7) || req.url !== route)
       return reply(404, "Not found");
-    if (failed) return reply(503, "受渡し処理を停止しました。再送しないでください。");
+    if (closed || failed) return reply(503, "受渡し処理を停止しました。再送しないでください。");
     if (req.method === "GET")
       return reply(200, received ? "<h1>安全に受け取りました</h1><p>再入力は不要です。</p>" : page);
     if (req.method !== "POST") return reply(405, "Method not allowed");
@@ -54,6 +54,7 @@ export async function keyReceiver({ directory }) {
     if (received || busy) return reply(409, "既に受取処理済みです。再送しないでください。");
     busy = true;
     try {
+      try { onSubmission(); } catch { failed = true; throw Error("RECEIVER_WINDOW_FAILED"); }
       const length = Number(req.headers["content-length"]);
       check(Number.isInteger(length) && length > 0 && length < 8192);
       const chunks = [];
@@ -71,6 +72,7 @@ export async function keyReceiver({ directory }) {
       const keys = Object.fromEntries(["listener", "app", "lifecycle"].map(k => [k, form.get(k)]));
       check(Object.values(keys).every(v => /^rk_test_[A-Za-z0-9]{24,500}$/.test(v)));
       check(new Set(Object.values(keys)).size === 3);
+      check(!closed, "RECEIVER_CLOSED");
       const fd = fs.openSync(target, "wx", 0o600);
       try {
         fs.writeFileSync(fd, JSON.stringify(keys));
@@ -102,6 +104,7 @@ export async function keyReceiver({ directory }) {
     url: origin + route,
     status: () => ({ received, failed }),
     close: async () => {
+      closed = true;
       server.closeAllConnections();
       await new Promise(resolve => server.close(resolve));
     },
