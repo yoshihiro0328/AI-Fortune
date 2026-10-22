@@ -52,9 +52,16 @@ export async function startRuntime({
   webhookSecret,
   reserve,
   evidence,
+  authOnly = false,
+  browserState,
 }) {
   check(
-    m.synthetic === true || /^whsec_[A-Za-z0-9]+$/.test(webhookSecret || ""),
+    (authOnly &&
+      m.scenario === "minimal-plus-v1" &&
+      m.resume &&
+      !webhookSecret) ||
+      m.synthetic === true ||
+      /^whsec_[A-Za-z0-9]+$/.test(webhookSecret || ""),
     "LISTENER_SECRET_REQUIRED",
   );
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "plus-runtime-"));
@@ -65,7 +72,17 @@ export async function startRuntime({
   const token = randomBytes(32).toString("hex"),
     forward = randomBytes(32).toString("hex"),
     secret = webhookSecret || "whsec_" + randomBytes(32).toString("hex"),
-    policy = new Policy(m, reserve);
+    policy = browserState?.policy ?? new Policy(m, reserve);
+  if (browserState)
+    check(
+      browserState.policy.m === m &&
+        !policy.stopped &&
+        /^plus-[a-f0-9]{32}--$/.test(browserState.cookieNamespace),
+      "BROWSER_CONTINUITY_REQUIRED",
+    );
+  const cookieNamespace =
+    browserState?.cookieNamespace ??
+    `plus-${randomBytes(16).toString("hex")}--`;
   policy.signedEvent = (e, raw) => policy.signed(e, raw);
   const authorize = policy.authorize.bind(policy);
   policy.authorize = (r) => {
@@ -95,7 +112,13 @@ export async function startRuntime({
       policy,
       token,
       port: 5219,
-      transport,
+      transport: (r) => {
+        check(
+          !authOnly || new URL(r.url).origin === TARGET.supabase,
+          "PREKEY_STRIPE_DENIED",
+        );
+        return transport(r);
+      },
       webhookSecret: () => secret,
       forwardToken: forward,
       onStop: stop,
@@ -133,7 +156,11 @@ export async function startRuntime({
       ],
       {
         cwd: appDir,
-        env: environment(m, token, forward, secret),
+        env: {
+          ...environment(m, token, forward, secret),
+          SUBSCRIPTION_AUTH_ONLY: String(authOnly),
+          SUBSCRIPTION_BROWSER_COOKIE_NAMESPACE: cookieNamespace,
+        },
         detached: true,
         stdio: ["ignore", "ignore", "ignore", "ipc"],
       },
@@ -150,6 +177,7 @@ export async function startRuntime({
       privateDir,
       app,
       policy,
+      browserState: { policy, cookieNamespace },
       evidence,
       secret,
       token,
@@ -159,9 +187,13 @@ export async function startRuntime({
         app.exitCode === null &&
         app.signalCode === null &&
         broker.server.listening,
-      async stop() {
+      async stop({ continueAuthenticated = false } = {}) {
+        check(
+          !continueAuthenticated || (authOnly && !failure && !policy.stopped),
+          "AUTH_CONTINUITY_ONLY",
+        );
         closing = true;
-        policy.stopped = true;
+        if (!continueAuthenticated) policy.stopped = true;
         const stopped = await Promise.allSettled([
           stopChild(app),
           broker.stop(),
@@ -172,6 +204,9 @@ export async function startRuntime({
             stopped.every((x) => x.status === "fulfilled") &&
             (app.exitCode !== null || app.signalCode !== null),
         );
+        // A successful, planned auth-only shutdown may transfer the same counters
+        // and session identities. A failed/stopped runtime cannot be resumed.
+        if (continueAuthenticated) policy.stopped = false;
       },
       failure: () => failure,
     };

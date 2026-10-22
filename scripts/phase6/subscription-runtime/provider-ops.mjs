@@ -1,4 +1,5 @@
 import { check, sha, TARGET } from "./policy.mjs";
+import { validTestPassword } from "./test-password.mjs";
 import { setTimeout as delay } from "node:timers/promises";
 import { API_VERSION } from "./listener.mjs";
 import { minimal, MINIMAL_LIMITS } from "./minimal-profile.mjs";
@@ -289,6 +290,38 @@ export function providerOperations({
     }
     return out;
   }
+  let authPrepared = false;
+  const resetPasswords = async (passwords) => {
+    check(
+      [passwords?.c, passwords?.d].every(validTestPassword),
+      "PASSWORD_CLASSES_REQUIRED",
+    );
+    for (const [label, user] of [
+      ["c", m.c],
+      ["d", m.d],
+    ]) {
+      check(
+        typeof passwords[label] === "string" && passwords[label].length >= 12,
+      );
+      await change("resetDedicatedPasswords", user.id, async () => {
+        const raw = await db(
+          "PUT",
+          "/auth/v1/admin/users/" + user.id,
+          { password: passwords[label] },
+          "reset_retained_password",
+        );
+        const u = raw.user ?? raw;
+        check(
+          u.id === user.id &&
+            u.email === user.email &&
+            u.email_confirmed_at &&
+            u.app_metadata?.integration_run === m.run,
+          "RETAINED_USER_MISMATCH",
+        );
+      });
+    }
+    authPrepared = true;
+  };
   const api = {
     state: snapshot,
     observe: observation,
@@ -347,6 +380,64 @@ export function providerOperations({
         return { url: p.url }; // One-time navigation returned only to the browser, never to the audit log.
       });
     },
+    async prepareAuthentication(expected, passwords) {
+      check(resume && !authPrepared && !checked, "PREKEY_AUTH_STATE");
+      const observed = await observation();
+      check(expected && sha(observed) === sha(expected), "BASELINE_MISMATCH");
+      check(
+        observed.payment_environment.length === 1 &&
+          observed.payment_environment[0].stripe_account_id ===
+            TARGET.account &&
+          observed.payment_environment[0].mode === "sandbox" &&
+          observed.price_versions.every((p) => p.active === false),
+        "PREKEY_TARGET_MISMATCH",
+      );
+      for (const user of [m.c, m.d]) {
+        const raw = await get(
+          "supabase",
+          "/auth/v1/admin/users/" + user.id,
+          "identify_retained_user",
+        );
+        const u = raw.user ?? raw;
+        check(
+          u.id === user.id &&
+            u.email === user.email &&
+            u.email_confirmed_at &&
+            u.app_metadata?.integration_run === m.run,
+          "RETAINED_USER_MISMATCH",
+        );
+        for (const table of [
+          "profiles",
+          "diagnoses",
+          "payments",
+          "subscriptions",
+          "subscription_invoices",
+        ]) {
+          const rows = await get(
+            "supabase",
+            `/rest/v1/${table}?select=user_id&user_id=eq.${user.id}`,
+            "prekey_user_empty",
+          );
+          check(rows.length === 0, "RETAINED_USER_NOT_EMPTY");
+        }
+        const rows = await get(
+          "supabase",
+          `/rest/v1/billing_customers?select=*&user_id=eq.${user.id}`,
+          "prekey_binding",
+        );
+        check(
+          user.id === m.c.id
+            ? rows.length === 1 &&
+                rows[0].stripe_customer_id === resume.customer &&
+                rows[0].is_test === true &&
+                rows[0].checkout_session_id === null
+            : rows.length === 0,
+          "RETAINED_BINDING_MISMATCH",
+        );
+      }
+      baseline = observed;
+      await resetPasswords(passwords);
+    },
     async inspect(expected) {
       check(!checked && !state.stopped);
       for (const role of ["app", "listener", "lifecycle"])
@@ -391,7 +482,11 @@ export function providerOperations({
           `/rest/v1/profiles?select=user_id&user_id=eq.${user.id}`,
           "planned_user_absent",
         );
-        check(rows.length === 0, "USER_ALREADY_EXISTS");
+        check(
+          rows.length === (authPrepared ? 1 : 0) &&
+            rows.every((r) => r.user_id === user.id),
+          "USER_ALREADY_EXISTS",
+        );
       }
       const p = await get("stripe", "/v1/prices/" + m.price, "identify_price");
       check(
@@ -421,31 +516,7 @@ export function providerOperations({
         state.portal = resume.portal;
         state.binding = true;
         persist();
-        for (const [label, user] of [
-          ["c", m.c],
-          ["d", m.d],
-        ]) {
-          check(
-            typeof passwords[label] === "string" &&
-              passwords[label].length >= 12,
-          );
-          await change("resetDedicatedPasswords", user.id, async () => {
-            const raw = await db(
-              "PUT",
-              "/auth/v1/admin/users/" + user.id,
-              { password: passwords[label] },
-              "reset_retained_password",
-            );
-            const u = raw.user ?? raw;
-            check(
-              u.id === user.id &&
-                u.email === user.email &&
-                u.email_confirmed_at &&
-                u.app_metadata?.integration_run === m.run,
-              "RETAINED_USER_MISMATCH",
-            );
-          });
-        }
+        if (!authPrepared) await resetPasswords(passwords);
         await change("reactivateRetainedPortal", state.portal, async () => {
           const p = await stripe(
             "POST",
@@ -867,6 +938,23 @@ export function providerOperations({
       state.stopped = true;
       persist();
     },
+    async cleanupAuthentication() {
+      state.stopped = true;
+      const observed = await observation();
+      check(
+        baseline && sha(observed) === sha(baseline),
+        "PREKEY_BASELINE_CHANGED",
+      );
+      check(
+        state.checkouts.length === 0 &&
+          state.subscriptions.length === 0 &&
+          !checked,
+        "PREKEY_ONLY_CLOSURE_REQUIRED",
+      );
+      check(save("auth-only-after.enc", observed).verified);
+      persist();
+      return state.unknown.length === 0;
+    },
     async cleanup() {
       state.stopped = true;
       persist();
@@ -1180,6 +1268,7 @@ export function providerOperations({
   };
   for (const name of [
     "inspect",
+    "prepareAuthentication",
     "prepare",
     "bindCheckout",
     "compatibilityPortal",

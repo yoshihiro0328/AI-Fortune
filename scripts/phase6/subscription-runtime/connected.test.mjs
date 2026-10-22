@@ -31,7 +31,17 @@ const cases = [
     (mode) => ({ minimal, resume, mode }),
   ),
 );
-for (const { minimal, resume, mode } of cases) {
+cases.push(
+  ...["normal", "browser-failure", "input-disconnect"].map((mode) => ({
+    minimal: true,
+    resume: true,
+    mode,
+    staged: true,
+  })),
+);
+for (const { minimal, resume, mode, staged = false } of cases) {
+  if (process.env.PLUS_STAGED_ONLY === "1" && (!staged || mode !== "normal"))
+    continue;
   if (process.env.PLUS_RETAINED_ONLY === "1" && (!resume || mode !== "normal"))
     continue;
   if (
@@ -41,6 +51,7 @@ for (const { minimal, resume, mode } of cases) {
     continue;
   const name =
     "connected scenario to closure: " +
+    (staged ? "staged " : "") +
     (resume ? "retained " : "") +
     (minimal ? "minimal " : "") +
     mode;
@@ -458,6 +469,22 @@ for (const { minimal, resume, mode } of cases) {
       temporary: { root: t.root, file },
       execute,
       evidence,
+      ...(staged
+        ? {
+            preKey: async () => {
+              assert.equal(
+                t.calls.filter((c) => c.p.startsWith("/v1/")).length,
+                0,
+              );
+              assert.equal(t.calls.filter((c) => c.method === "PUT").length, 2);
+              assert.equal(
+                t.calls.filter((c) => c.p === "/auth/v1/token").length,
+                2,
+              );
+              assert.equal(screenCount, 1);
+            },
+          }
+        : {}),
       billing: minimal ? undefined : billing,
       clockApproval: minimal
         ? undefined
@@ -495,21 +522,23 @@ for (const { minimal, resume, mode } of cases) {
                 console.log("SYNTHETIC_RUNTIME", x);
             },
           });
-          browser = await connectedBrowser({
-            runtime: realRuntime,
-            m,
-            pay: (n) => newCheckout(n, run.operations, true),
-            cancel: async () => {
-              o.sub_connected_2.cancel_at_period_end = true;
-              await send("customer.subscription.updated", o.sub_connected_2);
-            },
-          });
+          if (browser) browser.attachRuntime(realRuntime);
+          else
+            browser = await connectedBrowser({
+              runtime: realRuntime,
+              m,
+              pay: (n) => newCheckout(n, run.operations, true),
+              cancel: async () => {
+                o.sub_connected_2.cancel_at_period_end = true;
+                await send("customer.subscription.updated", o.sub_connected_2);
+              },
+            });
           return {
             ...realRuntime,
-            stop: async () => {
+            stop: async (options) => {
               active = false;
-              await browser.close();
-              await realRuntime.stop();
+              if (!options?.continueAuthenticated) await browser.close();
+              await realRuntime.stop(options);
             },
           };
         }
@@ -546,7 +575,7 @@ for (const { minimal, resume, mode } of cases) {
         };
       },
     });
-    let completed = 0;
+    let completed = staged ? 1 : 0;
     if (!realTTY)
       output.on("data", (chunk) => {
         const s = String(chunk);

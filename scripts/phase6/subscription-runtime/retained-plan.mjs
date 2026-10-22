@@ -22,7 +22,8 @@ export function retainedPlan({
     "RETAINED_RECORD_MISMATCH",
   );
   check(
-    closure.completion.closure.complete === true &&
+    (closure.completion.closure.complete === true ||
+      resolvedPasswordRejection(closure, priorPlan)) &&
       closure.revocation.apiComplete === true &&
       ["listener", "app", "lifecycle"].every(
         (k) => closure.revocation.api[k] === "revoked",
@@ -98,4 +99,35 @@ export function retainedPlan({
       },
     },
   };
+}
+
+// An additive reconciliation, never rewriting the historical failed closure.
+// Only an explicitly identified, provider-rejected D update can use this path.
+export function resolvedPasswordRejection(closure, priorPlan) {
+  const c = closure.completion.closure,
+    r = closure.reconciliation;
+  return (
+    c.complete === false &&
+    c.unresolvedOperations === 1 &&
+    c.verifyRestoration === "failed_or_unknown" &&
+    [
+      "stopProcesses",
+      "endContracts",
+      "deactivatePrice",
+      "restorePortalBinding",
+      "revokeKeys",
+      "eraseTemporary",
+    ].every((k) => c[k] === "verified") &&
+    r?.sourceAttemptId === priorPlan.attemptId &&
+    r.userId === priorPlan.manifest.d.id &&
+    r.operation === "resetDedicatedPasswords" &&
+    r.httpStatus === 422 &&
+    r.code === "weak_password" &&
+    r.source === "supabase-auth-logs" &&
+    Number.isFinite(Date.parse(r.currentUpdatedAt)) &&
+    Number.isFinite(Date.parse(r.requestWindowStart)) &&
+    Date.parse(r.currentUpdatedAt) < Date.parse(r.requestWindowStart) &&
+    r.noCheckoutOrContract === true &&
+    r.protectedBaselineUnchanged === true
+  );
 }

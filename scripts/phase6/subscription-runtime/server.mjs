@@ -54,6 +54,13 @@ server = http.createServer((req, res) => {
     return res.end();
   }
   const u = new URL(req.url, TARGET.app);
+  if (
+    process.env.SUBSCRIPTION_AUTH_ONLY === "true" &&
+    ["/api/billing", "/api/webhooks/stripe"].includes(u.pathname)
+  ) {
+    res.writeHead(403);
+    return res.end();
+  }
   res.once("finish", () =>
     process.send?.({
       http: { method: req.method, path: u.pathname, status: res.statusCode },

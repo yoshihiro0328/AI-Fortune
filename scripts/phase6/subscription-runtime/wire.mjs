@@ -4,6 +4,9 @@ import { API_VERSION } from "./listener.mjs";
 // The same HTTP encoder/reader is used for providers and loopback tests. No redirects,
 // retries, global environment credentials, arbitrary headers, or URL credentials.
 const errors = new Set([
+  "weak_password",
+  "over_request_rate_limit",
+  "invalid_credentials",
   "permission_missing",
   "api_key_expired",
   "api_key_invalid",

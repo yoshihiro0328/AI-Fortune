@@ -106,7 +106,8 @@ export async function observePreflight(m, read) {
       actual[t + ":" + u.id] = await read(t + "?select=*&user_id=eq." + u.id);
   // Minimal runs provision Auth users only. The application's first login creates
   // each profile through claim_anonymous_diagnoses; verify it after login instead.
-  const profileCount = m.scenario === "minimal-plus-v1" ? 0 : 1;
+  const profileCount =
+    m.scenario === "minimal-plus-v1" && !m.preAuthenticated ? 0 : 1;
   check(
     actual["profiles:" + m.c.id].length === profileCount &&
       actual["profiles:" + m.d.id].length === profileCount,

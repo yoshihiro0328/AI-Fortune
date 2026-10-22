@@ -11,6 +11,7 @@ import { sessionEvidence } from "./evidence.mjs";
 import { scenario } from "./scenario.mjs";
 import { minimal } from "./minimal-profile.mjs";
 import { revokeAndVerify } from "./revocation.mjs";
+import { stagedKeyHandoff } from "./staged-key-handoff.mjs";
 // Programmatic entry for the existing private local receiver / same interactive TTY.
 // Importing this file never reads a secret or opens a connection. No CLI/env fallback.
 export function createProviderRun({
@@ -30,6 +31,7 @@ export function createProviderRun({
   planFile,
   ownerApproval,
   secretDeadline,
+  staged = false,
 }) {
   check(
     input.isTTY === true && !input.destroyed && !input.readableEnded,
@@ -40,7 +42,9 @@ export function createProviderRun({
   try {
     check(
       Object.keys(received).sort().join(",") ===
-        "anon,app,cPassword,dPassword,lifecycle,listener,service,vaultKey",
+        (staged
+          ? "anon,cPassword,dPassword,service,vaultKey"
+          : "anon,app,cPassword,dPassword,lifecycle,listener,service,vaultKey"),
     );
     check(m.apiVersion === API_VERSION);
     key = Buffer.from(received.vaultKey, "base64");
@@ -57,9 +61,14 @@ export function createProviderRun({
       check(
         store.save("private-plan.enc", privateInput(planFile, root)).verified,
       );
+    let wireSequence = 0;
     const wire = providerWire({
       secrets: received,
-      record,
+      record: (value) => {
+        // The sender emits only operation/status/allowlisted code, never response bodies.
+        check(store.save(`provider-${++wireSequence}.enc`, value).verified);
+        record(value);
+      },
       minimal: minimal(m),
       passwordResetUsers: m.resume ? [m.c.id, m.d.id] : [],
     });
@@ -85,31 +94,54 @@ export function createProviderRun({
         price: async (active, signal) =>
           (await operator.request("price", { id: m.price, active }, signal)) ===
           true,
-        revokeKeys: () =>
-          revokeAndVerify({
+        revokeKeys: () => {
+          if (staged && !received.listener) {
+            if (!fs.existsSync(root + "/key-stage.json")) return true;
+            // No credentials to verify: report owner confirmation separately.
+            return operator
+              .request(
+                "revoke-keys",
+                { count: 3, apiUnavailable: true },
+                undefined,
+              )
+              .then(() => false);
+          }
+          return revokeAndVerify({
             revoke: (signal) =>
               operator.request("revoke-keys", { count: 3 }, signal),
             wire,
             save: store.save,
             ownerApproval,
             secretDeadline,
-          }),
+          });
+        },
       };
     }
-    const cliListener = listener({
-      binary: cli.binary,
-      checksum: cli.checksum,
-      key: received.listener,
-      run: m.run,
-      apiVersion: m.apiVersion,
-      readAccount: () =>
-        wire({
-          provider: "stripe",
-          role: "listener",
-          path: "/v1/account",
-          operation: "listener_account",
-        }),
-    });
+    let actualListener;
+    const makeListener = () =>
+      listener({
+        binary: cli.binary,
+        checksum: cli.checksum,
+        key: received.listener,
+        run: m.run,
+        apiVersion: m.apiVersion,
+        readAccount: () =>
+          wire({
+            provider: "stripe",
+            role: "listener",
+            path: "/v1/account",
+            operation: "listener_account",
+          }),
+      });
+    const cliListener = {
+      start: () => {
+        check(!actualListener, "LISTENER_ALREADY_STARTED");
+        actualListener = makeListener();
+        return actualListener.start();
+      },
+      alive: () => actualListener?.alive() ?? false,
+      stop: async () => actualListener?.stop(),
+    };
     const runner = supervisor({
       m,
       attemptId,
@@ -125,6 +157,19 @@ export function createProviderRun({
       clockApproval,
       billing,
       evidence,
+      ...(staged
+        ? {
+            preKey: ({ signal, deadline }) =>
+              stagedKeyHandoff({
+                root,
+                input,
+                output,
+                signal,
+                deadline,
+                received,
+              }),
+          }
+        : {}),
       afterCleanup: () => (operator ? operator.close() : true),
     });
     return {

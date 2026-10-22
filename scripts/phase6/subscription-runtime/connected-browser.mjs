@@ -27,20 +27,24 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
     env: { PATH: "/usr/bin:/bin", HOME: runtime.dir, TMPDIR: runtime.dir },
   });
   let helperFailed = false;
-  runtime.app.on("message", (message) => {
-    if (message?.pay)
-      pay(message.pay)
-        .then(() => runtime.app.send({ paid: message.pay }))
-        .catch(() => {
-          helperFailed = true;
-        });
-    if (message?.portalCancel)
-      cancel()
-        .then(() => runtime.app.send({ portalCanceled: true }))
-        .catch(() => {
-          helperFailed = true;
-        });
-  });
+  const attachRuntime = (next) => {
+    runtime = next;
+    runtime.app.on("message", (message) => {
+      if (message?.pay)
+        pay(message.pay)
+          .then(() => runtime.app.send({ paid: message.pay }))
+          .catch(() => {
+            helperFailed = true;
+          });
+      if (message?.portalCancel)
+        cancel()
+          .then(() => runtime.app.send({ portalCanceled: true }))
+          .catch(() => {
+            helperFailed = true;
+          });
+    });
+  };
+  attachRuntime(runtime);
   const traces = [];
   async function page() {
     const context = await browser.newContext({
@@ -137,6 +141,7 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
       }
   }
   return {
+    attachRuntime,
     async checkpoint(data) {
       assert(!helperFailed);
       switch (data.checkpoint) {

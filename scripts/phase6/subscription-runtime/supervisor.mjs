@@ -5,7 +5,7 @@ import { providerOperations } from "./provider-ops.mjs";
 import { appTransport } from "./app-transport.mjs";
 import { observePreflight } from "./journal.mjs";
 import { runPreparedAttempt } from "./launch.mjs";
-import { closeAttempt } from "./runtime.mjs";
+import { closeAttempt, startRuntime } from "./runtime.mjs";
 import { workLogin } from "./work-login.mjs";
 import { minimal } from "./minimal-profile.mjs";
 // Transport, vault and human controls are injected once before any operation. The
@@ -64,6 +64,7 @@ export function supervisor({
   billing,
   evidence,
   afterCleanup = () => true,
+  preKey,
 }) {
   check(typeof wire.settle === "function" && typeof execute === "function");
   const abort = new AbortController();
@@ -80,7 +81,10 @@ export function supervisor({
   let started = false,
     providerClosure,
     closure,
-    prepared;
+    prepared,
+    earlyRuntime,
+    browserState,
+    providerStarted = false;
   const read = (p) =>
     wire({
       provider: "supabase",
@@ -101,11 +105,17 @@ export function supervisor({
   };
   const cleanup = {
     endContracts: async () =>
-      (await providerClose()).endContracts === "verified",
+      preKey && !providerStarted
+        ? true
+        : (await providerClose()).endContracts === "verified",
     deactivatePrice: async () =>
-      (await providerClose()).deactivatePrice === "verified",
+      preKey && !providerStarted
+        ? true
+        : (await providerClose()).deactivatePrice === "verified",
     restorePortalBinding: async () =>
-      (await providerClose()).restorePortalBinding === "verified",
+      preKey && !providerStarted
+        ? true
+        : (await providerClose()).restorePortalBinding === "verified",
     ...(billing
       ? {
           restoreBillingSettings: async () => {
@@ -121,13 +131,18 @@ export function supervisor({
     eraseTemporary: async () => {
       // Only a caller-validated private input file, never an arbitrary directory tree.
       const erased = erasePrivateInputs(
-        [temporary.file, ...(temporary.planFile ? [temporary.planFile] : [])],
+        [
+          temporary.file,
+          ...(temporary.planFile ? [temporary.planFile] : []),
+          ...(preKey ? [path.join(temporary.root, "stripe-keys.json")] : []),
+        ].filter((p) => fs.existsSync(p)),
         temporary.root,
       );
       evidence?.erase();
       return erased;
     },
     verifyRestoration: async () => {
+      if (preKey && !providerStarted) return ops.cleanupAuthentication();
       const p = await providerClose();
       await ops.inspectAfter();
       return p.complete;
@@ -189,10 +204,43 @@ export function supervisor({
           input.isTTY === true && !input.destroyed && !input.readableEnded,
           "INTERACTIVE_TTY_REQUIRED",
         );
+        if (preKey) {
+          check(minimal(m) && m.resume, "PREKEY_RETAINED_ONLY");
+          await ops.prepareAuthentication(expected, passwords);
+          login = workLogin(m, passwords);
+          earlyRuntime = await (runtimeFactory ?? startRuntime)({
+            m,
+            authOnly: true,
+            reserve: ops.reserveRuntime,
+            evidence,
+            record,
+            transport: appTransport({
+              wire,
+              operations: ops,
+              signal: abort.signal,
+              login,
+            }),
+            onStop: stop,
+          });
+          await execute("next", {
+            runtime: earlyRuntime,
+            signal: abort.signal,
+            operations: ops,
+            m,
+          });
+          // Keep the actual login JWTs, cookies, counters and parent evidence. No second grant.
+          m.preAuthenticated = true;
+          await preKey({ signal: abort.signal, deadline: start + budget });
+          browserState = earlyRuntime.browserState;
+          await earlyRuntime.stop({ continueAuthenticated: true });
+          earlyRuntime = null;
+        }
+        providerStarted = true;
         await ops.inspect(expected);
         if (billing) await billing.prepare(abort.signal);
         prepared = await ops.prepare(passwords);
-        if (minimal(prepared)) login = workLogin(prepared, passwords);
+        if (minimal(prepared) && !preKey)
+          login = workLogin(prepared, passwords);
         const expectedPrepared = await observePreflight(prepared, read);
         check(save("prepared.enc", expectedPrepared).verified);
         const result = await runPreparedAttempt({
@@ -217,7 +265,10 @@ export function supervisor({
           input,
           output,
           timeoutMs: Math.max(1, budget - (Date.now() - start)),
-          runtimeFactory,
+          runtimeFactory: browserState
+            ? (args) =>
+                (runtimeFactory ?? startRuntime)({ ...args, m, browserState })
+            : runtimeFactory,
           evidence,
           execute: Object.assign(
             async (command, context) =>
@@ -241,8 +292,10 @@ export function supervisor({
         closure = await closeAttempt({
           ...cleanup,
           stopProcesses: async () => {
-            await listener.stop();
-            return !listener.alive();
+            await Promise.all([listener.stop(), earlyRuntime?.stop()]);
+            return (
+              !listener.alive() && (!earlyRuntime || !earlyRuntime.alive())
+            );
           },
         });
         if (providerClosure) {
