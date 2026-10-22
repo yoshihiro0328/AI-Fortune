@@ -940,7 +940,7 @@ export function providerOperations({
     },
     async cleanupAuthentication() {
       state.stopped = true;
-      const observed = await observation();
+      const observed = await observation(true);
       check(
         baseline && sha(observed) === sha(baseline),
         "PREKEY_BASELINE_CHANGED",

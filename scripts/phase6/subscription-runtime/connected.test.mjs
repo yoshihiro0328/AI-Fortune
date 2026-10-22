@@ -32,14 +32,17 @@ const cases = [
   ),
 );
 cases.push(
-  ...["normal", "browser-failure", "input-disconnect"].map((mode) => ({
-    minimal: true,
-    resume: true,
-    mode,
-    staged: true,
-  })),
+  ...["normal", "browser-failure", "input-disconnect", "prekey-timeout"].map(
+    (mode) => ({
+      minimal: true,
+      resume: true,
+      mode,
+      staged: true,
+    }),
+  ),
 );
 for (const { minimal, resume, mode, staged = false } of cases) {
+  if ((macBrowser || realTTY) && mode === "prekey-timeout") continue;
   if (process.env.PLUS_STAGED_ONLY === "1" && (!staged || mode !== "normal"))
     continue;
   if (process.env.PLUS_RETAINED_ONLY === "1" && (!resume || mode !== "normal"))
@@ -471,7 +474,9 @@ for (const { minimal, resume, mode, staged = false } of cases) {
       evidence,
       ...(staged
         ? {
-            preKey: async () => {
+            absoluteDeadline:
+              Date.now() + (mode === "prekey-timeout" ? 1500 : 600000),
+            preKey: async ({ trialRemainingMs, signal }) => {
               assert.equal(
                 t.calls.filter((c) => c.p.startsWith("/v1/")).length,
                 0,
@@ -482,6 +487,21 @@ for (const { minimal, resume, mode, staged = false } of cases) {
                 2,
               );
               assert.equal(screenCount, 1);
+              if (mode === "prekey-timeout")
+                await new Promise((resolve, reject) => {
+                  if (signal.aborted) return reject(Error("EXPIRED"));
+                  signal.addEventListener(
+                    "abort",
+                    () => reject(Error("EXPIRED")),
+                    { once: true },
+                  );
+                });
+              if (!macBrowser && !realTTY && mode === "normal") {
+                assert(trialRemainingMs > 0 && trialRemainingMs < 5000);
+                // Owner waiting exceeds the entire execution budget, but must
+                // not consume it or reset login/provider operation counters.
+                await new Promise((resolve) => setTimeout(resolve, 5200));
+              }
             },
           }
         : {}),
@@ -489,7 +509,13 @@ for (const { minimal, resume, mode, staged = false } of cases) {
       clockApproval: minimal
         ? undefined
         : { limit: 5, explicit: true, reference: "synthetic-only" },
-      timeoutMs: realTTY ? 20 * 60 * 1000 : macBrowser ? 180000 : 20000,
+      timeoutMs: realTTY
+        ? 20 * 60 * 1000
+        : macBrowser
+          ? 180000
+          : staged && mode === "normal"
+            ? 5000
+            : 20000,
       human: {
         price: async (active) => {
           assert(!minimal);
@@ -606,7 +632,12 @@ for (const { minimal, resume, mode, staged = false } of cases) {
       );
       assert.equal(
         result.closure.complete,
-        ["normal", "browser-failure", "input-disconnect"].includes(mode),
+        [
+          "normal",
+          "browser-failure",
+          "input-disconnect",
+          "prekey-timeout",
+        ].includes(mode),
         JSON.stringify({ result, completed }),
       );
       assert(revoke);
@@ -634,7 +665,7 @@ for (const { minimal, resume, mode, staged = false } of cases) {
               c.method === "POST" &&
               c.form.active === "true",
           ).length,
-          1,
+          mode === "prekey-timeout" ? 0 : 1,
         );
         const binding = (
           await t.pg.query("select * from billing_customers where user_id=$1", [

@@ -159,13 +159,15 @@ export function createProviderRun({
       evidence,
       ...(staged
         ? {
-            preKey: ({ signal, deadline }) =>
+            absoluteDeadline: secretDeadline,
+            preKey: ({ signal, deadline, trialRemainingMs }) =>
               stagedKeyHandoff({
                 root,
                 input,
                 output,
                 signal,
                 deadline,
+                trialRemainingMs,
                 received,
               }),
           }

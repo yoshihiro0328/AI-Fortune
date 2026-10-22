@@ -27,9 +27,11 @@ HTTP status and an allowlisted error code, never the response body or password.
 6. Continue the approved single Checkout/payment, real notification, Plus, Portal,
    immediate no-proration cancellation, Free and cleanup sequence.
 
-The original 20-minute trial deadline includes pre-key authentication and key waiting;
-it is never restarted. The two-hour secret ceiling and the owner revocation/API/erase
-limits are unchanged. Receiver timeout or disconnection closes it and deletes inputs.
+The original 20-minute execution budget includes pre-key authentication. Only the
+owner's key preparation/input wait is excluded, as previously approved; the remaining
+execution budget resumes without resetting. An independent absolute two-hour ceiling
+starts conservatively before key receipt and never extends. The owner revocation/API/
+erase limits are unchanged. Receiver timeout or disconnection closes it and deletes inputs.
 A failed runtime cannot transfer its stopped policy into a new runtime. No test keys,
 price changes, contracts or payments are created by the preparation regressions.
 

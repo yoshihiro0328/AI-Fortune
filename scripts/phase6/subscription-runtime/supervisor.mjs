@@ -65,6 +65,7 @@ export function supervisor({
   evidence,
   afterCleanup = () => true,
   preKey,
+  absoluteDeadline,
 }) {
   check(typeof wire.settle === "function" && typeof execute === "function");
   const abort = new AbortController();
@@ -142,7 +143,12 @@ export function supervisor({
       return erased;
     },
     verifyRestoration: async () => {
-      if (preKey && !providerStarted) return ops.cleanupAuthentication();
+      if (preKey && !providerStarted) {
+        ops.stop();
+        abort.abort();
+        await wire.settle();
+        return ops.cleanupAuthentication();
+      }
       const p = await providerClose();
       await ops.inspectAfter();
       return p.complete;
@@ -192,8 +198,14 @@ export function supervisor({
       };
       const budget = timeoutMs ?? 20 * 60 * 1000;
       check(budget > 0 && budget <= 20 * 60 * 1000);
-      const start = Date.now(),
+      const start = Date.now();
+      let pausedMs = 0,
         timer = setTimeout(stop, budget);
+      const remaining = () => budget - (Date.now() - start - pausedMs);
+      const absoluteTimer =
+        preKey && absoluteDeadline
+          ? setTimeout(stop, Math.max(0, absoluteDeadline - Date.now()))
+          : null;
       input.on("end", stop);
       input.on("close", stop);
       input.on("error", stop);
@@ -205,6 +217,12 @@ export function supervisor({
           "INTERACTIVE_TTY_REQUIRED",
         );
         if (preKey) {
+          check(
+            Number.isSafeInteger(absoluteDeadline) &&
+              absoluteDeadline > start &&
+              absoluteDeadline - start <= 7200000,
+            "ABSOLUTE_CREDENTIAL_DEADLINE_REQUIRED",
+          );
           check(minimal(m) && m.resume, "PREKEY_RETAINED_ONLY");
           await ops.prepareAuthentication(expected, passwords);
           login = workLogin(m, passwords);
@@ -230,7 +248,26 @@ export function supervisor({
           });
           // Keep the actual login JWTs, cookies, counters and parent evidence. No second grant.
           m.preAuthenticated = true;
-          await preKey({ signal: abort.signal, deadline: start + budget });
+          // Owner key preparation/input waiting is excluded from trial execution,
+          // while the independent absolute credential ceiling still applies.
+          const waitingAt = Date.now(),
+            trialRemainingMs = remaining();
+          check(
+            trialRemainingMs > 0 && !abort.signal.aborted,
+            "TRIAL_DEADLINE",
+          );
+          clearTimeout(timer);
+          try {
+            await preKey({
+              signal: abort.signal,
+              deadline: absoluteDeadline ?? start + budget,
+              trialRemainingMs,
+            });
+          } finally {
+            pausedMs += Date.now() - waitingAt;
+            timer = setTimeout(stop, Math.max(0, remaining()));
+          }
+          check(!abort.signal.aborted && remaining() > 0, "TRIAL_DEADLINE");
           browserState = earlyRuntime.browserState;
           await earlyRuntime.stop({ continueAuthenticated: true });
           earlyRuntime = null;
@@ -264,7 +301,7 @@ export function supervisor({
             ),
           input,
           output,
-          timeoutMs: Math.max(1, budget - (Date.now() - start)),
+          timeoutMs: Math.max(1, remaining()),
           runtimeFactory: browserState
             ? (args) =>
                 (runtimeFactory ?? startRuntime)({ ...args, m, browserState })
@@ -319,6 +356,7 @@ export function supervisor({
         login?.close();
         passwords = undefined;
         clearTimeout(timer);
+        clearTimeout(absoluteTimer);
         input.removeListener("end", stop);
         input.removeListener("close", stop);
         input.removeListener("error", stop);

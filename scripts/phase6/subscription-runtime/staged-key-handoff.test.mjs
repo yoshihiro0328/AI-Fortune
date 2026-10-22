@@ -34,6 +34,7 @@ for (const mode of ["handoff", "abort", "input-closed", "insufficient-time"]) {
       output,
       received,
       signal: abort.signal,
+      trialRemainingMs: 600000,
       deadline: Date.now() + (mode === "insufficient-time" ? 1000 : 600000),
     });
     // Attach the rejection handler before deliberately aborting.

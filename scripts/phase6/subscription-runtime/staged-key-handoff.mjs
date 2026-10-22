@@ -5,17 +5,21 @@ import { receiverSession } from "./receiver-session.mjs";
 import { privateInput } from "./supervisor.mjs";
 import { check } from "./policy.mjs";
 
-// Entered only after both actual logins. Owner waiting consumes the SAME 20 min.
+// Entered only after both actual logins. Owner waiting is not trial execution;
+// the independent, earlier-than-receipt credential ceiling is never extended.
 export async function stagedKeyHandoff({
   root,
   input,
   output,
   signal,
   deadline,
+  trialRemainingMs,
   received,
 }) {
   check(
-    !signal.aborted && deadline - Date.now() >= 8 * 60 * 1000,
+    !signal.aborted &&
+      deadline - Date.now() >= 8 * 60 * 1000 &&
+      trialRemainingMs >= 8 * 60 * 1000,
     "KEY_CREATION_TIME_REQUIRED",
   );
   const receiver = await receiverSession({ directory: root });
@@ -46,12 +50,14 @@ export async function stagedKeyHandoff({
         output.write(
           JSON.stringify({
             ...receiver.status(),
-            trialRemainingMs: deadline - Date.now(),
+            trialRemainingMs,
+            credentialRemainingMs: deadline - Date.now(),
           }) + "\n",
         );
       else if (line.trim() === "prepare") {
         check(
-          deadline - Date.now() >= 5 * 60 * 1000,
+          deadline - Date.now() >= 5 * 60 * 1000 &&
+            trialRemainingMs >= 5 * 60 * 1000,
           "KEY_CREATION_TIME_REQUIRED",
         );
         output.write(JSON.stringify(await receiver.beforeCreate()) + "\n");
