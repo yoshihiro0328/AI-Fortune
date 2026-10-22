@@ -2,6 +2,42 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PassThrough } from "node:stream";
 import { control } from "./control.mjs";
+for (const command of ["advance", "next"])
+  test(
+    "atomic advance checks health; legacy next cannot skip status: " + command,
+    async () => {
+      const input = new PassThrough(),
+        output = new PassThrough();
+      input.isTTY = true;
+      const order = [];
+      const run = control({
+        input,
+        output,
+        commands: ["next"],
+        alive: () => {
+          order.push("health");
+          return true;
+        },
+        execute: async () => {
+          order.push("execute");
+          return true;
+        },
+        cleanup: async () => ({ complete: true }),
+        timeoutMs: 1000,
+      });
+      input.write(command + "\nfinish\n");
+      const result = await run;
+      assert.equal(result.complete, command === "advance");
+      assert.equal(
+        order.filter((x) => x === "execute").length,
+        command === "advance" ? 2 : 0,
+      );
+      if (command === "advance")
+        assert.equal(order[order.indexOf("execute") - 1], "health");
+      input.destroy();
+      output.destroy();
+    },
+  );
 for (const mode of [
   "normal",
   "eof",

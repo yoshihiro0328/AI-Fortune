@@ -24,7 +24,12 @@ HTTP status and an allowlisted error code, never the response body or password.
 5. Transfer credentials to parent memory, remove the handoff file, and restart only
    the local app/broker with the same cookie namespace, authenticated sessions,
    policy counters and evidence. Do not reset passwords or log in again.
-6. Continue the approved single Checkout/payment, real notification, Plus, Portal,
+6. Use `advance` to perform the mandatory app/CLI/broker health check and exactly
+   one next step together. Bare `next` still fails closed without `status`; neither
+   command retries a failed or unknown mutation. Do not act on the browser until
+   the new browser checkpoint request exists. A `revoke-keys` request means the
+   trial has entered cleanup, not that a page needs reloading.
+7. Continue the approved single Checkout/payment, real notification, Plus, Portal,
    immediate no-proration cancellation, Free and cleanup sequence.
 
 The original 20-minute execution budget includes pre-key authentication. Only the
@@ -52,3 +57,18 @@ price changes, contracts or payments are created by the preparation regressions.
 
 The attached IAB (C) and Chrome (D) must pass actual authentication in the new
 staged attempt before any key creation. Real-trial results will be recorded separately.
+
+## Retained state after attempt 55c42f25
+
+C and D both passed real login and JWT RLS. Each now has one application profile.
+Keep those rows, the existing Auth users, Customer and binding. The next plan carries
+the exact profile snapshots, verifies them before password updates, and exercises
+the existing-profile login path. Missing, duplicate or changed profile rows stop the
+run before mutations. The profile-absent initial-login regression remains covered.
+
+The operator sent bare `next` without the required `status`. Control stopped before
+any Checkout/contract/payment. The browser error followed the runtime shutdown;
+it was not evidence of a new network-policy failure. Cleanup restored DB price=false
+and Portal=false/binding, kept Stripe catalog=true, verified all three revoked keys
+via bounded API checks, stopped processes and deleted temporary credentials.
+The full trial is still incomplete. No retry or result is represented as successful.

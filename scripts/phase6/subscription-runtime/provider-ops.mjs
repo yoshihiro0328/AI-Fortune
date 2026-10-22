@@ -415,10 +415,16 @@ export function providerOperations({
         ]) {
           const rows = await get(
             "supabase",
-            `/rest/v1/${table}?select=user_id&user_id=eq.${user.id}`,
+            `/rest/v1/${table}?select=*&user_id=eq.${user.id}`,
             "prekey_user_empty",
           );
-          check(rows.length === 0, "RETAINED_USER_NOT_EMPTY");
+          if (table === "profiles") {
+            const label = user.id === m.c.id ? "c" : "d";
+            check(
+              sha(rows) === sha(resume.profiles?.[label] ?? []),
+              "RETAINED_PROFILE_MISMATCH",
+            );
+          } else check(rows.length === 0, "RETAINED_USER_NOT_EMPTY");
         }
         const rows = await get(
           "supabase",
@@ -483,8 +489,11 @@ export function providerOperations({
           "planned_user_absent",
         );
         check(
-          rows.length === (authPrepared ? 1 : 0) &&
-            rows.every((r) => r.user_id === user.id),
+          rows.length ===
+            (authPrepared
+              ? 1
+              : (resume?.profiles?.[user.id === m.c.id ? "c" : "d"]?.length ??
+                0)) && rows.every((r) => r.user_id === user.id),
           "USER_ALREADY_EXISTS",
         );
       }

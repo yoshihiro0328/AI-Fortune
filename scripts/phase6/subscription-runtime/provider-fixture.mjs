@@ -501,6 +501,13 @@ export async function fixture(
 // Synthetic counterpart of the retained attempt files, passed to the real planner.
 export async function retainedRecords(t) {
   const after = await t.ops.observe();
+  const profiles = {};
+  for (const label of ["c", "d"])
+    profiles[label] = (
+      await t.pg.query("select * from profiles where user_id=$1", [
+        t.m[label].id,
+      ])
+    ).rows;
   return {
     priorPlan: {
       attemptId: t.m.resume.sourceAttemptId,
@@ -512,8 +519,8 @@ export async function retainedRecords(t) {
       sourceAttemptId: t.m.resume.sourceAttemptId,
       account: t.m.account,
       project: t.m.project,
-      c: { ...t.m.c, profileCount: 0 },
-      d: { ...t.m.d, profileCount: 0 },
+      c: { ...t.m.c, profileCount: profiles.c.length, profiles: profiles.c },
+      d: { ...t.m.d, profileCount: profiles.d.length, profiles: profiles.d },
       customer: t.m.resume.customer,
       portal: t.m.resume.portal,
       portalActive: false,

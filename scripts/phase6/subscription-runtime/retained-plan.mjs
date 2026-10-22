@@ -51,7 +51,12 @@ export function retainedPlan({
     check(
       retained[label].id === old[label].id &&
         retained[label].email === old[label].email &&
-        retained[label].profileCount === 0,
+        [0, 1].includes(retained[label].profileCount) &&
+        (retained[label].profiles ?? []).length ===
+          retained[label].profileCount &&
+        (retained[label].profiles ?? []).every(
+          (p) => p.user_id === old[label].id,
+        ),
       "RETAINED_USER_RECORD_MISMATCH",
     );
   // Preserve the historical comparison; cleanup changes only these timestamps.
@@ -95,6 +100,12 @@ export function retainedPlan({
         sourceAttemptId: retained.sourceAttemptId,
         customer: retained.customer,
         portal: retained.portal,
+        profiles: Object.fromEntries(
+          ["c", "d"].map((label) => [
+            label,
+            structuredClone(retained[label].profiles ?? []),
+          ]),
+        ),
         approval: structuredClone(approval),
       },
     },

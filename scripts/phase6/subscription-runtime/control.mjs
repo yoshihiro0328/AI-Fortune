@@ -47,10 +47,22 @@ export async function control({
   }, 250);
   try {
     output.write(`ready: status / ${commands.join(" / ")} / finish / stop\n`);
+    if (commands.includes("next"))
+      output.write(
+        "advance: check app, CLI and broker, then run one next step\n",
+      );
     for await (const line of lines) {
       if (stopping) break;
       check(line.length <= 80 && alive(), "CONTROL_OR_PROCESS_FAILED");
-      const cmd = line.trim();
+      let cmd = line.trim();
+      // Atomic operator entry: the same mandatory health check precedes exactly
+      // one step. Legacy next still requires status; no failed step is retried.
+      if (cmd === "advance" && commands.includes("next")) {
+        check(alive(), "CONTROL_OR_PROCESS_FAILED");
+        statusChecked = true;
+        output.write("status: app, CLI and broker alive\n");
+        cmd = "next";
+      }
       if (cmd === "stop") {
         reason = "operator_stop";
         break;

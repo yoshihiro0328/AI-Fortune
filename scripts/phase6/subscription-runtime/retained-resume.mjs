@@ -8,10 +8,23 @@ export function retainedResume(m, attemptId) {
   const r = m.resume;
   check(minimal(m) && r && typeof r === "object", "RESUME_SCOPE_REQUIRED");
   check(
-    Object.keys(r).sort().join(",") ===
-      "approval,customer,portal,sourceAttemptId",
+    Object.keys(r)
+      .filter((k) => k !== "profiles")
+      .sort()
+      .join(",") === "approval,customer,portal,sourceAttemptId",
     "RESUME_FIELDS_INVALID",
   );
+  if (r.profiles !== undefined)
+    check(
+      Object.keys(r.profiles).sort().join(",") === "c,d" &&
+        ["c", "d"].every(
+          (label) =>
+            Array.isArray(r.profiles[label]) &&
+            r.profiles[label].length <= 1 &&
+            r.profiles[label].every((p) => p.user_id === m[label].id),
+        ),
+      "RETAINED_PROFILE_MISMATCH",
+    );
   check(
     /^[a-f0-9-]{36}$/.test(r.sourceAttemptId) &&
       r.sourceAttemptId !== attemptId &&

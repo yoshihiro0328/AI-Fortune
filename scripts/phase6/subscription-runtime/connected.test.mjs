@@ -41,7 +41,20 @@ cases.push(
     }),
   ),
 );
-for (const { minimal, resume, mode, staged = false } of cases) {
+cases.push({
+  minimal: true,
+  resume: true,
+  staged: true,
+  profiles: true,
+  mode: "normal",
+});
+for (const {
+  minimal,
+  resume,
+  mode,
+  staged = false,
+  profiles = false,
+} of cases) {
   if ((macBrowser || realTTY) && mode === "prekey-timeout") continue;
   if (process.env.PLUS_STAGED_ONLY === "1" && (!staged || mode !== "normal"))
     continue;
@@ -54,6 +67,7 @@ for (const { minimal, resume, mode, staged = false } of cases) {
     continue;
   const name =
     "connected scenario to closure: " +
+    (profiles ? "existing profiles " : "") +
     (staged ? "staged " : "") +
     (resume ? "retained " : "") +
     (minimal ? "minimal " : "") +
@@ -74,6 +88,12 @@ for (const { minimal, resume, mode, staged = false } of cases) {
       resume,
     );
     const { objects: o } = t;
+    if (profiles)
+      for (const user of [t.m.c, t.m.d])
+        await t.pg.query(
+          "insert into profiles(user_id,display_name) values($1,$2)",
+          [user.id, "Retained profile"],
+        );
     const resumePlan = resume ? retainedPlan(await retainedRecords(t)) : null;
     const m = resumePlan?.manifest ?? t.m;
     m.frozenTime = Math.floor(Date.now() / 1000) - 10;
@@ -606,11 +626,11 @@ for (const { minimal, resume, mode, staged = false } of cases) {
       output.on("data", (chunk) => {
         const s = String(chunk);
         if (s.startsWith("ready:"))
-          setImmediate(() => input.write("status\nnext\n"));
+          setImmediate(() => input.write("advance\n"));
         if (s === "check completed\n") {
           completed++;
           setImmediate(() =>
-            input.write(completed === steps.length ? "finish\n" : "next\n"),
+            input.write(completed === steps.length ? "finish\n" : "advance\n"),
           );
         }
       });
@@ -646,6 +666,16 @@ for (const { minimal, resume, mode, staged = false } of cases) {
       assert.equal(o.price.active, minimal);
       assert.equal(o.portal.active, false);
       if (resume) {
+        if (profiles)
+          for (const label of ["c", "d"])
+            assert.deepEqual(
+              (
+                await t.pg.query("select * from profiles where user_id=$1", [
+                  m[label].id,
+                ])
+              ).rows,
+              m.resume.profiles[label],
+            );
         for (const p of [
           "/auth/v1/admin/users",
           "/v1/customers",
