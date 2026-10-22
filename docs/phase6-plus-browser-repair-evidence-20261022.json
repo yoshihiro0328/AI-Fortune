@@ -1,0 +1,230 @@
+{
+  "sourceAttempt": "1466ec22-9be5-47e8-9931-3b3c6870260a",
+  "app": "http://localhost:5218",
+  "broker": "http://127.0.0.1:5219",
+  "actualLauncher": "startRuntime",
+  "syntheticUI": false,
+  "credentialsLoaded": false,
+  "providerConnections": 0,
+  "localReads": 16,
+  "refused": 0,
+  "events": [
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/subscription-test/c",
+      "checkpoint": "entry-cookie-scope",
+      "foreignAuthIgnored": true,
+      "currentAuthRejected": false
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/subscription-test/c",
+      "status": 303
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/account",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/auth",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/auth",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/account",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/diagnoses",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/diagnoses",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/account",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/auth",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/auth",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/diagnoses",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/diagnoses",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/plans",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/plans",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/account",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/auth",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/auth",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/diagnoses",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/diagnoses",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/subscription-test/c",
+      "checkpoint": "entry-cookie-scope",
+      "foreignAuthIgnored": true,
+      "currentAuthRejected": false
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/subscription-test/c",
+      "status": 303
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/account",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/account",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/plans",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/plans",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/account",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/auth",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/auth",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/diagnoses",
+      "status": 200
+    },
+    {
+      "event": "http",
+      "method": "GET",
+      "path": "/api/diagnoses",
+      "status": 200
+    }
+  ],
+  "stopped": true,
+  "temporaryRemoved": true,
+  "uiEvidence": {
+    "source": "attached browsers controlled through cua_repl; visible heading and URL assertions",
+    "browsers": [
+      {
+        "name": "Codex In-app Browser",
+        "browserId": "3",
+        "entryToAccount": true,
+        "accountReload": true,
+        "plansDisplay": true,
+        "plansReload": true,
+        "loginLinkToAccount": true
+      },
+      {
+        "name": "Chrome",
+        "browserId": "4",
+        "entryToAccount": true,
+        "accountReload": true,
+        "plansDisplay": true,
+        "plansReload": true,
+        "loginLinkToAccount": true
+      }
+    ],
+    "credentialsEntered": false,
+    "scope": "anonymous page display and navigation; not real authentication or payment"
+  }
+}

@@ -29,6 +29,7 @@ export function environment(m, token, forward, secret) {
     SESSION_SECRET: m.sessionSecret,
     SUBSCRIPTION_COOKIE_C: m.c.cookie,
     SUBSCRIPTION_COOKIE_D: m.d.cookie,
+    SUBSCRIPTION_BROWSER_COOKIE_NAMESPACE: `plus-${randomBytes(16).toString("hex")}--`,
     STRIPE_SECRET_KEY: "rk_test_local_proxy",
     STRIPE_WEBHOOK_SECRET: secret,
     STRIPE_ACCOUNT_ID: TARGET.account,

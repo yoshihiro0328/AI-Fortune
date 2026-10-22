@@ -47,6 +47,14 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
       serviceWorkers: "block",
       locale: "ja-JP",
     });
+    // Retained localhost cookies must not prevent a new run or enter its auth.
+    await context.addCookies([
+      {
+        name: `sb-${TARGET.ref}-auth-token`,
+        value: "synthetic-prior-session",
+        url: TARGET.app,
+      },
+    ]);
     await context.route("**/*", (route) => {
       const url = new URL(route.request().url());
       if (url.origin === TARGET.app) return route.continue();
@@ -83,6 +91,11 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
       .getByRole("heading", { name: "保存した診断", exact: true })
       .waitFor();
     await p.getByText("残り", { exact: false }).first().waitFor();
+    // Once this run is authenticated, switching its anonymous identity is denied.
+    const blocked = await p
+      .context()
+      .request.get(TARGET.app + "/subscription-test/" + letter);
+    assert.equal(blocked.status(), 403);
   }
   async function checkout() {
     await c.goto(TARGET.app + "/plans");

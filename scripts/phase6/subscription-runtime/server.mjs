@@ -1,6 +1,7 @@
 import http from "node:http";
 import next from "next";
 import { TARGET, check } from "./policy.mjs";
+import { browserCookies } from "./browser-cookies.mjs";
 check(
   process.send && process.env.SUBSCRIPTION_INTEGRATION_LOCAL === "true",
   "SUPERVISOR_REQUIRED",
@@ -11,6 +12,9 @@ const app = next({
   hostname: "localhost",
   port: 5218,
 });
+const scopedCookies = browserCookies(
+  process.env.SUBSCRIPTION_BROWSER_COOKIE_NAMESPACE,
+);
 let server;
 const pending = new Map();
 async function close() {
@@ -55,11 +59,27 @@ server = http.createServer((req, res) => {
       http: { method: req.method, path: u.pathname, status: res.statusCode },
     }),
   );
+  let browserState;
+  try {
+    browserState = scopedCookies.install(req, res);
+  } catch {
+    res.writeHead(403);
+    return res.end();
+  }
   if (
     ["/subscription-test/c", "/subscription-test/d"].includes(u.pathname) &&
     req.method === "GET"
   ) {
-    if (req.headers.cookie?.includes("sb-")) {
+    process.send?.({
+      http: {
+        method: req.method,
+        path: u.pathname,
+        checkpoint: "entry-cookie-scope",
+        foreignAuthIgnored: browserState.foreignAuth,
+        currentAuthRejected: browserState.authenticated,
+      },
+    });
+    if (browserState.authenticated) {
       res.writeHead(403);
       return res.end();
     }
