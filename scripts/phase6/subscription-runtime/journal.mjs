@@ -121,7 +121,7 @@ export async function observePreflight(m, read) {
     binding.length === 1 &&
       binding[0].stripe_customer_id === m.customer &&
       binding[0].is_test &&
-      !binding[0].checkout_session_id,
+      binding[0].checkout_session_id === (m.resume?.history?.checkout ?? null),
   );
   actual.binding = binding;
   actual.bindingD = await read(

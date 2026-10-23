@@ -64,8 +64,13 @@ export function createProviderRun({
         store.save("private-plan.enc", privateInput(planFile, root)).verified,
       );
     let wireSequence = 0;
+    let phaseSequence = 0;
     const wire = providerWire({
       secrets: received,
+      trace: (value) =>
+        check(
+          store.save(`provider-phase-${++phaseSequence}.enc`, value).verified,
+        ),
       record: (value) => {
         // The sender emits only operation/status/allowlisted code, never response bodies.
         check(store.save(`provider-${++wireSequence}.enc`, value).verified);

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { runtimeDiagnostics } from "./diagnostics.mjs";
+import { runtimeDiagnostics, requestCategory } from "./diagnostics.mjs";
 
 test("stop evidence survives without retaining arbitrary paths or secret-bearing fields", () => {
   const saved = [];
@@ -33,4 +33,24 @@ test("stop evidence survives without retaining arbitrary paths or secret-bearing
   assert.equal(saved[1].value.route, "OTHER_ROUTE");
   assert.equal(saved[2].value.status, 500);
   assert(!JSON.stringify(saved).includes(secret));
+});
+test("request categories identify synchronization phases without identifiers or query values", () => {
+  assert.equal(
+    requestCategory(
+      "https://api.stripe.com/v1/subscriptions/sub_sensitive?secret=sensitive",
+      "GET",
+    ),
+    "application_get_subscription",
+  );
+  assert.equal(
+    requestCategory(
+      "https://db.invalid/rest/v1/rpc/apply_subscription_snapshot",
+      "POST",
+    ),
+    "application_post_snapshot",
+  );
+  assert.equal(
+    requestCategory("https://db.invalid/rest/v1/rpc/acquire_lock", "POST"),
+    "application_post_lock_acquire",
+  );
 });

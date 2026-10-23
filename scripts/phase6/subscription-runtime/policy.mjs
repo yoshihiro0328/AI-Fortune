@@ -1,4 +1,10 @@
 import { createHash, createHmac } from "node:crypto";
+import {
+  paymentHistory,
+  historicalSubscription,
+  historicalInvoice,
+  historicalRow,
+} from "./history.mjs";
 export const TARGET = Object.freeze({
   ref: "ukdzggjfkcwjssjmnqim",
   account: "acct_1UQlQdI73kTcvXz8",
@@ -73,6 +79,7 @@ export class Policy {
   constructor(m, reserve = () => {}) {
     validate(m);
     this.m = m;
+    this.history = paymentHistory(m);
     this.minimal = m.scenario === "minimal-plus-v1";
     this.contractLimit = this.minimal ? 1 : 2;
     this.invoiceLimit = this.minimal ? 1 : 4;
@@ -161,21 +168,36 @@ export class Policy {
         } else if (name === "acquire_lock") {
           check(
             b.p_key === "billing:" + m.c.id ||
-              [...this.ids].some(
-                (id) => b.p_key === "stripe-subscription:" + id,
-              ),
+              [...this.ids, this.history?.subscription]
+                .filter(Boolean)
+                .some((id) => b.p_key === "stripe-subscription:" + id),
           );
           return { kind: name, key: b.p_key, token: b.p_token };
         } else if (name === "apply_subscription_snapshot") {
           const s = b.p_snapshot;
           check(
-            this.ids.has(s.id) &&
+            (this.ids.has(s.id) ||
+              historicalRow("subscriptions", s, this.history, m.c.id)) &&
               s.user_id === m.c.id &&
               s.stripe_customer_id === m.customer &&
               s.amount === 980 &&
               s.is_test === true &&
               s.price_version === m.version,
           );
+          if (s.id === this.history?.subscription)
+            check(
+              b.p_invoices.length === 1 &&
+                b.p_invoices.every((i) =>
+                  historicalRow(
+                    "subscription_invoices",
+                    i,
+                    this.history,
+                    m.c.id,
+                  ),
+                ) &&
+                !b.p_event,
+              "HISTORY_SNAPSHOT_MISMATCH",
+            );
           check(
             b.p_invoices.length <= this.invoiceLimit &&
               b.p_invoices.every(
@@ -287,7 +309,11 @@ export class Policy {
         );
         return { kind: "subscriptions" };
       }
-      if ([...this.ids].some((id) => path === "/v1/subscriptions/" + id)) {
+      if (
+        [...this.ids, this.history?.subscription]
+          .filter(Boolean)
+          .some((id) => path === "/v1/subscriptions/" + id)
+      ) {
         check(
           q.size <= 1 && (!q.size || q.get("expand[0]") === "latest_invoice"),
         );
@@ -295,15 +321,17 @@ export class Policy {
       }
       if (path === "/v1/invoices") {
         check(
-          this.ids.has(q.get("subscription")) &&
+          (this.ids.has(q.get("subscription")) ||
+            q.get("subscription") === this.history?.subscription) &&
             q.get("limit") === "24" &&
             q.size === 2,
         );
         return { kind: "invoices", subscription: q.get("subscription") };
       }
       if (
-        this.checkouts &&
-        [...this.checkouts].some((id) => path === "/v1/checkout/sessions/" + id)
+        [...(this.checkouts ?? []), this.history?.checkout]
+          .filter(Boolean)
+          .some((id) => path === "/v1/checkout/sessions/" + id)
       )
         return { kind: "checkoutRead" };
     }
@@ -423,11 +451,21 @@ export class Policy {
             s.items.data.length === 1 &&
             s.items.data[0].price.id === m.price,
         );
-        this.ids.add(s.id);
+        if (s.id === this.history?.subscription)
+          check(
+            historicalSubscription(s, this.history),
+            "HISTORICAL_SUBSCRIPTION_CHANGED",
+          );
+        else this.ids.add(s.id);
         check(this.ids.size <= this.contractLimit);
       }
     if (t.kind === "subscriptions") check(d.has_more === false);
     if (t.kind === "invoices") {
+      if (t.subscription === this.history?.subscription)
+        check(
+          d.data?.length === 1 && historicalInvoice(d.data[0], this.history),
+          "HISTORICAL_INVOICE_CHANGED",
+        );
       check(
         !d.has_more &&
           d.data.length <= this.invoiceLimit &&
@@ -442,12 +480,22 @@ export class Policy {
       );
       const observed = new Set([
         ...this.invoiceIds,
-        ...d.data.map((i) => i.id),
+        ...d.data
+          .filter((i) => i.id !== this.history?.invoice)
+          .map((i) => i.id),
       ]);
       check(observed.size <= this.invoiceLimit, "INVOICE_LIMIT");
       this.invoiceIds = observed;
     }
     if (["checkout", "checkoutRead"].includes(t.kind)) {
+      if (d.id === this.history?.checkout)
+        check(
+          t.kind === "checkoutRead" &&
+            d.status === "complete" &&
+            d.payment_status === "paid" &&
+            d.subscription === this.history.subscription,
+          "HISTORICAL_CHECKOUT_CHANGED",
+        );
       check(
         d.customer === m.customer &&
           d.livemode === false &&
@@ -486,6 +534,7 @@ export class Policy {
         ? o.parent?.subscription_details?.subscription
         : o.subscription;
     check(typeof id === "string" && id.startsWith("sub_"));
+    check(id !== this.history?.subscription, "HISTORICAL_EVENT_DENIED");
     this.ids.add(id);
     check(this.ids.size <= this.contractLimit);
     const prev = this.events.get(e.id);

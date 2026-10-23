@@ -6,7 +6,11 @@ import { randomUUID } from "node:crypto";
 import { PassThrough } from "node:stream";
 import Stripe from "stripe";
 import { retainedPlan } from "./retained-plan.mjs";
-import { fixture, retainedRecords } from "./provider-fixture.mjs";
+import {
+  fixture,
+  retainedRecords,
+  seedPaidHistory,
+} from "./provider-fixture.mjs";
 import { supervisor } from "./supervisor.mjs";
 import { scenario, STEPS, MINIMAL_STEPS } from "./scenario.mjs";
 import { sessionEvidence } from "./evidence.mjs";
@@ -48,13 +52,23 @@ cases.push({
   profiles: true,
   mode: "normal",
 });
+cases.push({
+  minimal: true,
+  resume: true,
+  staged: true,
+  profiles: true,
+  history: true,
+  mode: "normal",
+});
 for (const {
   minimal,
   resume,
   mode,
   staged = false,
   profiles = false,
+  history = false,
 } of cases) {
+  if (process.env.PLUS_HISTORY_ONLY === "1" && !history) continue;
   if ((macBrowser || realTTY) && mode === "prekey-timeout") continue;
   if (process.env.PLUS_STAGED_ONLY === "1" && (!staged || mode !== "normal"))
     continue;
@@ -67,6 +81,7 @@ for (const {
     continue;
   const name =
     "connected scenario to closure: " +
+    (history ? "paid history and lost return confirmation " : "") +
     (profiles ? "existing profiles " : "") +
     (staged ? "staged " : "") +
     (resume ? "retained " : "") +
@@ -94,6 +109,7 @@ for (const {
           "insert into profiles(user_id,display_name) values($1,$2)",
           [user.id, "Retained profile"],
         );
+    if (history) await seedPaidHistory(t);
     const resumePlan = resume ? retainedPlan(await retainedRecords(t)) : null;
     const m = resumePlan?.manifest ?? t.m;
     m.frozenTime = Math.floor(Date.now() / 1000) - 10;
@@ -292,7 +308,7 @@ for (const {
           await Promise.all([
             send("checkout.session.completed", o[id]),
             send("customer.subscription.created", s),
-            send("invoice.paid", o.invoices[0]),
+            send("invoice.paid", o.invoices.at(-1)),
           ]);
         } else {
           await send("checkout.session.completed", o[id]);
@@ -334,7 +350,8 @@ for (const {
     };
     o.onCheckout = async () =>
       newCheckout(
-        Object.keys(o).filter((k) => k.startsWith("cs_test_")).length + 1,
+        Object.keys(o).filter((k) => k.startsWith("cs_test_connected_"))
+          .length + 1,
         null,
         false,
       );
@@ -372,7 +389,13 @@ for (const {
                 ? o.invoices[0]
                 : o.invoices.find((i) => i.status === "open")
               ).auto_advance = true;
-            return result;
+            return history && data.checkpoint === "pay-first-once"
+              ? {
+                  checkpoint: data.checkpoint,
+                  observed: false,
+                  purchaseAttempted: true,
+                }
+              : result;
           }
           if (data.checkpoint === "logins")
             for (const u of [m.c, m.d]) {
@@ -435,7 +458,13 @@ for (const {
             data.checkpoint === "account-and-denials"
           )
             o.invoices[0].total = 981;
-          return { checkpoint: data.checkpoint, observed: true };
+          return history && data.checkpoint === "pay-first-once"
+            ? {
+                checkpoint: data.checkpoint,
+                observed: false,
+                purchaseAttempted: true,
+              }
+            : { checkpoint: data.checkpoint, observed: true };
         },
       },
     });
@@ -750,7 +779,7 @@ for (const {
       assert.equal(await t.protectedState(), t.original);
       if (mode === "normal") {
         assert.equal(advances, minimal ? 0 : 5);
-        assert.equal(o.invoices.length, minimal ? 1 : 4);
+        assert.equal(o.invoices.length, (minimal ? 1 : 4) + (history ? 1 : 0));
         assert.equal(completed, steps.length);
         assert(screenCount >= (minimal ? 5 : 6));
       }

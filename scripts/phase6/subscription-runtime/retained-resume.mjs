@@ -1,5 +1,10 @@
 import { check } from "./policy.mjs";
 import { minimal } from "./minimal-profile.mjs";
+import {
+  paymentHistory,
+  historicalSubscription,
+  historicalInvoice,
+} from "./history.mjs";
 
 // A new bounded attempt using explicitly retained identities, never a replay of
 // an interrupted mutation. Approval is supplied by the private, reviewed plan.
@@ -9,11 +14,12 @@ export function retainedResume(m, attemptId) {
   check(minimal(m) && r && typeof r === "object", "RESUME_SCOPE_REQUIRED");
   check(
     Object.keys(r)
-      .filter((k) => k !== "profiles")
+      .filter((k) => !["profiles", "history"].includes(k))
       .sort()
       .join(",") === "approval,customer,portal,sourceAttemptId",
     "RESUME_FIELDS_INVALID",
   );
+  paymentHistory(m);
   if (r.profiles !== undefined)
     check(
       Object.keys(r.profiles).sort().join(",") === "c,d" &&
@@ -63,6 +69,7 @@ export function retainedPortal(p, m, active) {
 
 export async function inspectRetained({ m, get, save, observed }) {
   const r = m.resume;
+  const history = paymentHistory(m);
   const users = [];
   for (const user of [m.c, m.d]) {
     const raw = await get(
@@ -107,7 +114,7 @@ export async function inspectRetained({ m, get, save, observed }) {
             bindings[0].user_id === user.id &&
             bindings[0].stripe_customer_id === r.customer &&
             bindings[0].is_test === true &&
-            bindings[0].checkout_session_id === null
+            bindings[0].checkout_session_id === (history?.checkout ?? null)
           : bindings.length === 0),
       "RETAINED_BINDING_MISMATCH",
     );
@@ -136,8 +143,33 @@ export async function inspectRetained({ m, get, save, observed }) {
     check(
       list.has_more === false &&
         Array.isArray(list.data) &&
-        list.data.length === 0,
+        (history
+          ? list.data.length === 1 &&
+            (type === "subscriptions"
+              ? historicalSubscription(list.data[0], history)
+              : historicalInvoice(list.data[0], history)) &&
+            list.data[0].customer === r.customer
+          : list.data.length === 0),
       "RETAINED_CUSTOMER_NOT_EMPTY",
+    );
+  }
+  if (history) {
+    const c = await get(
+      "stripe",
+      "/v1/checkout/sessions/" + history.checkout,
+      "identify_retained_checkout",
+      "app",
+    );
+    check(
+      c.id === history.checkout &&
+        c.customer === r.customer &&
+        c.livemode === false &&
+        c.status === "complete" &&
+        c.payment_status === "paid" &&
+        c.subscription === history.subscription &&
+        c.amount_total === 980 &&
+        c.currency === "jpy",
+      "HISTORICAL_CHECKOUT_MISMATCH",
     );
   }
   const portal = await get(

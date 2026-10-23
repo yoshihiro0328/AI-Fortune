@@ -1,6 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { check, sha, TARGET } from "./policy.mjs";
 import { minimal } from "./minimal-profile.mjs";
+import { paymentHistory } from "./history.mjs";
 
 // Pure local plan construction from the completed attempt's records. No provider
 // calls, files, old passwords or old browser sessions. Provider operations still
@@ -13,6 +14,8 @@ export function retainedPlan({
   approval,
 }) {
   const old = priorPlan.manifest;
+  const history = retained.history;
+  if (history) paymentHistory({ ...old, resume: { history, approval } });
   check(
     minimal(old) &&
       priorPlan.clockApproval === null &&
@@ -23,7 +26,8 @@ export function retainedPlan({
   );
   check(
     (closure.completion.closure.complete === true ||
-      resolvedPasswordRejection(closure, priorPlan)) &&
+      resolvedPasswordRejection(closure, priorPlan) ||
+      resolvedPaidClosure(closure, priorPlan, history)) &&
       closure.revocation.apiComplete === true &&
       ["listener", "app", "lifecycle"].every(
         (k) => closure.revocation.api[k] === "revoked",
@@ -43,7 +47,7 @@ export function retainedPlan({
       retained.dbPriceActive === false &&
       retained.stripePriceActive === true &&
       ["checkoutCount", "subscriptionCount", "paymentCount"].every(
-        (k) => retained[k] === 0,
+        (k) => retained[k] === (history ? 1 : 0),
       ),
     "RETAINED_START_STATE_MISMATCH",
   );
@@ -107,9 +111,43 @@ export function retainedPlan({
           ]),
         ),
         approval: structuredClone(approval),
+        ...(history ? { history: structuredClone(history) } : {}),
       },
     },
   };
+}
+
+export function resolvedPaidClosure(closure, priorPlan, history) {
+  const c = closure.completion.closure,
+    r = closure.paidReconciliation;
+  return (
+    !!history &&
+    c.complete === false &&
+    c.unresolvedOperations === 1 &&
+    [
+      "stopProcesses",
+      "endContracts",
+      "deactivatePrice",
+      "restorePortalBinding",
+      "revokeKeys",
+      "eraseTemporary",
+    ].every((k) => c[k] === "verified") &&
+    r?.sourceAttemptId === priorPlan.attemptId &&
+    r.protectedBaselineUnchanged === true &&
+    r.databaseSubscriptions === 0 &&
+    r.databaseInvoices === 0 &&
+    r.subscription === history.subscription &&
+    r.subscriptionStatus === "canceled" &&
+    r.invoice === history.invoice &&
+    r.invoiceCount === 1 &&
+    r.hasMore === false &&
+    r.invoiceStatus === "paid" &&
+    r.amountPaid === 980 &&
+    r.amountRemaining === 0 &&
+    r.currency === "jpy" &&
+    r.test === true &&
+    r.source === "bounded-read-reconciliation"
+  );
 }
 
 // An additive reconciliation, never rewriting the historical failed closure.

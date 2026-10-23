@@ -1,4 +1,5 @@
 import { TARGET, check } from "./policy.mjs";
+import { requestCategory } from "./diagnostics.mjs";
 // Called behind the existing request/body/identity policy. Only the parent owns secrets.
 // A single Customer Portal permission is assigned to lifecycle, not added to the app key.
 export function appTransport({ wire, operations, signal, login }) {
@@ -33,7 +34,7 @@ export function appTransport({ wire, operations, signal, login }) {
         bearer,
         accept: headers.get("accept") || "application/json",
         signal,
-        operation: "application_request",
+        operation: requestCategory(r.url, r.method),
       });
       if (
         isStripe &&

@@ -33,6 +33,7 @@ export function scenario({ wire, evidence, operator, save, minimal = false }) {
   const results = [];
   const persist = (value) =>
     check(save(`scenario-${++seq}.enc`, value).verified);
+  const milestone = (stage) => persist({ stage, verified: true });
   const screen = async (checkpoint, context, data = {}) => {
     const result = await operator.request(
       "browser",
@@ -58,6 +59,7 @@ export function scenario({ wire, evidence, operator, save, minimal = false }) {
   const sync = async (context, id, expected, plan, invoiceCount, eventType) => {
     const { m, signal } = context;
     const provider = await context.operations.inspectSubscription(id);
+    milestone("subscription-and-invoice-read");
     const current = provider.subscription;
     const period = current.items.data[0];
     const latestInvoice =
@@ -107,6 +109,7 @@ export function scenario({ wire, evidence, operator, save, minimal = false }) {
           invoiceCount,
           signal,
         );
+        milestone("webhook-database-entitlement-rls-confirmed");
         persist({
           sync: { id, expected, plan, invoiceCount, eventType },
           usage,
@@ -190,11 +193,35 @@ export function scenario({ wire, evidence, operator, save, minimal = false }) {
           break;
         }
         case "first-paid": {
-          await screen("pay-first-once", context);
+          // This prompt can issue one purchase only. A return-page failure is
+          // separate from payment outcome; read the same Checkout, never repurchase.
+          const observation = await operator.request(
+            "browser",
+            {
+              checkpoint: "pay-first-once",
+              app: TARGET.app,
+              noSecretCapture: true,
+              allowPaidReconciliation: minimal,
+            },
+            context.signal,
+          );
+          check(
+            observation?.checkpoint === "pay-first-once" &&
+              (observation.observed === true ||
+                (minimal && observation.purchaseAttempted === true)),
+            "PAYMENT_ATTEMPT_NOT_CONFIRMED",
+          );
+          persist({
+            stage: "payment-browser-return",
+            observed: observation.observed === true,
+            purchaseAttempted: true,
+          });
           check((await ops.bindCheckout(ops.state().checkouts[0])).paid);
+          milestone("checkout-paid-confirmed");
           check(ops.state().subscriptions.length === 1);
           first = ops.state().subscriptions[0];
           await observe(context, first, 1, "active", "paid");
+          milestone("active-contract-paid-invoice-confirmed");
           await sync(
             context,
             first,

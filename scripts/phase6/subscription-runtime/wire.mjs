@@ -26,6 +26,7 @@ function form(value, prefix = "", out = new URLSearchParams()) {
 function build({
   secrets,
   record = () => {},
+  trace = () => {},
   endpoints,
   timeoutMs = 15000,
   minimal = false,
@@ -110,6 +111,7 @@ function build({
       headers.set("prefer", "return=representation");
     }
     let status = null;
+    trace({ phase: "sent", operation });
     try {
       const r = await fetch(url, {
         method,
@@ -146,6 +148,7 @@ function build({
         throw Error(errors.has(code) ? code : "HTTP_FAILED");
       }
       record({ operation, httpStatus: status, code: null });
+      trace({ phase: "received", operation });
       return data;
     } catch (error) {
       const code =
@@ -156,6 +159,7 @@ function build({
             ? "TIMEOUT_OR_ABORT"
             : "TRANSPORT_FAILED";
       record({ operation, httpStatus: status, code });
+      trace({ phase: "failed", operation });
       throw Object.assign(Error(code), { httpStatus: status });
     }
   };

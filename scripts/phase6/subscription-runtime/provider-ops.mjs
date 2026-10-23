@@ -436,7 +436,8 @@ export function providerOperations({
             ? rows.length === 1 &&
                 rows[0].stripe_customer_id === resume.customer &&
                 rows[0].is_test === true &&
-                rows[0].checkout_session_id === null
+                rows[0].checkout_session_id ===
+                  (resume.history?.checkout ?? null)
             : rows.length === 0,
           "RETAINED_BINDING_MISMATCH",
         );
@@ -694,6 +695,7 @@ export function providerOperations({
       };
     },
     async bindCheckout(id) {
+      check(id !== resume?.history?.checkout, "HISTORY_NOT_NEW_CHECKOUT");
       check(
         /^cs_test_[A-Za-z0-9_]+$/.test(id) && !state.stopped && state.customer,
       );
@@ -724,7 +726,8 @@ export function providerOperations({
             ? c.subscription
             : c.subscription.id;
         check(
-          /^sub_[A-Za-z0-9_]+$/.test(sid) &&
+          sid !== resume?.history?.subscription &&
+            /^sub_[A-Za-z0-9_]+$/.test(sid) &&
             (state.subscriptions.includes(sid) ||
               state.subscriptions.length < contractLimit),
         );
@@ -1007,7 +1010,10 @@ export function providerOperations({
               typeof c.subscription === "string"
                 ? c.subscription
                 : c.subscription.id;
-            check(/^sub_[A-Za-z0-9_]+$/.test(sid));
+            check(
+              sid !== resume?.history?.subscription &&
+                /^sub_[A-Za-z0-9_]+$/.test(sid),
+            );
             if (!state.subscriptions.includes(sid)) {
               check(state.subscriptions.length < contractLimit);
               state.subscriptions.push(sid);
@@ -1294,6 +1300,28 @@ export function providerOperations({
       try {
         return await method(...args);
       } catch (error) {
+        // One bounded read-only reconciliation after a transport interruption.
+        // No mutation, permission failure, target mismatch or aborted deadline
+        // can use this path. The same known ID is read; no new Checkout is sent.
+        if (
+          ["bindCheckout", "inspectSubscription"].includes(name) &&
+          !signal?.aborted &&
+          !state.stopped &&
+          ["TIMEOUT_OR_ABORT", "TRANSPORT_FAILED"].includes(error.message)
+        ) {
+          check(
+            save(`read-reconciliation-${String(++seq).padStart(4, "0")}.enc`, {
+              operation: name,
+              attempts: 2,
+              mutationRetry: false,
+            }).verified,
+          );
+          try {
+            return await method(...args);
+          } catch {
+            /* fall through to stop */
+          }
+        }
         state.stopped = true;
         persist();
         throw error;

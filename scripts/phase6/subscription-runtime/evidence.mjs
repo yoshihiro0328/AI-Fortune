@@ -1,8 +1,10 @@
 import Stripe from "stripe";
 import { check, TARGET, sha } from "./policy.mjs";
+import { paymentHistory, historicalRow } from "./history.mjs";
 // Auth responses and signed payloads stay in parent memory, never in control output.
 // The JWT used for RLS is the token returned by that user's actual login.
 export function sessionEvidence({ m, wire, save }) {
+  const history = paymentHistory(m);
   const tokens = new Map(),
     events = new Map();
   let seq = 0,
@@ -103,8 +105,12 @@ export function sessionEvidence({ m, wire, save }) {
             Array.isArray(rows) && rows.every((r) => r.user_id === user),
             "RLS_OTHER_USER_VISIBLE",
           );
+          const oldRows = rows.filter((row) =>
+            historicalRow(table, row, history, m.c.id),
+          );
+          check(oldRows.length <= 1, "HISTORICAL_ROW_COUNT");
           check(
-            rows.length === (user === m.c.id ? count : 0),
+            rows.length - oldRows.length === (user === m.c.id ? count : 0),
             "RLS_COUNT_MISMATCH",
           );
           result[user ?? "anonymous"][table] = rows.length;

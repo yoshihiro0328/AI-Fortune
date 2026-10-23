@@ -55,3 +55,28 @@ export function runtimeDiagnostics(save) {
     );
   };
 }
+
+export function requestCategory(url, method) {
+  const p = new URL(url).pathname;
+  const category =
+    [
+      ["lock_acquire", /^\/rest\/v1\/rpc\/acquire_lock$/],
+      ["lock_release", /^\/rest\/v1\/operation_locks$/],
+      ["snapshot", /^\/rest\/v1\/rpc\/apply_subscription_snapshot$/],
+      ["entitlement", /^\/rest\/v1\/rpc\/consultation_entitlement$/],
+      ["subscription", /^\/v1\/subscriptions(?:\/[^/]+)?$/],
+      ["invoice", /^\/v1\/invoices$/],
+      ["checkout", /^\/v1\/checkout\/sessions(?:\/[^/]+)?$/],
+      ["portal", /^\/v1\/billing_portal\//],
+      ["auth", /^\/auth\/v1\//],
+      ["database", /^\/rest\/v1\//],
+    ].find(([, pattern]) => pattern.test(p))?.[0] ?? "other";
+  return (
+    "application_" +
+    (["GET", "POST", "PATCH", "DELETE"].includes(method)
+      ? method.toLowerCase()
+      : "other") +
+    "_" +
+    category
+  );
+}

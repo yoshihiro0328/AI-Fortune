@@ -527,9 +527,12 @@ export async function retainedRecords(t) {
       customerBinding: "retained",
       dbPriceActive: false,
       stripePriceActive: true,
-      checkoutCount: 0,
-      subscriptionCount: 0,
-      paymentCount: 0,
+      checkoutCount: t.m.resume.history ? 1 : 0,
+      subscriptionCount: t.m.resume.history ? 1 : 0,
+      paymentCount: t.m.resume.history ? 1 : 0,
+      ...(t.m.resume.history
+        ? { history: structuredClone(t.m.resume.history) }
+        : {}),
       passwords: "erased_not_recoverable",
     },
     closure: {
@@ -550,4 +553,86 @@ export async function retainedRecords(t) {
     after,
     approval: structuredClone(t.m.resume.approval),
   };
+}
+
+export async function seedPaidHistory(t) {
+  const endedAt = Math.floor(Date.now() / 1000) - 3600;
+  const h = {
+    checkout: "cs_test_history",
+    subscription: "sub_history",
+    invoice: "in_history",
+    endedAt,
+  };
+  t.m.resume.history = h;
+  t.m.resume.approval.recontractOnce = true;
+  const period = { start: endedAt - 100, end: endedAt + 86400 * 30 };
+  t.objects.sub_history = {
+    id: h.subscription,
+    customer: "cus_http",
+    livemode: false,
+    status: "canceled",
+    ended_at: endedAt,
+    canceled_at: endedAt,
+    created: period.start,
+    latest_invoice: h.invoice,
+    metadata: { user_id: t.m.c.id },
+    cancel_at_period_end: false,
+    items: {
+      data: [
+        {
+          quantity: 1,
+          price: { ...t.objects.price },
+          current_period_start: period.start,
+          current_period_end: period.end,
+        },
+      ],
+    },
+  };
+  t.objects.invoices = [
+    {
+      id: h.invoice,
+      customer: "cus_http",
+      livemode: false,
+      parent: { subscription_details: { subscription: h.subscription } },
+      status: "paid",
+      currency: "jpy",
+      amount_paid: 980,
+      amount_remaining: 0,
+      total: 980,
+      attempt_count: 1,
+      auto_advance: false,
+      next_payment_attempt: null,
+      created: period.start,
+      status_transitions: { paid_at: period.start },
+      start: period.start,
+      end: period.end,
+      lines: {
+        has_more: false,
+        data: [
+          {
+            quantity: 1,
+            period,
+            pricing: { price_details: { price: t.m.price } },
+          },
+        ],
+      },
+    },
+  ];
+  t.objects.cs_test_history = {
+    id: h.checkout,
+    subscription: h.subscription,
+    customer: "cus_http",
+    livemode: false,
+    status: "complete",
+    payment_status: "paid",
+    mode: "subscription",
+    amount_total: 980,
+    currency: "jpy",
+    metadata: { user_id: t.m.c.id },
+  };
+  await t.pg.query(
+    "update billing_customers set checkout_session_id=$1 where user_id=$2",
+    [h.checkout, t.m.c.id],
+  );
+  return h;
 }
