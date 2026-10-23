@@ -33,6 +33,11 @@ test("stop evidence survives without retaining arbitrary paths or secret-bearing
   assert.equal(saved[1].value.route, "OTHER_ROUTE");
   assert.equal(saved[2].value.status, 500);
   assert(!JSON.stringify(saved).includes(secret));
+  record({ event: "client_error", code: "HEADER_OVERFLOW", rawPacket: secret });
+  record({ event: "client_error", code: secret, message: secret });
+  assert.equal(saved[3].value.code, "HEADER_OVERFLOW");
+  assert.equal(saved[4].value.code, "HTTP_PARSE_REJECTED");
+  assert(!JSON.stringify(saved).includes(secret));
 });
 test("request categories identify synchronization phases without identifiers or query values", () => {
   assert.equal(

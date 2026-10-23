@@ -167,6 +167,7 @@ export async function startRuntime({
     );
     app.on("message", (x) => {
       if (x?.http) record({ event: "http", ...x.http });
+      if (x?.connectionDiagnostic) record(x.connectionDiagnostic);
     });
     app.on("exit", () => {
       if (!closing) stop("APP_EXIT");

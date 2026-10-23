@@ -1,7 +1,7 @@
-import http from "node:http";
 import next from "next";
 import { TARGET, check } from "./policy.mjs";
 import { browserCookies } from "./browser-cookies.mjs";
+import { listenLoopback } from "./loopback-server.mjs";
 check(
   process.send && process.env.SUBSCRIPTION_INTEGRATION_LOCAL === "true",
   "SUPERVISOR_REQUIRED",
@@ -18,7 +18,7 @@ const scopedCookies = browserCookies(
 let server;
 const pending = new Map();
 async function close() {
-  server?.closeAllConnections();
+  await server?.close();
   await app.close();
   process.exit(0);
 }
@@ -46,7 +46,7 @@ process.on("message", (m) => {
 });
 await app.prepare();
 const handle = app.getRequestHandler();
-server = http.createServer((req, res) => {
+const requestHandler = (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.setHeader("X-Robots-Tag", "noindex, nofollow");
   if (!["localhost:5218", "127.0.0.1:5218"].includes(req.headers.host)) {
@@ -69,6 +69,13 @@ server = http.createServer((req, res) => {
   let browserState;
   try {
     browserState = scopedCookies.install(req, res);
+    if (browserState.foreignCookieOverflowFiltered)
+      process.send?.({
+        connectionDiagnostic: {
+          event: "cookie_scope",
+          code: "FOREIGN_COOKIE_OVERFLOW_FILTERED",
+        },
+      });
   } catch {
     res.writeHead(403);
     return res.end();
@@ -158,6 +165,8 @@ server = http.createServer((req, res) => {
     return res.end();
   }
   void handle(req, res);
-});
-server.requestTimeout = 45000;
-server.listen(5218, "127.0.0.1", () => process.send({ ready: true }));
+};
+server = await listenLoopback(requestHandler, 5218, (event) =>
+  process.send?.({ connectionDiagnostic: event }),
+);
+process.send({ ready: true });

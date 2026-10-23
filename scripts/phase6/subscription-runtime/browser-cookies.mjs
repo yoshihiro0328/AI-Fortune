@@ -56,12 +56,29 @@ export function browserCookies(namespace) {
     return Array.isArray(value) ? value.map(one) : one(value);
   }
   function install(req, res) {
+    const bytes = (headers) =>
+      Object.entries(headers).reduce(
+        (size, [name, value]) =>
+          size +
+          Buffer.byteLength(
+            name +
+              ": " +
+              (Array.isArray(value) ? value.join(", ") : (value ?? "")) +
+              "\r\n",
+          ),
+        0,
+      );
+    const originalBytes = bytes(req.headers);
     const scoped = incoming(req.headers.cookie);
     req.headers.cookie = scoped.header;
+    check(bytes(req.headers) <= 16 * 1024, "SCOPED_HEADERS_TOO_LARGE");
     const set = res.setHeader.bind(res);
     res.setHeader = (name, value) =>
       set(name, name.toLowerCase() === "set-cookie" ? outgoing(value) : value);
-    return scoped;
+    return {
+      ...scoped,
+      foreignCookieOverflowFiltered: originalBytes > 16 * 1024,
+    };
   }
   return { incoming, outgoing, install };
 }

@@ -138,6 +138,9 @@ try {
           alive: runtime.alive(),
           localReads,
           refused,
+          connectionDiagnostics: events.filter((e) =>
+            ["client_error", "cookie_scope"].includes(e.event),
+          ),
           http: events
             .filter((e) => e.event === "http" && !e.path.startsWith("/_next/"))
             .slice(-20),

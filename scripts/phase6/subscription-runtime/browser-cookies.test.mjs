@@ -3,9 +3,50 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { browserCookies } from "./browser-cookies.mjs";
 import { TARGET } from "./policy.mjs";
+import { listenLoopback } from "./loopback-server.mjs";
 const prefix = "plus-" + "a".repeat(32) + "--";
 const other = "plus-" + "b".repeat(32) + "--";
 const auth = `sb-${TARGET.ref}-auth-token`;
+
+test("large stale namespaces are ignored but current cookies and other headers retain the 16 KiB limit", async () => {
+  const scope = browserCookies(prefix);
+  const server = await listenLoopback((req, res) => {
+    try {
+      const state = scope.install(req, res);
+      res.end(
+        JSON.stringify({
+          header: req.headers.cookie,
+          filtered: state.foreignCookieOverflowFiltered,
+        }),
+      );
+    } catch {
+      res.writeHead(403);
+      res.end();
+    }
+  }, 0);
+  try {
+    const url = `http://127.0.0.1:${server.port}/account`;
+    const response = await fetch(url, {
+      headers: {
+        cookie: `${other}${auth}=${"x".repeat(50000)}; ${prefix}yorisoi_session=current`,
+      },
+    });
+    assert.deepEqual(await response.json(), {
+      header: "yorisoi_session=current",
+      filtered: true,
+    });
+    const current = await fetch(url, {
+      headers: { cookie: `${prefix}${auth}=${"x".repeat(17000)}` },
+    });
+    assert.equal(current.status, 403);
+    const nonCookie = await fetch(url, {
+      headers: { "x-large": "x".repeat(17000) },
+    });
+    assert.equal(nonCookie.status, 403);
+  } finally {
+    await server.close();
+  }
+});
 
 test("foreign localhost sessions never enter the current app, including same-project old JWTs", () => {
   const scope = browserCookies(prefix);

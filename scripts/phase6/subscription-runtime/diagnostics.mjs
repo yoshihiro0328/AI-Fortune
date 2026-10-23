@@ -25,12 +25,23 @@ export function runtimeDiagnostics(save) {
   let sequence = 0;
   return (value) => {
     if (
-      !["stop", "policy_denied", "http", "finished", "startup_failed"].includes(
-        value?.event,
-      )
+      ![
+        "stop",
+        "policy_denied",
+        "http",
+        "client_error",
+        "cookie_scope",
+        "finished",
+        "startup_failed",
+      ].includes(value?.event)
     )
       return;
     const entry = { event: value.event };
+    if (value.event === "cookie_scope")
+      entry.code = "FOREIGN_COOKIE_OVERFLOW_FILTERED";
+    if (value.event === "client_error")
+      entry.code =
+        value.code === "HEADER_OVERFLOW" ? value.code : "HTTP_PARSE_REJECTED";
     if (value.event === "stop")
       entry.code = stopCodes.has(value.code) ? value.code : "OTHER_STOP";
     if (["policy_denied", "http"].includes(value.event)) {
