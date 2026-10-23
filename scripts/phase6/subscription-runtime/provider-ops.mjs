@@ -1075,8 +1075,10 @@ export function providerOperations({
         ? "verified"
         : "failed_or_unknown";
       await step("invoiceSafety", async () => {
+        // A runtime failure must not skip bounded reads of known contracts.
+        // Unknown operations still keep overall cleanup incomplete below.
         check(
-          result.endContracts === "verified" && state.unknown.length === 0,
+          result.endContracts === "verified",
           "UNKNOWN_RESOURCE_OR_CONTRACT",
         );
         for (const id of state.subscriptions) {

@@ -4,6 +4,7 @@ const m = vi.hoisted(() => ({
   retrieve: vi.fn(),
   invoices: vi.fn(),
   rpc: vi.fn(),
+  lock: vi.fn(),
   binding: { user_id: "owner", is_test: true },
   version: {
     id: "plus-v1",
@@ -16,7 +17,7 @@ vi.mock("@/lib/stripe/environment", () => ({
   stripeEnvironment: async () => ({ mode: "sandbox", isTest: true }),
 }));
 vi.mock("@/lib/ai/pipeline", () => ({
-  lock: async (_k: string, fn: () => Promise<unknown>) => fn(),
+  lock: m.lock,
 }));
 vi.mock("@/lib/stripe/client", () => ({
   stripe: () => ({
@@ -47,6 +48,9 @@ import {
 } from "@/lib/stripe/subscriptions";
 beforeEach(() => {
   vi.clearAllMocks();
+  m.lock.mockImplementation(async (_k: string, fn: () => Promise<unknown>) =>
+    fn(),
+  );
   m.binding = { user_id: "owner", is_test: true };
   m.version = {
     id: "plus-v1",
@@ -111,6 +115,62 @@ beforeEach(() => {
   m.rpc.mockResolvedValue({ data: null, error: null });
 });
 afterEach(() => vi.restoreAllMocks());
+it("overlapping webhook and account refreshes preserve every event without lock collision", async () => {
+  let locked = false;
+  let enter!: () => void, release!: () => void;
+  const entered = new Promise<void>((r) => {
+    enter = r;
+  });
+  const gate = new Promise<void>((r) => {
+    release = r;
+  });
+  m.lock.mockImplementation(async (_k: string, fn: () => Promise<unknown>) => {
+    if (locked) throw Error("409 lock busy");
+    locked = true;
+    enter();
+    try {
+      await gate;
+      return await fn();
+    } finally {
+      locked = false;
+    }
+  });
+  const a = syncSubscription("sub_fixture", {
+    id: "evt_a",
+    type: "invoice.paid",
+    hash: "a",
+  });
+  await entered;
+  const b = syncSubscription("sub_fixture", {
+    id: "evt_b",
+    type: "customer.subscription.created",
+    hash: "b",
+  });
+  const account = syncSubscription("sub_fixture");
+  await Promise.resolve();
+  expect(m.lock).toHaveBeenCalledTimes(1);
+  release();
+  await expect(Promise.all([a, b, account])).resolves.toEqual([
+    true,
+    true,
+    true,
+  ]);
+  expect(m.rpc.mock.calls.map((c) => c[1].p_event)).toEqual([
+    "evt_a",
+    "evt_b",
+    null,
+  ]);
+  expect(m.retrieve).toHaveBeenCalledTimes(3);
+});
+it("a failed refresh is not retried and does not poison the next independently requested refresh", async () => {
+  m.retrieve.mockRejectedValueOnce(Error("unknown read result"));
+  await expect(syncSubscription("sub_fixture")).rejects.toThrow(
+    "unknown read result",
+  );
+  expect(m.retrieve).toHaveBeenCalledTimes(1);
+  await expect(syncSubscription("sub_fixture")).resolves.toBe(true);
+  expect(m.retrieve).toHaveBeenCalledTimes(2);
+});
 it("a paid invoice sets the matching paid-through date", async () => {
   await syncSubscription("sub_fixture");
   expect(m.rpc).toHaveBeenCalledWith(

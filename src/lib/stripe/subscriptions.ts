@@ -8,7 +8,29 @@ import { lock } from "@/lib/ai/pipeline";
 export const stripeId = (value: string | { id: string } | null | undefined) =>
   typeof value === "string" ? value : (value?.id ?? null);
 const iso = (seconds: number) => new Date(seconds * 1000).toISOString();
+// Webhook deliveries and the account page can refresh the same subscription
+// concurrently. Keep each refresh (and its event evidence), but queue them before
+// taking the distributed DB lock. Share across route bundles in this process.
+const syncState = globalThis as typeof globalThis & {
+  yorisoiSubscriptionSync?: Map<string, Promise<unknown>>;
+};
+const syncQueue = (syncState.yorisoiSubscriptionSync ??= new Map());
 export async function syncSubscription(
+  id: string,
+  event?: { id: string; type: string; hash: string },
+) {
+  const previous = syncQueue.get(id) ?? Promise.resolve();
+  const pending = previous
+    .catch(() => {})
+    .then(() => refreshSubscription(id, event));
+  syncQueue.set(id, pending);
+  try {
+    return await pending;
+  } finally {
+    if (syncQueue.get(id) === pending) syncQueue.delete(id);
+  }
+}
+async function refreshSubscription(
   id: string,
   event?: { id: string; type: string; hash: string },
 ) {

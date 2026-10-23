@@ -12,6 +12,7 @@ import { scenario } from "./scenario.mjs";
 import { minimal } from "./minimal-profile.mjs";
 import { revokeAndVerify } from "./revocation.mjs";
 import { stagedKeyHandoff } from "./staged-key-handoff.mjs";
+import { runtimeDiagnostics } from "./diagnostics.mjs";
 // Programmatic entry for the existing private local receiver / same interactive TTY.
 // Importing this file never reads a secret or opens a connection. No CLI/env fallback.
 export function createProviderRun({
@@ -57,6 +58,7 @@ export function createProviderRun({
       "CLI_HASH_MISMATCH",
     );
     const store = vault(evidenceDirectory, key);
+    const diagnostics = runtimeDiagnostics(store.save);
     if (planFile)
       check(
         store.save("private-plan.enc", privateInput(planFile, root)).verified,
@@ -147,7 +149,10 @@ export function createProviderRun({
       attemptId,
       wire,
       save: store.save,
-      record,
+      record: (value) => {
+        diagnostics(value);
+        record(value);
+      },
       human,
       listener: cliListener,
       input,

@@ -209,6 +209,12 @@ test("minimal unknown cancellation is read back, never resent, other cleanup con
     );
     assert.equal(result.deactivateDatabasePrice, "verified");
     assert.equal(result.restorePortalBinding, "verified");
+    assert.equal(result.invoiceSafety, "verified");
+    assert.equal(
+      t.calls.filter((c) => c.p === "/v1/invoices" && c.method === "GET")
+        .length,
+      1,
+    );
     assert.equal(result.complete, false); // unknown operation retained, never rewritten as success
   } finally {
     await t.close();

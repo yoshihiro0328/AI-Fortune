@@ -288,9 +288,17 @@ for (const {
           payment_status: "paid",
           subscription: s.id,
         });
-        await send("checkout.session.completed", o[id]);
-        await send("customer.subscription.created", s);
-        if (minimal) await send("invoice.paid", o.invoices[0]);
+        if (minimal && profiles) {
+          await Promise.all([
+            send("checkout.session.completed", o[id]),
+            send("customer.subscription.created", s),
+            send("invoice.paid", o.invoices[0]),
+          ]);
+        } else {
+          await send("checkout.session.completed", o[id]);
+          await send("customer.subscription.created", s);
+          if (minimal) await send("invoice.paid", o.invoices[0]);
+        }
       }
       if (ops) await ops.bindCheckout(id);
       return o[id];
