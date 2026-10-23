@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import readline from "node:readline";
-import { TARGET, check } from "./policy.mjs";
+import { TARGET, check, validate } from "./policy.mjs";
 import { providerWire } from "./wire.mjs";
 import { startRuntime } from "./runtime.mjs";
 import { appTransport } from "./app-transport.mjs";
@@ -41,6 +41,32 @@ const old = JSON.parse(
 );
 oldKey.fill(0);
 const m = old.manifest;
+validate(m);
+check(
+  m.account === TARGET.account &&
+    m.project === TARGET.ref &&
+    m.c.id === "74a7ac25-66f2-450e-a6a4-c72e498fd638" &&
+    m.d.id === "ff82e4fe-6de5-4dde-887f-9ae7e8caf89b" &&
+    m.customer === "cus_VTu4n49mO4oVRg" &&
+    m.portal === "bpc_1USwGkI73kTcvXz8e7AfCnvj" &&
+    m.resume?.approval?.resetDedicatedPasswords === true &&
+    m.resume?.approval?.reactivateRetainedPortal === true,
+  "RETAINED_TARGET_REQUIRED",
+);
+check(
+  [
+    "NODE_OPTIONS",
+    "NODE_TLS_REJECT_UNAUTHORIZED",
+    "NODE_EXTRA_CA_CERTS",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+  ].every((k) => !process.env[k]),
+  "UNAPPROVED_RUNTIME_OVERRIDE",
+);
 m.postClose = {
   subscription: "sub_1UTg3hI73kTcvXz8bbbuwStW",
   invoice: "in_1UTg3gI73kTcvXz8qXuX9qcr",
@@ -79,6 +105,18 @@ const secrets = {
   anon: loaded.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   service: loaded.SUPABASE_SERVICE_ROLE_KEY,
 };
+for (const [name, role] of [
+  ["anon", "anon"],
+  ["service", "service_role"],
+]) {
+  const claims = JSON.parse(
+    Buffer.from(secrets[name].split(".")[1], "base64url"),
+  );
+  check(
+    claims.ref === TARGET.ref && claims.role === role,
+    "DB_CREDENTIAL_SCOPE_MISMATCH",
+  );
+}
 const passwords = { c: testPassword(), d: testPassword() };
 let runtime,
   receiver,
