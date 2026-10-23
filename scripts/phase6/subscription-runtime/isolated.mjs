@@ -280,6 +280,13 @@ export async function isolatedSubscription() {
           email_confirmed_at: "2026-01-01T00:00:00Z",
           aud: "authenticated",
           role: "authenticated",
+          ...(state.authUserPadding
+            ? {
+                user_metadata: {
+                  fixture_padding: "x".repeat(state.authUserPadding),
+                },
+              }
+            : {}),
         },
       };
       sessions.set(s.access_token, s);

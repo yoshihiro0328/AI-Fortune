@@ -109,7 +109,10 @@ for (const {
           "insert into profiles(user_id,display_name) values($1,$2)",
           [user.id, "Retained profile"],
         );
-    if (history) await seedPaidHistory(t);
+    if (history) {
+      await seedPaidHistory(t);
+      t.db.state.authUserPadding = 6000;
+    }
     const resumePlan = resume ? retainedPlan(await retainedRecords(t)) : null;
     const m = resumePlan?.manifest ?? t.m;
     m.frozenTime = Math.floor(Date.now() / 1000) - 10;

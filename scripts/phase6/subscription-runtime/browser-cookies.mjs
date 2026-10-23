@@ -42,8 +42,16 @@ export function browserCookies(namespace) {
     const one = (line) => {
       check(typeof line === "string", "INVALID_SET_COOKIE");
       const equal = line.indexOf("=");
-      check(equal > 0 && allowed(line.slice(0, equal)), "UNSCOPED_TEST_COOKIE");
-      return namespace + line;
+      const name = line.slice(0, equal);
+      const alreadyScoped = name.startsWith(namespace);
+      check(
+        equal > 0 &&
+          allowed(alreadyScoped ? name.slice(namespace.length) : name),
+        "UNSCOPED_TEST_COOKIE",
+      );
+      // Next appends by reading the headers already sent through this adapter.
+      // Preserve our own validated prefix; foreign namespaces remain denied.
+      return alreadyScoped ? line : namespace + line;
     };
     return Array.isArray(value) ? value.map(one) : one(value);
   }

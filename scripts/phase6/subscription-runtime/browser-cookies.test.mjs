@@ -89,3 +89,30 @@ test("real HTTP boundary maps incoming and outgoing cookies without deleting unr
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test("Next appends multiple SSR cookie chunks without rejecting or double-prefixing the first", async () => {
+  const { NodeNextResponse } =
+    await import("next/dist/server/base-http/node.js");
+  const scope = browserCookies(prefix);
+  const req = new http.IncomingMessage({});
+  req.headers = {};
+  const res = new http.ServerResponse(req);
+  scope.install(req, res);
+  const nextResponse = new NodeNextResponse(res);
+  nextResponse.appendHeader(
+    "Set-Cookie",
+    `${auth}.0=synthetic-first; Path=/; HttpOnly`,
+  );
+  nextResponse.appendHeader(
+    "Set-Cookie",
+    `${auth}.1=synthetic-second; Path=/; HttpOnly`,
+  );
+  assert.deepEqual(res.getHeader("Set-Cookie"), [
+    `${prefix}${auth}.0=synthetic-first; Path=/; HttpOnly`,
+    `${prefix}${auth}.1=synthetic-second; Path=/; HttpOnly`,
+  ]);
+  assert.throws(
+    () => scope.outgoing(`${other}${auth}=outside; Path=/`),
+    /UNSCOPED/,
+  );
+});

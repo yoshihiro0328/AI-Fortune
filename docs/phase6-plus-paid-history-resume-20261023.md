@@ -23,3 +23,13 @@ The 20-minute trial, 2-hour credential lifetime, existing API limits, 60-second 
 - Manual review covered scope counters, historical row ownership, immutable comparison baseline, retry classification, secret-safe diagnostics and cleanup preservation.
 
 These are preparation results, not a successful real Stripe continuation. Real webhook/Plus/Portal/post-payment checks remain unverified until the authorized next attempt completes.
+
+## Pre-key authentication repair
+
+The next pre-key attempt made no Checkout, subscription, payment or Stripe key. Both Auth calls returned success, but the browser could not parse the app response. The attempt was closed with all cleanup checks verified and temporary credentials removed.
+
+A concrete defect was reproduced with Next's own `NodeNextResponse.appendHeader`: when SSR sends multiple auth-cookie chunks, its second append reads the first, already namespaced header and passes it through the adapter again. The adapter rejected that header as unscoped. This explains how a successful Auth call can fail before a usable browser response. It does not retrospectively prove the root cause of the older paid attempt.
+
+The adapter now accepts an already-prefixed cookie only when its prefix is exactly this attempt's namespace and its underlying name is allowlisted. Foreign namespaces, unrelated cookies and duplicate incoming cookies remain rejected. No browser protection or credential scope is weakened.
+
+A regression using Next's actual header append failed before the fix and passed after. The full production-app Chrome flow also passed with a synthetic 6,000-character auth metadata field, forcing multiple cookie chunks, through retained history → one additional synthetic payment → Plus/Portal/RLS → cancel/Free/cleanup. No real purchase was used for this repair.
