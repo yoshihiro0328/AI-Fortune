@@ -70,3 +70,39 @@ export function retainedUserRows(m, table, owner, rows) {
         rows[0].amount === 980))
   );
 }
+
+// An unpaid expired Checkout is separate from paid subscription history. It is
+// retained only as a binding reference and never receives a write reservation.
+export function expiredCheckout(m) {
+  const e = m.resume?.expiredCheckout;
+  if (e === undefined) return null;
+  if (
+    m.scenario !== "minimal-plus-v1" ||
+    m.resume.approval?.replaceExpiredCheckoutOnce !== true ||
+    m.resume.approval?.recontractOnce !== true ||
+    Object.keys(e).sort().join(",") !== "id,sourceAttemptId" ||
+    !/^cs_test_[A-Za-z0-9_]+$/.test(e.id) ||
+    !/^[a-f0-9-]{36}$/.test(e.sourceAttemptId) ||
+    e.id === paymentHistory(m)?.checkout
+  )
+    throw Error("EXPIRED_CHECKOUT_APPROVAL_OR_ID_MISMATCH");
+  return e;
+}
+export function retainedCheckoutId(m) {
+  return expiredCheckout(m)?.id ?? paymentHistory(m)?.checkout ?? null;
+}
+export function isRetainedExpiredCheckout(c, m) {
+  return (
+    c?.id === expiredCheckout(m)?.id &&
+    c?.status === "expired" &&
+    c.payment_status === "unpaid" &&
+    c.subscription === null &&
+    c.invoice === null &&
+    c.livemode === false &&
+    c.customer === m.customer &&
+    c.mode === "subscription" &&
+    c.amount_total === 980 &&
+    c.currency === "jpy" &&
+    c.metadata?.user_id === m.c.id
+  );
+}

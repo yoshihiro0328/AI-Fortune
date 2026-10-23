@@ -1,6 +1,8 @@
 import { createHash, createHmac } from "node:crypto";
 import {
   paymentHistory,
+  expiredCheckout,
+  isRetainedExpiredCheckout,
   historicalSubscription,
   historicalInvoice,
   historicalRow,
@@ -80,6 +82,7 @@ export class Policy {
     validate(m);
     this.m = m;
     this.history = paymentHistory(m);
+    this.expiredCheckout = expiredCheckout(m);
     this.minimal = m.scenario === "minimal-plus-v1";
     this.contractLimit = this.minimal ? 1 : 2;
     this.invoiceLimit = this.minimal ? 1 : 4;
@@ -329,7 +332,11 @@ export class Policy {
         return { kind: "invoices", subscription: q.get("subscription") };
       }
       if (
-        [...(this.checkouts ?? []), this.history?.checkout]
+        [
+          ...(this.checkouts ?? []),
+          this.history?.checkout,
+          this.expiredCheckout?.id,
+        ]
           .filter(Boolean)
           .some((id) => path === "/v1/checkout/sessions/" + id)
       )
@@ -488,6 +495,11 @@ export class Policy {
       this.invoiceIds = observed;
     }
     if (["checkout", "checkoutRead"].includes(t.kind)) {
+      if (d.id === this.expiredCheckout?.id)
+        check(
+          t.kind === "checkoutRead" && isRetainedExpiredCheckout(d, m),
+          "EXPIRED_CHECKOUT_STATE_CHANGED",
+        );
       if (d.id === this.history?.checkout)
         check(
           t.kind === "checkoutRead" &&

@@ -10,6 +10,7 @@ import {
   fixture,
   retainedRecords,
   seedPaidHistory,
+  seedExpiredCheckout,
 } from "./provider-fixture.mjs";
 import { supervisor } from "./supervisor.mjs";
 import { scenario, STEPS, MINIMAL_STEPS } from "./scenario.mjs";
@@ -69,6 +70,16 @@ cases.push({
   historyMapped: true,
   mode: "normal",
 });
+cases.push({
+  minimal: true,
+  resume: true,
+  staged: true,
+  profiles: true,
+  history: true,
+  historyMapped: true,
+  expired: true,
+  mode: "normal",
+});
 for (const {
   minimal,
   resume,
@@ -77,7 +88,9 @@ for (const {
   profiles = false,
   history = false,
   historyMapped = false,
+  expired = false,
 } of cases) {
+  if (process.env.PLUS_EXPIRED_ONLY === "1" && !expired) continue;
   if (process.env.PLUS_HISTORY_ONLY === "1" && !history) continue;
   if ((macBrowser || realTTY) && mode === "prekey-timeout") continue;
   if (process.env.PLUS_STAGED_ONLY === "1" && (!staged || mode !== "normal"))
@@ -91,6 +104,7 @@ for (const {
     continue;
   const name =
     "connected scenario to closure: " +
+    (expired ? "expired retained checkout " : "") +
     (historyMapped ? "synchronized retained DB history " : "") +
     (history ? "paid history and lost return confirmation " : "") +
     (profiles ? "existing profiles " : "") +
@@ -124,6 +138,7 @@ for (const {
       await seedPaidHistory(t);
       t.db.state.authUserPadding = 6000;
     }
+    if (expired) await seedExpiredCheckout(t);
     const resumePlan = resume ? retainedPlan(await retainedRecords(t)) : null;
     const m = resumePlan?.manifest ?? t.m;
     m.frozenTime = Math.floor(Date.now() / 1000) - 10;
@@ -765,6 +780,15 @@ for (const {
             ).rows.length,
             1,
           );
+      }
+      if (expired) {
+        assert(
+          t.calls
+            .filter((c) => c.p.includes(m.resume.expiredCheckout.id))
+            .every((c) => c.method === "GET"),
+        );
+        assert.equal(o[m.resume.expiredCheckout.id].status, "expired");
+        assert.equal(o[m.resume.expiredCheckout.id].subscription, null);
       }
       if (minimal) {
         assert.equal(settingWrites.length, 0);

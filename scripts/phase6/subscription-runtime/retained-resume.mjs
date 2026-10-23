@@ -2,6 +2,9 @@ import { check } from "./policy.mjs";
 import { minimal } from "./minimal-profile.mjs";
 import {
   paymentHistory,
+  expiredCheckout,
+  retainedCheckoutId,
+  isRetainedExpiredCheckout,
   historicalSubscription,
   historicalInvoice,
   retainedUserRows,
@@ -15,12 +18,17 @@ export function retainedResume(m, attemptId) {
   check(minimal(m) && r && typeof r === "object", "RESUME_SCOPE_REQUIRED");
   check(
     Object.keys(r)
-      .filter((k) => !["profiles", "history"].includes(k))
+      .filter((k) => !["profiles", "history", "expiredCheckout"].includes(k))
       .sort()
       .join(",") === "approval,customer,portal,sourceAttemptId",
     "RESUME_FIELDS_INVALID",
   );
   paymentHistory(m);
+  const expired = expiredCheckout(m);
+  check(
+    !expired || expired.sourceAttemptId !== attemptId,
+    "EXPIRED_CHECKOUT_SOURCE_MISMATCH",
+  );
   if (r.profiles !== undefined)
     check(
       Object.keys(r.profiles).sort().join(",") === "c,d" &&
@@ -115,7 +123,7 @@ export async function inspectRetained({ m, get, save, observed }) {
             bindings[0].user_id === user.id &&
             bindings[0].stripe_customer_id === r.customer &&
             bindings[0].is_test === true &&
-            bindings[0].checkout_session_id === (history?.checkout ?? null)
+            bindings[0].checkout_session_id === retainedCheckoutId(m)
           : bindings.length === 0),
       "RETAINED_BINDING_MISMATCH",
     );
@@ -171,6 +179,19 @@ export async function inspectRetained({ m, get, save, observed }) {
         c.amount_total === 980 &&
         c.currency === "jpy",
       "HISTORICAL_CHECKOUT_MISMATCH",
+    );
+  }
+  const expired = expiredCheckout(m);
+  if (expired) {
+    const checkout = await get(
+      "stripe",
+      "/v1/checkout/sessions/" + expired.id,
+      "identify_retained_expired_checkout",
+      "app",
+    );
+    check(
+      isRetainedExpiredCheckout(checkout, m),
+      "EXPIRED_CHECKOUT_STATE_CHANGED",
     );
   }
   const portal = await get(

@@ -9,7 +9,11 @@ import {
   inspectRetained,
 } from "./retained-resume.mjs";
 import { LIMITS } from "./journal.mjs";
-import { retainedUserRows } from "./history.mjs";
+import {
+  retainedUserRows,
+  retainedCheckoutId,
+  expiredCheckout,
+} from "./history.mjs";
 // Scoped provisioning and closure; never accepts caller-supplied endpoints or SQL.
 // m contains dedicated C/D identities (new or explicitly retained), not credentials.
 export function providerOperations({
@@ -441,8 +445,7 @@ export function providerOperations({
             ? rows.length === 1 &&
                 rows[0].stripe_customer_id === resume.customer &&
                 rows[0].is_test === true &&
-                rows[0].checkout_session_id ===
-                  (resume.history?.checkout ?? null)
+                rows[0].checkout_session_id === retainedCheckoutId(m)
             : rows.length === 0,
           "RETAINED_BINDING_MISMATCH",
         );
@@ -700,7 +703,10 @@ export function providerOperations({
       };
     },
     async bindCheckout(id) {
-      check(id !== resume?.history?.checkout, "HISTORY_NOT_NEW_CHECKOUT");
+      check(
+        id !== resume?.history?.checkout && id !== expiredCheckout(m)?.id,
+        "HISTORY_NOT_NEW_CHECKOUT",
+      );
       check(
         /^cs_test_[A-Za-z0-9_]+$/.test(id) && !state.stopped && state.customer,
       );

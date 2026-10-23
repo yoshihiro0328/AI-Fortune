@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import { retainedUserRows } from "./history.mjs";
+import { retainedUserRows, retainedCheckoutId } from "./history.mjs";
 import { check, sha, TARGET, validate } from "./policy.mjs";
 // A new attempt journal never replaces an old attempt, and reservations precede side effects.
 export const LIMITS = Object.freeze({
@@ -125,7 +125,7 @@ export async function observePreflight(m, read) {
     binding.length === 1 &&
       binding[0].stripe_customer_id === m.customer &&
       binding[0].is_test &&
-      binding[0].checkout_session_id === (m.resume?.history?.checkout ?? null),
+      binding[0].checkout_session_id === retainedCheckoutId(m),
   );
   actual.binding = binding;
   actual.bindingD = await read(

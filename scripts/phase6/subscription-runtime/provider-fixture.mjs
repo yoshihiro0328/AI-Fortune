@@ -543,6 +543,9 @@ export async function retainedRecords(t) {
       ...(t.m.resume.history
         ? { history: structuredClone(t.m.resume.history) }
         : {}),
+      ...(t.m.resume.expiredCheckout
+        ? { expiredCheckout: structuredClone(t.m.resume.expiredCheckout) }
+        : {}),
       passwords: "erased_not_recoverable",
     },
     closure: {
@@ -645,4 +648,26 @@ export async function seedPaidHistory(t) {
     [h.checkout, t.m.c.id],
   );
   return h;
+}
+
+export async function seedExpiredCheckout(t) {
+  const e = {
+    id: "cs_test_expired_retained",
+    sourceAttemptId: "567a6d98-d780-48ab-957a-30195dc7ebda",
+  };
+  t.m.resume.expiredCheckout = e;
+  t.m.resume.approval.replaceExpiredCheckoutOnce = true;
+  t.objects[e.id] = {
+    ...t.objects.cs_test_history,
+    id: e.id,
+    status: "expired",
+    payment_status: "unpaid",
+    subscription: null,
+    invoice: null,
+  };
+  await t.pg.query(
+    "update billing_customers set checkout_session_id=$1 where user_id=$2",
+    [e.id, t.m.c.id],
+  );
+  return e;
 }

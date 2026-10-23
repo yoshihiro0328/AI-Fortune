@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { check, sha, TARGET } from "./policy.mjs";
 import { minimal } from "./minimal-profile.mjs";
-import { paymentHistory } from "./history.mjs";
+import { paymentHistory, expiredCheckout } from "./history.mjs";
 
 // Pure local plan construction from the completed attempt's records. No provider
 // calls, files, old passwords or old browser sessions. Provider operations still
@@ -15,6 +15,11 @@ export function retainedPlan({
 }) {
   const old = priorPlan.manifest;
   const history = retained.history;
+  if (retained.expiredCheckout)
+    expiredCheckout({
+      ...old,
+      resume: { history, approval, expiredCheckout: retained.expiredCheckout },
+    });
   if (history) paymentHistory({ ...old, resume: { history, approval } });
   check(
     minimal(old) &&
@@ -112,6 +117,9 @@ export function retainedPlan({
         ),
         approval: structuredClone(approval),
         ...(history ? { history: structuredClone(history) } : {}),
+        ...(retained.expiredCheckout
+          ? { expiredCheckout: structuredClone(retained.expiredCheckout) }
+          : {}),
       },
     },
   };

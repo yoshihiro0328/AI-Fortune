@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   fixture,
   seedPaidHistory,
+  seedExpiredCheckout,
   retainedRecords,
 } from "./provider-fixture.mjs";
 import { retainedPlan } from "./retained-plan.mjs";
@@ -212,6 +213,58 @@ test("only the exact canceled C history is allowed as retained database state", 
     );
     assert.equal(retainedUserRows(t.m, "payments", t.m.c.id, [i]), false);
     assert.equal(retainedUserRows(t.m, "subscriptions", t.m.c.id, null), false);
+  } finally {
+    await t.close();
+  }
+});
+
+test("expired retained Checkout is read-only, exactly scoped, and cannot consume the new purchase", async () => {
+  const t = await fixture("normal", undefined, true, true);
+  try {
+    await seedPaidHistory(t);
+    const e = await seedExpiredCheckout(t);
+    const input = await retainedRecords(t),
+      plan = retainedPlan(input),
+      p = new Policy(plan.manifest);
+    const request = {
+      method: "GET",
+      url: TARGET.stripe + "/v1/checkout/sessions/" + e.id,
+      headers: {},
+    };
+    p.accept(p.authorize(request), 200, t.objects[e.id]);
+    assert.equal(p.checkouts?.size ?? 0, 0);
+    for (const patch of [
+      { status: "open" },
+      { payment_status: "paid" },
+      { subscription: "sub_extra" },
+      { invoice: "in_extra" },
+      { livemode: true },
+      { customer: "cus_other" },
+      { amount_total: 981 },
+      { metadata: { user_id: plan.manifest.d.id } },
+    ])
+      assert.throws(
+        () =>
+          p.accept(p.authorize(request), 200, { ...t.objects[e.id], ...patch }),
+        /EXPIRED_CHECKOUT_STATE_CHANGED/,
+      );
+    assert.throws(() =>
+      p.authorize({
+        ...request,
+        method: "POST",
+        url: request.url + "/expire",
+        body: {},
+      }),
+    );
+    assert.throws(() =>
+      p.authorize({
+        ...request,
+        url: TARGET.stripe + "/v1/checkout/sessions/cs_test_unknown",
+      }),
+    );
+    const bad = structuredClone(input);
+    bad.approval.replaceExpiredCheckoutOnce = false;
+    assert.throws(() => retainedPlan(bad), /EXPIRED_CHECKOUT_APPROVAL/);
   } finally {
     await t.close();
   }
