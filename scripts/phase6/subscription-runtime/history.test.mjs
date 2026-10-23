@@ -150,3 +150,69 @@ test("paid-closure reconciliation cannot hide extra unknowns or an unsafe invoic
     await t.close();
   }
 });
+
+test("only the exact canceled C history is allowed as retained database state", async () => {
+  const { retainedUserRows } = await import("./history.mjs");
+  const t = await fixture("normal", undefined, true, true);
+  try {
+    const h = await seedPaidHistory(t);
+    const s = {
+      id: h.subscription,
+      user_id: t.m.c.id,
+      is_test: true,
+      status: "canceled",
+      ended_at: new Date(h.endedAt * 1000).toISOString(),
+      stripe_customer_id: t.m.customer,
+      price_version: t.m.version,
+      amount: 980,
+    };
+    const i = {
+      id: h.invoice,
+      subscription_id: h.subscription,
+      user_id: t.m.c.id,
+      status: "paid",
+      amount: 980,
+      currency: "jpy",
+      is_test: true,
+    };
+    assert(retainedUserRows(t.m, "subscriptions", t.m.c.id, [s]));
+    assert(retainedUserRows(t.m, "subscription_invoices", t.m.c.id, [i]));
+    for (const change of [
+      { id: "sub_other" },
+      { status: "active" },
+      { is_test: false },
+      { user_id: t.m.d.id },
+      { amount: 981 },
+      { ended_at: null },
+      { stripe_customer_id: "cus_other" },
+      { price_version: "other" },
+    ])
+      assert.equal(
+        retainedUserRows(t.m, "subscriptions", t.m.c.id, [{ ...s, ...change }]),
+        false,
+      );
+    for (const change of [
+      { id: "in_other" },
+      { subscription_id: "sub_other" },
+      { status: "open" },
+      { amount: 0 },
+      { currency: "usd" },
+      { is_test: false },
+    ])
+      assert.equal(
+        retainedUserRows(t.m, "subscription_invoices", t.m.c.id, [
+          { ...i, ...change },
+        ]),
+        false,
+      );
+    assert.equal(retainedUserRows(t.m, "subscriptions", t.m.d.id, [s]), false);
+    assert.equal(
+      retainedUserRows(t.m, "subscriptions", t.m.c.id, [s, s]),
+      false,
+    );
+    assert.equal(retainedUserRows(t.m, "payments", t.m.c.id, [i]), false);
+    assert.equal(retainedUserRows(t.m, "subscriptions", t.m.c.id, null), false);
+  } finally {
+    await t.close();
+  }
+});

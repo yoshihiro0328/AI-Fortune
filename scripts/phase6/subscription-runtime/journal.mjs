@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { retainedUserRows } from "./history.mjs";
 import { check, sha, TARGET, validate } from "./policy.mjs";
 // A new attempt journal never replaces an old attempt, and reservations precede side effects.
 export const LIMITS = Object.freeze({
@@ -115,7 +116,10 @@ export async function observePreflight(m, read) {
   );
   for (const [k, rows] of Object.entries(actual))
     if (/^(diagnoses|payments|subscriptions|subscription_invoices):/.test(k))
-      check(rows.length === 0, "DEDICATED_USER_NOT_EMPTY");
+      check(
+        retainedUserRows(m, k.split(":")[0], k.split(":")[1], rows),
+        "DEDICATED_USER_NOT_EMPTY",
+      );
   const binding = await read("billing_customers?select=*&user_id=eq." + m.c.id);
   check(
     binding.length === 1 &&

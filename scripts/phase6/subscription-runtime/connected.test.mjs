@@ -60,6 +60,15 @@ cases.push({
   history: true,
   mode: "normal",
 });
+cases.push({
+  minimal: true,
+  resume: true,
+  staged: true,
+  profiles: true,
+  history: true,
+  historyMapped: true,
+  mode: "normal",
+});
 for (const {
   minimal,
   resume,
@@ -67,6 +76,7 @@ for (const {
   staged = false,
   profiles = false,
   history = false,
+  historyMapped = false,
 } of cases) {
   if (process.env.PLUS_HISTORY_ONLY === "1" && !history) continue;
   if ((macBrowser || realTTY) && mode === "prekey-timeout") continue;
@@ -81,6 +91,7 @@ for (const {
     continue;
   const name =
     "connected scenario to closure: " +
+    (historyMapped ? "synchronized retained DB history " : "") +
     (history ? "paid history and lost return confirmation " : "") +
     (profiles ? "existing profiles " : "") +
     (staged ? "staged " : "") +
@@ -185,7 +196,7 @@ for (const {
           iso(item.current_period_end),
           paid ? iso(paid.end) : null,
           !!s.cancel_at_period_end,
-          s.status === "canceled" ? iso(now()) : null,
+          s.status === "canceled" ? iso(s.ended_at ?? now()) : null,
         ],
       );
       for (const i of invoices)
@@ -202,6 +213,7 @@ for (const {
           ],
         );
     };
+    if (historyMapped) await snapshot(o.sub_history);
     const send = async (type, object) => {
       const raw = JSON.stringify({
         id: "evt_connected_" + ++eventNo,

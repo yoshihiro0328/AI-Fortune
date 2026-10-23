@@ -183,6 +183,16 @@ export async function fixture(
             accept: req.headers.accept,
           },
         });
+        // Exercise the real PostgREST void response, including the committed
+        // database mutation, through the production wire and broker.
+        if (
+          p === "/rest/v1/rpc/apply_subscription_snapshot" &&
+          output.status >= 200 &&
+          output.status < 300
+        ) {
+          res.writeHead(204);
+          return res.end();
+        }
         return send(JSON.parse(output.text), output.status);
       }
       if (p === "/v1/account")

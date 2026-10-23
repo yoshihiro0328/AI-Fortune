@@ -42,7 +42,9 @@ export function appTransport({ wire, operations, signal, login }) {
         u.pathname === "/v1/checkout/sessions"
       )
         await operations.bindCheckout(out.id);
-      return { status: 200, text: JSON.stringify(out) };
+      return out === undefined
+        ? { status: 204, text: "" }
+        : { status: 200, text: JSON.stringify(out) };
     } catch {
       operations.runtimeFailed();
       throw Error("RUNTIME_TRANSPORT_STOP");

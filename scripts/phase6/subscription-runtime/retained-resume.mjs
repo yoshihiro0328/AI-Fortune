@@ -4,6 +4,7 @@ import {
   paymentHistory,
   historicalSubscription,
   historicalInvoice,
+  retainedUserRows,
 } from "./history.mjs";
 
 // A new bounded attempt using explicitly retained identities, never a replay of
@@ -98,7 +99,7 @@ export async function inspectRetained({ m, get, save, observed }) {
         "retained_user_empty",
       );
       check(
-        Array.isArray(rows) && rows.length === 0,
+        retainedUserRows(m, table, user.id, rows),
         "RETAINED_USER_NOT_EMPTY",
       );
     }

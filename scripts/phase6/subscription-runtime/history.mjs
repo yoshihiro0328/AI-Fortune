@@ -52,3 +52,21 @@ export function historicalRow(table, row, h, owner) {
     row.currency === "jpy"
   );
 }
+
+// A previous read may already have synchronized the explicitly retained paid,
+// canceled history. This is not a new subscription and must not be deleted or
+// counted as a new purchase. Every other retained user's row remains forbidden.
+export function retainedUserRows(m, table, owner, rows) {
+  if (!Array.isArray(rows)) return false;
+  if (rows.length === 0) return true;
+  const h = paymentHistory(m);
+  return (
+    owner === m.c.id &&
+    rows.length === 1 &&
+    historicalRow(table, rows[0], h, owner) &&
+    (table !== "subscriptions" ||
+      (rows[0].stripe_customer_id === m.customer &&
+        rows[0].price_version === m.version &&
+        rows[0].amount === 980))
+  );
+}

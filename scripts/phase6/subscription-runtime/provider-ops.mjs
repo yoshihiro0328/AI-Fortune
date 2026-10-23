@@ -9,6 +9,7 @@ import {
   inspectRetained,
 } from "./retained-resume.mjs";
 import { LIMITS } from "./journal.mjs";
+import { retainedUserRows } from "./history.mjs";
 // Scoped provisioning and closure; never accepts caller-supplied endpoints or SQL.
 // m contains dedicated C/D identities (new or explicitly retained), not credentials.
 export function providerOperations({
@@ -424,7 +425,11 @@ export function providerOperations({
               sha(rows) === sha(resume.profiles?.[label] ?? []),
               "RETAINED_PROFILE_MISMATCH",
             );
-          } else check(rows.length === 0, "RETAINED_USER_NOT_EMPTY");
+          } else
+            check(
+              retainedUserRows(m, table, user.id, rows),
+              "RETAINED_USER_NOT_EMPTY",
+            );
         }
         const rows = await get(
           "supabase",

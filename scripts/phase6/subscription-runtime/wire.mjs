@@ -139,7 +139,18 @@ function build({
       }
       let data;
       try {
-        data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        // This scoped RPC returns PostgreSQL void: PostgREST sends 204 with
+        // no body after committing it. Do not replay a successful mutation
+        // because there is no JSON to parse. Other missing bodies still fail.
+        if (
+          status === 204 &&
+          bytes === 0 &&
+          provider === "supabase" &&
+          method === "POST" &&
+          url.pathname === "/rest/v1/rpc/apply_subscription_snapshot"
+        )
+          data = undefined;
+        else data = JSON.parse(Buffer.concat(chunks).toString("utf8"));
       } catch {
         throw Error("INVALID_JSON");
       }
