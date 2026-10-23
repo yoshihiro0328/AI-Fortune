@@ -211,6 +211,46 @@ exec /usr/bin/sandbox-exec -p '(version 1)(allow default)(deny network-outbound)
           await c.getByText("解約済み", { exact: false }).waitFor();
           await denials();
           break;
+        case "post-close-free-and-return": {
+          await c.goto(TARGET.app + "/account");
+          await c.getByText("解約済み", { exact: false }).waitFor();
+          const billing = await c.evaluate(async () => {
+            const r = await fetch("/api/billing");
+            const b = await r.json();
+            return { status: r.status, plan: b.usage?.plan };
+          });
+          assert.equal(billing.status, 200);
+          assert.equal(billing.plan, "free");
+          await c
+            .getByRole("button", { name: "解約・支払い方法・請求履歴" })
+            .click();
+          await c
+            .getByRole("heading", { name: "ローカル代替 Customer Portal" })
+            .waitFor();
+          await c.getByRole("link", { name: "よりそいへ戻る" }).click();
+          await c.getByRole("heading", { name: "契約状況" }).waitFor();
+          await d.goto(TARGET.app + "/account");
+          await d.getByText("無料プラン", { exact: false }).first().waitFor();
+          // The same explicit local UI probe is used by computer-use in the real run.
+          for (const [p, status] of [
+            [d, 403],
+            [anon, 401],
+          ]) {
+            await p.goto(TARGET.app + "/subscription-test/denials");
+            await p
+              .getByRole("button", { name: "アクセス拒否を確認する" })
+              .click();
+            await p.getByText("確認成功", { exact: false }).waitFor();
+            assert.equal(
+              await p.locator("#result").textContent(),
+              "確認成功\n" +
+                ["checkout", "portal", "cancel"]
+                  .map((a) => a + ": " + status)
+                  .join("\n"),
+            );
+          }
+          break;
+        }
         default:
           assert.fail("unknown browser checkpoint");
       }

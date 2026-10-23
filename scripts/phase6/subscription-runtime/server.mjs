@@ -2,6 +2,7 @@ import next from "next";
 import { TARGET, check } from "./policy.mjs";
 import { browserCookies } from "./browser-cookies.mjs";
 import { listenLoopback } from "./loopback-server.mjs";
+import { postCloseProbe } from "./post-close-probe.mjs";
 check(
   process.send && process.env.SUBSCRIPTION_INTEGRATION_LOCAL === "true",
   "SUPERVISOR_REQUIRED",
@@ -103,6 +104,17 @@ const requestHandler = (req, res) => {
     );
     res.writeHead(303, { Location: "/account" });
     return res.end();
+  }
+  if (
+    u.pathname === "/subscription-test/denials" &&
+    req.method === "GET" &&
+    process.env.SUBSCRIPTION_POST_CLOSE === "true"
+  ) {
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Referrer-Policy": "no-referrer",
+    });
+    return res.end(postCloseProbe);
   }
   if (u.pathname.startsWith("/__subscription/")) {
     if (process.env.SUBSCRIPTION_SYNTHETIC !== "true") {

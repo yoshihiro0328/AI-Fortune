@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { TARGET, Policy, check } from "./policy.mjs";
+import { PostClosePolicy } from "./post-close-policy.mjs";
 import { startBroker } from "../payment-runtime/broker.mjs";
 import { copyApplication } from "../payment-runtime/launch.mjs";
 import {
@@ -72,7 +73,9 @@ export async function startRuntime({
   const token = randomBytes(32).toString("hex"),
     forward = randomBytes(32).toString("hex"),
     secret = webhookSecret || "whsec_" + randomBytes(32).toString("hex"),
-    policy = browserState?.policy ?? new Policy(m, reserve);
+    policy =
+      browserState?.policy ??
+      (m.postClose ? new PostClosePolicy(m, reserve) : new Policy(m, reserve));
   if (browserState)
     check(
       browserState.policy.m === m &&
@@ -159,6 +162,7 @@ export async function startRuntime({
         env: {
           ...environment(m, token, forward, secret),
           SUBSCRIPTION_AUTH_ONLY: String(authOnly),
+          SUBSCRIPTION_POST_CLOSE: String(!!m.postClose),
           SUBSCRIPTION_BROWSER_COOKIE_NAMESPACE: cookieNamespace,
         },
         detached: true,

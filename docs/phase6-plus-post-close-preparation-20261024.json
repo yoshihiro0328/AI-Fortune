@@ -1,0 +1,62 @@
+{
+  "scope": "post-close continuation; zero purchases and zero subscription mutations",
+  "source_attempt": "2d81ac35",
+  "preserved_success": [
+    "980 JPY Sandbox payment",
+    "real checkout and invoice webhook ingestion",
+    "Plus display and entitlement",
+    "owner JWT RLS",
+    "Portal display",
+    "immediate cancellation without proration or additional invoice",
+    "prior 3 keys revoked by owner and API verified; temporary credentials removed"
+  ],
+  "read_only_findings": {
+    "stripe_subscriptions": "both retained contracts canceled",
+    "database": "latest contract remained active before continuation",
+    "prior_deleted_webhook_transition": "not observed; listener stopped before cancellation",
+    "old_portal_url": "exposed previously; not reused; invalidation/expiry not verified"
+  },
+  "minimum_new_key": {
+    "count": 1,
+    "read": [
+      "Accounts",
+      "Customers",
+      "Subscriptions",
+      "Invoices"
+    ],
+    "write": [
+      "Customer Portal"
+    ],
+    "all_other_permissions": "none"
+  },
+  "temporary_changes": [
+    "reset only retained C/D test passwords",
+    "activate same read-only Portal configuration and temporarily bind app; restore both"
+  ],
+  "tests": {
+    "portable_policy_receiver": "5 pass",
+    "mac_connected_production_application": "3 pass including two policy/observation checks; stale active DB reconciles to canceled, Free, one Portal return, D and anonymous denial UI, actual-login synthetic JWT RLS, no purchase",
+    "lint": "pass"
+  },
+  "review": {
+    "method": "manual review of request fences, secret outputs, abort handling, no resend, deadlines and cleanup order",
+    "fixes": [
+      "one-time secret window cannot reset",
+      "abort outstanding application work before restoration",
+      "signal handlers installed before startup",
+      "one Portal reservation consumed before request",
+      "only boolean Portal DOM observation returned",
+      "expiry deletes credentials even if revocation unconfirmed"
+    ]
+  },
+  "remaining": [
+    "live current Free/UI/RLS confirmation",
+    "live safe Portal return",
+    "new one-key revocation and temporary configuration restoration"
+  ],
+  "not_claimed": [
+    "real cancellation webhook-driven Plus to Free transition",
+    "old Portal URL invalidation",
+    "Test Clock or intentional failures"
+  ]
+}
