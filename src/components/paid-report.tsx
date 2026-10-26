@@ -3,6 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import PaidFollowup from "./paid-followup";
+import MessageDrafts from "./message-drafts";
 import type { Question } from "@/lib/client";
 import SaveResultNote from "./save-result-note";
 import { request, track } from "@/lib/client";
@@ -185,18 +186,7 @@ export default function Report({
             ],
             [
               "9. 次に送るメッセージ案",
-              <div key="d">
-                {[
-                  ["自然に", report.messages.natural],
-                  ["少し積極的に", report.messages.proactive],
-                  ["距離を保ちながら", report.messages.respectful_distance],
-                ].map(([t, m]) => (
-                  <div key={t}>
-                    <h3>{t}</h3>
-                    <p className="message">{m}</p>
-                  </div>
-                ))}
-              </div>,
+              <MessageDrafts key="d" messages={report.messages} />,
             ],
             [
               "10. 次に会ったときのヒント",

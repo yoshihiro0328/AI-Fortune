@@ -1,0 +1,64 @@
+"use client";
+import { useState } from "react";
+import { messageDraft } from "../lib/message-draft";
+import type { PaidReport } from "../lib/ai/schemas";
+
+function Draft({ title, source }: { title: string; source: string }) {
+  const { message, note } = messageDraft(source);
+  const [notice, setNotice] = useState("");
+  async function copy() {
+    if (!message) return;
+    try {
+      await navigator.clipboard.writeText(message);
+      setNotice("文面だけをコピーしました");
+    } catch {
+      setNotice("コピーできませんでした。文面を選択してコピーしてください。");
+    }
+  }
+  return (
+    <section aria-label={title}>
+      <h3>{title}</h3>
+      {note && (
+        <div className="fine" style={{ whiteSpace: "pre-wrap" }}>
+          <strong>送る前に確認</strong>
+          <p>{note}</p>
+        </div>
+      )}
+      {message ? (
+        <>
+          <p className="message" style={{ whiteSpace: "pre-wrap" }}>
+            {message}
+          </p>
+          <button type="button" className="button secondary" onClick={copy}>
+            文面だけをコピー
+          </button>
+        </>
+      ) : (
+        <p className="fine">
+          送る文面を一つに特定できないため、自動コピーは表示していません。
+        </p>
+      )}
+      <p role="status">{notice}</p>
+    </section>
+  );
+}
+
+export default function MessageDrafts({
+  messages,
+}: {
+  messages: PaidReport["messages"];
+}) {
+  return (
+    <div>
+      {(
+        [
+          ["自然に", messages.natural],
+          ["少し積極的に", messages.proactive],
+          ["距離を保ちながら", messages.respectful_distance],
+        ] as const
+      ).map(([title, source]) => (
+        <Draft key={title + source} title={title} source={source} />
+      ))}
+    </div>
+  );
+}

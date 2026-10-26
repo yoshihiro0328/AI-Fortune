@@ -217,3 +217,77 @@ export function recoveryPlan(directory) {
     ledgerSHA256: createHash("sha256").update(text).digest("hex"),
   };
 }
+
+// Explicit new evaluations; never resolves or releases the old unknown calls.
+export function revisionPlan(
+  originalDirectory,
+  continuationDirectory,
+  extensionDirectory,
+) {
+  const previous = extensionPlan(originalDirectory, continuationDirectory);
+  const read = (n) =>
+    JSON.parse(fs.readFileSync(path.join(extensionDirectory, n), "utf8"));
+  const state = read("final-nonsecret-state.json"),
+    result = read("result.json"),
+    status = read("session-status.json");
+  const text = fs.readFileSync(
+    path.join(extensionDirectory, "budget.jsonl"),
+    "utf8",
+  );
+  const lines = text.trim().split("\n"),
+    carried = JSON.parse(lines.shift());
+  const hash = createHash("sha256").update(text).digest("hex");
+  if (
+    carried.phase !== "carried_forward" ||
+    JSON.stringify(carried.prior) !== JSON.stringify(previous.prior) ||
+    hash !== state.ledgerSHA256
+  )
+    throw Error("REVISION_HISTORY_MISMATCH");
+  const prior = recoverBudget(lines.join("\n"), previous.prior);
+  if (
+    prior.calls !== 133 ||
+    prior.completed !== 131 ||
+    prior.unknownCalls !== 2 ||
+    prior.reservedNano !== 1344001450 ||
+    prior.inputTokens !== 429834 ||
+    prior.outputTokens !== 113272 ||
+    result.budget.calls !== prior.calls ||
+    result.budget.reservedUSD !== prior.reservedNano / 1e9
+  )
+    throw Error("REVISION_BUDGET_MISMATCH");
+  if (
+    status.phase !== "closed" ||
+    !status.credentialDeleted ||
+    !status.receiverClosed ||
+    !result.localDatabaseClosed ||
+    !result.temporaryCredentialDeleted ||
+    state.ownerRevocation !== "reported_revoked_by_owner" ||
+    fs.existsSync(path.join(extensionDirectory, "openai-key.json"))
+  )
+    throw Error("REVISION_NOT_CLOSED");
+  if (
+    state.cumulativeElapsedMillis !== 1780613 ||
+    state.cumulativeLimitMillis !== 2400000
+  )
+    throw Error("REVISION_TIME_MISMATCH");
+  return {
+    prior,
+    remainingMillis: 1200000,
+    allowedCases: [6, 7],
+    blockedCases: [],
+    oldUnknownCalls: 2,
+    extensionLedgerSHA256: hash,
+    evaluationIds: {
+      6: "diagnosis-6-revision-20261026",
+      7: "diagnosis-7-revision-20261026",
+    },
+    timeHistory: {
+      previousConsumedMillis: state.cumulativeElapsedMillis,
+      previousLimitMillis: state.cumulativeLimitMillis,
+      additionalApprovedMillis: 1200000,
+      cumulativeLimitMillis: 3600000,
+      allocationMillis: 1200000,
+      previousRemainingMillis: 619387,
+    },
+  };
+}

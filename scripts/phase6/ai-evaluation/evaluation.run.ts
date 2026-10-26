@@ -4,7 +4,8 @@ import { readFile, writeFile, mkdir, lstat, rm } from "node:fs/promises";
 import path from "node:path";
 import { evaluationDatabase } from "./isolated-db";
 import { evaluationProvider, createEvaluationLedger } from "./provider.mjs";
-import { recoveryPlan, extensionPlan } from "./recovery.mjs";
+import { recoveryPlan, extensionPlan, revisionPlan } from "./recovery.mjs";
+import { stageCache } from "./stage-cache.mjs";
 import consultation from "./consultation-cases.json";
 import diagnosis from "./diagnosis-cases.json";
 const bridge = vi.hoisted(() => ({
@@ -109,12 +110,26 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
     !(extensionDirectory && recoveryDirectory),
     "AMBIGUOUS_RECOVERY_DENIED",
   );
-  const extension = extensionDirectory
-    ? extensionPlan(
+  const revisionDirectory = process.env.AI_EVALUATION_REVISION_DIRECTORY;
+  requireCheck(
+    !revisionDirectory || (extensionDirectory && !recoveryDirectory),
+    "REVISION_CONTEXT_REQUIRED",
+  );
+  const revision = revisionDirectory
+    ? revisionPlan(
         process.env.AI_EVALUATION_ORIGINAL_DIRECTORY,
         extensionDirectory,
+        revisionDirectory,
       )
     : null;
+  const extension =
+    revision ??
+    (extensionDirectory
+      ? extensionPlan(
+          process.env.AI_EVALUATION_ORIGINAL_DIRECTORY,
+          extensionDirectory,
+        )
+      : null);
   const recovery =
     extension ?? (recoveryDirectory ? recoveryPlan(recoveryDirectory) : null);
   const executionStart = recovery
@@ -247,6 +262,7 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
         ...recovery,
         billedUSD: null,
       });
+    const cachedStage = stageCache(directory);
     bridge.parse = async (
       p: Parameters<NonNullable<typeof gate>["parse"]>[2],
     ) => {
@@ -256,8 +272,14 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
             extension.allowedCases.includes(caseNumber)),
         "EXTENSION_CASE_DENIED",
       );
-      const result = await gate!.parse(group, caseNumber, p);
-      if (extension)
+      const result = revision
+        ? await cachedStage(
+            revision.evaluationIds[caseNumber as 6 | 7],
+            p,
+            () => gate!.parse(group, caseNumber, p),
+          )
+        : await gate!.parse(group, caseNumber, p);
+      if (extension && !revision)
         await save(
           `verified-output-${group}-${caseNumber}-${gate!.summary().calls}.json`,
           {
@@ -283,6 +305,21 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
     );
     const user = "50000000-0000-4000-8000-000000000001";
     await local.pg.query("insert into auth.users(id) values($1)", [user]);
+    async function knownStep<T>(run: () => Promise<T>): Promise<T> {
+      try {
+        return await run();
+      } catch (e) {
+        if (
+          !revision ||
+          (e as Error).message !==
+            "Generation budget exhausted; saved stages can resume" ||
+          gate!.summary().stopped ||
+          Date.now() + 30000 >= deadline
+        )
+          throw e;
+        return run();
+      }
+    }
     async function runCase(g: string, n: number) {
       requireCheck(Date.now() < deadline, "EVALUATION_DEADLINE");
       group = g;
@@ -339,7 +376,7 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
           );
         } else {
           const [label, answer] = diagnosis[n - 1],
-            id = `50000000-0000-4000-8000-${String(100 + n).padStart(12, "0")}`;
+            id = `50000000-0000-4000-8000-${String((revision ? 200 : 100) + n).padStart(12, "0")}`;
           const type = (
             await local!.pg.query<{ id: string }>(
               "select id from diagnosis_types where slug='partner-mind'",
@@ -379,7 +416,7 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
           let status = "";
           for (let step = 0; step < 8; step++) {
             await fill();
-            status = (await analyzeDiagnosis(id)).status;
+            status = (await knownStep(() => analyzeDiagnosis(id))).status;
             if (status !== "followup") break;
           }
           requireCheck(
@@ -402,7 +439,7 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
               [id],
             );
             for (let step = 0; step < 4; step++) {
-              await generatePaid(id);
+              await knownStep(() => generatePaid(id));
               const r = (
                 await local!.pg.query<{ status: string }>(
                   "select status from paid_reports where diagnosis_id=$1",
@@ -435,6 +472,12 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
             )
           ).rows;
           await save(`diagnosis-${n}.json`, {
+            ...(revision
+              ? {
+                  evaluationId: revision.evaluationIds[n as 6 | 7],
+                  oldUnknownUnchanged: true,
+                }
+              : {}),
             label,
             answer,
             status,
@@ -466,7 +509,7 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
     }
     // Preserve completed cases. Repair only the rejected message draft, then
     // evaluate the unfinished cases with the common budget and remaining time.
-    if (recovery && recoveryDirectory) {
+    if (!revision && recovery && recoveryDirectory) {
       group = "diagnosis";
       caseNumber = 4;
       stopStage = "diagnosis_4_repair";
@@ -535,7 +578,11 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
     }
     if (!recovery)
       for (let n = 2; n <= 13; n++) await runCase("consultation", n);
-    for (let n = extension ? 7 : recovery ? 5 : 2; n <= 10; n++) {
+    for (
+      let n = revision ? 6 : extension ? 7 : recovery ? 5 : 2;
+      n <= (revision ? 7 : 10);
+      n++
+    ) {
       await runCase("diagnosis", n);
       // Review every newly completed live report before spending on the next.
       if (live) {

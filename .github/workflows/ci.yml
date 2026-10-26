@@ -39,6 +39,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Native browser key form (synthetic only; no attached user browser)
         run: npm run test:subscription-key-form
+      - name: Saved synthetic report message display and copy
+        run: node scripts/phase6/ai-evaluation/message-browser.mjs
       - name: Offline local recipient form checks
         run: python3 scripts/phase6/auth-recipient-input-test.py
       - run: npm run build

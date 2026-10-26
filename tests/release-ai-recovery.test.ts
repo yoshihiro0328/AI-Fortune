@@ -7,6 +7,7 @@ import {
   recoverBudget,
   recoveryPlan,
   extensionPlan,
+  revisionPlan,
 } from "../scripts/phase6/ai-evaluation/recovery.mjs";
 import { evaluationProvider } from "../scripts/phase6/ai-evaluation/provider.mjs";
 
@@ -94,7 +95,12 @@ it("synthetic continuation preserves completed files, repairs only the saved dra
     continuation = join(root, "continuation");
   await mkdir(baseline, { mode: 0o700 });
   await mkdir(continuation, { mode: 0o700 });
-  const run = (dir: string, recovery?: string, extension?: string) =>
+  const run = (
+    dir: string,
+    recovery?: string,
+    extension?: string,
+    revision?: string,
+  ) =>
     new Promise<void>((resolve, reject) => {
       const child = spawn(
         process.execPath,
@@ -113,6 +119,7 @@ it("synthetic continuation preserves completed files, repairs only the saved dra
             AI_EVALUATION_MODE: "synthetic",
             AI_EVALUATION_DIRECTORY: dir,
             ...(recovery ? { AI_EVALUATION_RECOVERY_DIRECTORY: recovery } : {}),
+            ...(revision ? { AI_EVALUATION_REVISION_DIRECTORY: revision } : {}),
             ...(extension
               ? {
                   AI_EVALUATION_EXTENSION_DIRECTORY: extension,
@@ -287,6 +294,82 @@ it("synthetic continuation preserves completed files, repairs only the saved dra
     await expect(
       readFile(join(extension, "diagnosis-6.json")),
     ).rejects.toMatchObject({ code: "ENOENT" });
+    // Exact preserved third-run accounting, then new evaluation IDs 6/7 only.
+    const eRows: object[] = [{ phase: "carried_forward", ...plan2 }];
+    const eCases = { ...plan2.prior.cases };
+    for (let i = 98; i <= 133; i++) {
+      const n = i <= 110 ? 7 : i <= 121 ? 8 : i <= 132 ? 9 : 10;
+      eCases[`diagnosis:${n}`] = (eCases[`diagnosis:${n}`] ?? 0) + 1;
+      eRows.push({
+        phase: "reserved",
+        calls: i,
+        cases: { ...eCases },
+        reservedUSD: 1.8,
+      });
+      eRows.push({
+        phase: "usage_observed",
+        calls: i,
+        completed: i - 2,
+        inputTokens: 302543 + Math.floor(((429834 - 302543) * (i - 97)) / 36),
+        outputTokens: 76746 + Math.floor(((113272 - 76746) * (i - 97)) / 36),
+        reservedUSD: i === 133 ? 1.34400145 : 1.3,
+      });
+    }
+    const eText = eRows.map((r) => JSON.stringify(r)).join("\n");
+    await writeFile(join(extension, "budget.jsonl"), eText);
+    const { createHash } = await import("node:crypto");
+    const ePrior = recoverBudget(
+      eRows
+        .slice(1)
+        .map((r) => JSON.stringify(r))
+        .join("\n"),
+      plan2.prior,
+    );
+    for (const [name, data] of Object.entries({
+      "session-status.json": {
+        phase: "closed",
+        credentialDeleted: true,
+        receiverClosed: true,
+      },
+      "result.json": {
+        localDatabaseClosed: true,
+        temporaryCredentialDeleted: true,
+        budget: { ...ePrior, reservedUSD: ePrior.reservedNano / 1e9 },
+      },
+      "final-nonsecret-state.json": {
+        ownerRevocation: "reported_revoked_by_owner",
+        ledgerSHA256: createHash("sha256").update(eText).digest("hex"),
+        cumulativeElapsedMillis: 1780613,
+        cumulativeLimitMillis: 2400000,
+      },
+    }))
+      await writeFile(join(extension, name), JSON.stringify(data));
+    const revision = join(root, "revision");
+    await mkdir(revision, { mode: 0o700 });
+    const plan3 = revisionPlan(baseline, continuation, extension);
+    expect(plan3.prior.unknownCalls).toBe(2);
+    expect(plan3.timeHistory.previousConsumedMillis).toBe(1780613);
+    expect(plan3.timeHistory.cumulativeLimitMillis).toBe(3600000);
+    await writeFile(
+      join(revision, "execution-start.json"),
+      JSON.stringify({ startedAt: Date.now() }),
+    );
+    await run(revision, undefined, continuation, extension);
+    const revised = JSON.parse(
+      await readFile(join(revision, "result.json"), "utf8"),
+    );
+    expect(revised.terminal).toBe("completed");
+    expect(
+      revised.cases.map((c: { caseNumber: number }) => c.caseNumber),
+    ).toEqual([6, 7]);
+    expect(revised.budget.calls).toBeGreaterThan(133);
+    expect(revised.budget.unknownCalls).toBe(2);
+    const six = JSON.parse(
+      await readFile(join(revision, "diagnosis-6.json"), "utf8"),
+    );
+    expect(six.evaluationId).toBe("diagnosis-6-revision-20261026");
+    expect(six.oldUnknownUnchanged).toBe(true);
+    expect(await readFile(join(extension, "budget.jsonl"), "utf8")).toBe(eText);
     await writeFile(
       join(continuation, "owner-key-revocation.json"),
       JSON.stringify({ ownerReportedRevoked: false }),
