@@ -1,9 +1,30 @@
 // Test-only embedded PostgreSQL. No TCP listener, credentials, or external transport.
 import { PGlite } from "@electric-sql/pglite";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import { TARGET, insist } from "./policy.mjs";
 import { m as base } from "./offline-fixture.mjs";
 import { seedSql } from "./fixture-sql.mjs";
+
+// These historical payment fixtures compare the approved 17-migration baseline.
+// New application migrations are exercised by the current-schema tests instead.
+export function frozenPaymentSql(
+  read = (path) => fs.readFileSync(path, "utf8"),
+) {
+  const entries = [
+    ...read("docs/phase6-external-migration-manifest.md").matchAll(
+      /`(\d{14}_[a-z_]+\.sql)`\s*\|\s*`([a-f0-9]{64})`/g,
+    ),
+  ];
+  insist(
+    entries.length === 17 && new Set(entries.map((e) => e[1])).size === 17,
+  );
+  return entries.map(([, file, hash]) => {
+    const sql = read("supabase/migrations/" + file);
+    insist(createHash("sha256").update(sql).digest("hex") === hash);
+    return { file, sql };
+  });
+}
 
 export async function isolatedPayment() {
   const pg = await PGlite.create();
@@ -12,13 +33,9 @@ export async function isolatedPayment() {
       "create role anon; create role authenticated; create role service_role bypassrls; create role supabase_auth_admin nologin;",
     );
     await pg.exec(fs.readFileSync("scripts/phase6/auth-bootstrap.sql", "utf8"));
-    const migrations = fs
-      .readdirSync("supabase/migrations")
-      .filter((x) => x.endsWith(".sql"))
-      .sort();
-    insist(migrations.length === 17);
-    for (const file of migrations)
-      await pg.exec(fs.readFileSync("supabase/migrations/" + file, "utf8"));
+    const baseline = frozenPaymentSql();
+    const migrations = baseline.map((entry) => entry.file);
+    for (const entry of baseline) await pg.exec(entry.sql);
     await pg.query(
       "update public.payment_environment set stripe_account_id=$1 where id",
       [TARGET.account],

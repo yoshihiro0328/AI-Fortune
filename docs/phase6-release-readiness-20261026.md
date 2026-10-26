@@ -41,6 +41,8 @@
 
 自己レビューでは、アプリ側のプロセス内queueだけに依存しないこと、DBでの原子性、正当な予約取り消しと新ID、エラー時のイベント未登録、旧購入/RLS、外部未適用を確認した。独立した人のレビューとは区別する。対象24件（今回5件追加）、全体830成功・従前の外部33件skip、lint・型検査成功。CIの最終結果は当該コミットの実行記録を参照し、skipを成功へ換算しない。
 
+最初のCI（40265734132）は、履歴比較用fixtureがディレクトリ全体を数えて「17件」と要求したため新migration追加で停止した。比較基準を18件に変更せず、保存済み17件manifestのファイル名とSHA256をすべて照合して適用するよう修正。原本改変の拒否試験も追加した。STEP 10の固定SQL・manifest・期待値は不変。現在の全migrationは別のVitest／Docker試験で適用し、履歴比較成功だけを新SQLの検証として数えない。
+
 公式仕様上、イベント配信順序は保証されず重複もあり、処理時に最新の対象を取得する必要がある。解約完了した同じ契約は再有効化できず、期間末予約の取り消しとは異なる。[Webhook順序・重複](https://docs.stripe.com/webhooks#event-ordering)、[解約と予約取り消し](https://docs.stripe.com/billing/subscriptions/cancel#cancel-a-pending-cancellation)。
 
 ## Portal URLの扱い

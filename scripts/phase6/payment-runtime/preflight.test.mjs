@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { isolatedPayment } from "./preflight-isolated.mjs";
+import { isolatedPayment, frozenPaymentSql } from "./preflight-isolated.mjs";
+import fs from "node:fs";
 import { databasePreflight, startupQueries } from "./preflight.mjs";
 import { checkedJson } from "./diagnostics.mjs";
 import { TARGET } from "./policy.mjs";
@@ -20,6 +21,24 @@ const reader =
         record: (event, data) => records.push({ event, ...data }),
       },
     );
+
+test("historical baseline stays frozen and refuses altered original SQL", () => {
+  const baseline = frozenPaymentSql();
+  assert.equal(baseline.length, 17);
+  assert.equal(
+    baseline.at(-1).file,
+    "20261015081652_trial_auth_verification.sql",
+  );
+  assert.throws(
+    () =>
+      frozenPaymentSql(
+        (path) =>
+          fs.readFileSync(path, "utf8") +
+          (path.endsWith(baseline[0].file) ? "\n-- changed" : ""),
+      ),
+    /POLICY_DENIED/,
+  );
+});
 
 test("actual launcher queries: old id selector fails 42703, real schema corrected selector succeeds", async () => {
   const db = await isolatedPayment();
