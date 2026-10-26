@@ -269,26 +269,55 @@ it("a journal failure after response does not release its hold; concurrent call 
 });
 
 describe("nonsecret evaluation stop diagnostics", () => {
+  it.each([false, true])(
+    "separates real SDK parsing failure from incomplete response (malformed=%s)",
+    async (malformed) => {
+      const response = result();
+      if (malformed)
+        response.output[0].content[0].text = "{unparseable synthetic output";
+      else response.status = "incomplete";
+      const client = new OpenAI({
+        apiKey: "synthetic-not-a-key",
+        maxRetries: 0,
+        fetch: async () => Response.json(response),
+      });
+      const gate = evaluationProvider(client, {
+        deadline: Date.now() + 60000,
+        checkpoint: async () => {},
+      });
+      await expect(gate.parse("diagnosis", 6, params())).rejects.toThrow(
+        "STOPPED",
+      );
+      expect(gate.summary()).toMatchObject({
+        unknownCalls: 1,
+        completed: 0,
+        reservedUSD: 0.57948,
+        stopDiagnostic: {
+          reason: malformed ? "provider_exception" : "response_not_completed",
+        },
+      });
+      if (malformed)
+        expect(gate.summary().stopDiagnostic.errorClass).toBe("SyntaxError");
+    },
+  );
   it.each(["RateLimitError", "sensitive-error-name"])(
     "records only allowlisted metadata for %s, never provider payloads",
     async (name) => {
       const rows: object[] = [];
-      const parse = vi
-        .fn()
-        .mockRejectedValue(
-          Object.assign(
-            new Error(
-              "sensitive-message https://example.invalid/?secret=synthetic",
-            ),
-            {
-              name,
-              status: 429,
-              headers: { authorization: "sensitive-header" },
-              error: { message: "sensitive-body" },
-              request_id: "sensitive-id",
-            },
+      const parse = vi.fn().mockRejectedValue(
+        Object.assign(
+          new Error(
+            "sensitive-message https://example.invalid/?secret=synthetic",
           ),
-        );
+          {
+            name,
+            status: 429,
+            headers: { authorization: "sensitive-header" },
+            error: { message: "sensitive-body" },
+            request_id: "sensitive-id",
+          },
+        ),
+      );
       const gate = evaluationProvider(
         { responses: { parse } },
         {

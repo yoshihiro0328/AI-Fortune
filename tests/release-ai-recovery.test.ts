@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import {
   recoverBudget,
   recoveryPlan,
+  extensionPlan,
 } from "../scripts/phase6/ai-evaluation/recovery.mjs";
 import { evaluationProvider } from "../scripts/phase6/ai-evaluation/provider.mjs";
 
@@ -39,8 +40,8 @@ function fixtureLedger() {
           phase: "usage_observed",
           calls,
           completed: calls,
-          inputTokens: calls * 100,
-          outputTokens: calls * 10,
+          inputTokens: Math.floor((187908 * calls) / 66),
+          outputTokens: Math.floor((44308 * calls) / 66),
           reservedUSD: (0.0760441 * calls) / 66,
         });
     }
@@ -93,7 +94,7 @@ it("synthetic continuation preserves completed files, repairs only the saved dra
     continuation = join(root, "continuation");
   await mkdir(baseline, { mode: 0o700 });
   await mkdir(continuation, { mode: 0o700 });
-  const run = (dir: string, recovery?: string) =>
+  const run = (dir: string, recovery?: string, extension?: string) =>
     new Promise<void>((resolve, reject) => {
       const child = spawn(
         process.execPath,
@@ -112,6 +113,12 @@ it("synthetic continuation preserves completed files, repairs only the saved dra
             AI_EVALUATION_MODE: "synthetic",
             AI_EVALUATION_DIRECTORY: dir,
             ...(recovery ? { AI_EVALUATION_RECOVERY_DIRECTORY: recovery } : {}),
+            ...(extension
+              ? {
+                  AI_EVALUATION_EXTENSION_DIRECTORY: extension,
+                  AI_EVALUATION_ORIGINAL_DIRECTORY: baseline,
+                }
+              : {}),
           },
           stdio: "ignore",
         },
@@ -161,6 +168,130 @@ it("synthetic continuation preserves completed files, repairs only the saved dra
     await expect(
       readFile(join(continuation, "consultation-1.json")),
     ).rejects.toMatchObject({ code: "ENOENT" });
+
+    // Model the second recorded stop without copying private live artifacts.
+    const carried = recoveryPlan(baseline);
+    const rows: object[] = [{ phase: "carried_forward", ...carried }];
+    const cases = { ...carried.prior.cases };
+    let calls = 67;
+    for (const [c, count] of [
+      [4, 4],
+      [5, 15],
+      [6, 11],
+    ]) {
+      for (let i = 0; i < count; i++) {
+        calls++;
+        cases[`diagnosis:${c}`]++;
+        if (!Number.isFinite(cases[`diagnosis:${c}`]))
+          cases[`diagnosis:${c}`] = 1;
+        rows.push({
+          phase: "reserved",
+          calls,
+          cases: { ...cases },
+          reservedUSD: calls === 97 ? 1.288907125 : 1.2,
+        });
+        if (calls < 97)
+          rows.push({
+            phase: "usage_observed",
+            calls,
+            completed: calls - 1,
+            inputTokens:
+              187908 + Math.floor(((302543 - 187908) * (calls - 67)) / 29),
+            outputTokens:
+              44308 + Math.floor(((76746 - 44308) * (calls - 67)) / 29),
+            reservedUSD: 0.709922125,
+          });
+      }
+    }
+    await writeFile(
+      join(continuation, "budget.jsonl"),
+      rows.map((r) => JSON.stringify(r)).join("\n"),
+    );
+    const prior = recoverBudget(
+      rows
+        .slice(1)
+        .map((r) => JSON.stringify(r))
+        .join("\n"),
+      carried.prior,
+    );
+    for (const [name, data] of Object.entries({
+      "session-status.json": {
+        phase: "closed",
+        credentialDeleted: true,
+        receiverClosed: true,
+      },
+      "owner-key-revocation.json": {
+        ownerReportedRevoked: true,
+        apiVerified: false,
+      },
+      "pilot-review.json": { approved: true },
+      "review-5.json": { approved: true },
+      "execution-start.json": {
+        startedAt: Date.now() - 1000,
+        remainingMillis: carried.remainingMillis,
+      },
+      "result.json": {
+        terminal: "stopped",
+        stopStage: "diagnosis_6",
+        localDatabaseClosed: true,
+        temporaryCredentialDeleted: true,
+        budget: { ...prior, reservedUSD: prior.reservedNano / 1e9 },
+      },
+    }))
+      await writeFile(join(continuation, name), JSON.stringify(data));
+    const extension = join(root, "extension");
+    await mkdir(extension, { mode: 0o700 });
+    const plan2 = extensionPlan(baseline, continuation);
+    expect(plan2.prior).toMatchObject({
+      calls: 97,
+      completed: 95,
+      unknownCalls: 2,
+      reservedNano: 1288907125,
+    });
+    expect(plan2.timeHistory.previousConsumedMillis).toBeGreaterThan(0);
+    expect(plan2.timeHistory.additionalApprovedMillis).toBe(1200000);
+    await writeFile(
+      join(extension, "execution-start.json"),
+      JSON.stringify({ startedAt: Date.now() }),
+    );
+    const oldLedger = await readFile(
+      join(continuation, "budget.jsonl"),
+      "utf8",
+    );
+    await run(extension, undefined, continuation);
+    const ext = JSON.parse(
+      await readFile(join(extension, "result.json"), "utf8"),
+    );
+    expect(ext.terminal).toBe("completed");
+    expect(ext.cases.map((c: { caseNumber: number }) => c.caseNumber)).toEqual([
+      7, 8, 9, 10,
+    ]);
+    expect(ext.blockedCases[0].caseNumber).toBe(6);
+    expect(ext.budget.unknownCalls).toBe(2);
+    expect(ext.budget.calls).toBeGreaterThan(97);
+    expect(await readFile(join(continuation, "budget.jsonl"), "utf8")).toBe(
+      oldLedger,
+    );
+    const output = JSON.parse(
+      await readFile(
+        join(extension, "verified-output-diagnosis-7-98.json"),
+        "utf8",
+      ),
+    );
+    expect(output).toMatchObject({
+      stage: "classify",
+      usageVerified: true,
+      qualityReviewed: false,
+      syntheticInputOnly: true,
+    });
+    await expect(
+      readFile(join(extension, "diagnosis-6.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await writeFile(
+      join(continuation, "owner-key-revocation.json"),
+      JSON.stringify({ ownerReportedRevoked: false }),
+    );
+    expect(() => extensionPlan(baseline, continuation)).toThrow("NOT_CLOSED");
   } finally {
     await rm(root, { recursive: true, force: true });
   }

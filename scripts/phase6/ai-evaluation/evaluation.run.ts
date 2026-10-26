@@ -4,7 +4,7 @@ import { readFile, writeFile, mkdir, lstat, rm } from "node:fs/promises";
 import path from "node:path";
 import { evaluationDatabase } from "./isolated-db";
 import { evaluationProvider, createEvaluationLedger } from "./provider.mjs";
-import { recoveryPlan } from "./recovery.mjs";
+import { recoveryPlan, extensionPlan } from "./recovery.mjs";
 import consultation from "./consultation-cases.json";
 import diagnosis from "./diagnosis-cases.json";
 const bridge = vi.hoisted(() => ({
@@ -104,7 +104,19 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
     throw Error("UNAPPROVED_NETWORK");
   };
   const recoveryDirectory = process.env.AI_EVALUATION_RECOVERY_DIRECTORY;
-  const recovery = recoveryDirectory ? recoveryPlan(recoveryDirectory) : null;
+  const extensionDirectory = process.env.AI_EVALUATION_EXTENSION_DIRECTORY;
+  requireCheck(
+    !(extensionDirectory && recoveryDirectory),
+    "AMBIGUOUS_RECOVERY_DENIED",
+  );
+  const extension = extensionDirectory
+    ? extensionPlan(
+        process.env.AI_EVALUATION_ORIGINAL_DIRECTORY,
+        extensionDirectory,
+      )
+    : null;
+  const recovery =
+    extension ?? (recoveryDirectory ? recoveryPlan(recoveryDirectory) : null);
   const executionStart = recovery
     ? JSON.parse(
         await readFile(path.join(directory, "execution-start.json"), "utf8"),
@@ -235,7 +247,37 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
         ...recovery,
         billedUSD: null,
       });
-    bridge.parse = async (p) => gate!.parse(group, caseNumber, p);
+    bridge.parse = async (
+      p: Parameters<NonNullable<typeof gate>["parse"]>[2],
+    ) => {
+      requireCheck(
+        !extension ||
+          (group === "diagnosis" &&
+            extension.allowedCases.includes(caseNumber)),
+        "EXTENSION_CASE_DENIED",
+      );
+      const result = await gate!.parse(group, caseNumber, p);
+      if (extension)
+        await save(
+          `verified-output-${group}-${caseNumber}-${gate!.summary().calls}.json`,
+          {
+            group,
+            caseNumber,
+            callNumber: gate!.summary().calls,
+            stage:
+              /^(?:chat(?:_safety)?|classify|analyze|followup|free_report|paid_report)(?:_(?:rewrite|review)_[012])?$/.test(
+                p.text?.format?.name,
+              )
+                ? p.text.format.name
+                : "other",
+            syntheticInputOnly: true,
+            usageVerified: true,
+            qualityReviewed: false,
+            output: result.output_parsed,
+          },
+        );
+      return result;
+    };
     await local.pg.query(
       "insert into payment_environment(id,mode,stripe_account_id) values(true,'sandbox','acct_fixture') on conflict(id) do update set stripe_account_id='acct_fixture'",
     );
@@ -463,7 +505,7 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
         caseNumber,
         status: "automated_checks_passed_quality_review_pending",
       });
-    } else
+    } else if (!extension)
       for (const [g, n] of [
         ["consultation", 1],
         ["consultation", 14],
@@ -475,7 +517,7 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
       budget: gate.summary(),
       live,
     });
-    if (live) {
+    if (live && !extension) {
       while (Date.now() < deadline) {
         try {
           const review = JSON.parse(
@@ -493,7 +535,7 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
     }
     if (!recovery)
       for (let n = 2; n <= 13; n++) await runCase("consultation", n);
-    for (let n = recovery ? 5 : 2; n <= 10; n++) {
+    for (let n = extension ? 7 : recovery ? 5 : 2; n <= 10; n++) {
       await runCase("diagnosis", n);
       // Review every newly completed live report before spending on the next.
       if (live) {
@@ -534,6 +576,12 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
       terminal,
       stopStage,
       cases: caseResults,
+      ...(extension
+        ? {
+            blockedCases: extension.blockedCases,
+            timeHistory: extension.timeHistory,
+          }
+        : {}),
       budget: gate?.summary() ?? { calls: 0 },
       localDatabaseClosed: true,
       temporaryCredentialDeleted: true,

@@ -3,22 +3,33 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { aiKeyReceiver } from "./receiver.mjs";
-import { recoveryPlan } from "./recovery.mjs";
+import { recoveryPlan, extensionPlan } from "./recovery.mjs";
 const synthetic = process.argv[2] === "--synthetic-session-check";
 const recovery = process.argv[2] === "--continue-reviewed-quality-stop";
-if (process.argv.length > 2 && !synthetic && !recovery)
+const extension = process.argv[2] === "--continue-unattempted-diagnoses";
+if (process.argv.length > 2 && !synthetic && !recovery && !extension)
   throw Error("SESSION_MODE_DENIED");
 const base = path.resolve("..");
 const recoveryDirectory = path.join(base, "private-ai-evaluation-B-20261026");
-const plan = recovery ? recoveryPlan(recoveryDirectory) : null;
+const continuationDirectory = path.join(
+  base,
+  "private-ai-evaluation-B-continuation-20261026",
+);
+const plan = extension
+  ? extensionPlan(recoveryDirectory, continuationDirectory)
+  : recovery
+    ? recoveryPlan(recoveryDirectory)
+    : null;
 // One shared approval directory. Never choose a fresh path to reset spend.
 const directory = synthetic
   ? fs.mkdtempSync(path.join(process.env.TMPDIR || "/tmp", "ai-session-check-"))
   : path.join(
       base,
-      recovery
-        ? "private-ai-evaluation-B-continuation-20261026"
-        : "private-ai-evaluation-B-20261026",
+      extension
+        ? "private-ai-evaluation-B-extension-20261026"
+        : recovery
+          ? "private-ai-evaluation-B-continuation-20261026"
+          : "private-ai-evaluation-B-20261026",
     );
 if (synthetic) process.stdout.write(JSON.stringify({ directory }) + "\n");
 fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
@@ -106,6 +117,7 @@ poll = setInterval(async () => {
     JSON.stringify({
       startedAt: Date.now(),
       remainingMillis: plan?.remainingMillis ?? 1200000,
+      ...(extension ? { timeHistory: plan.timeHistory } : {}),
     }),
     { mode: 0o600, flag: "wx" },
   );
@@ -116,6 +128,12 @@ poll = setInterval(async () => {
     NODE_ENV: "test",
     AI_EVALUATION_MODE: synthetic ? "synthetic" : "live",
     AI_EVALUATION_DIRECTORY: directory,
+    ...(extension
+      ? {
+          AI_EVALUATION_EXTENSION_DIRECTORY: continuationDirectory,
+          AI_EVALUATION_ORIGINAL_DIRECTORY: recoveryDirectory,
+        }
+      : {}),
     ...(recovery
       ? { AI_EVALUATION_RECOVERY_DIRECTORY: recoveryDirectory }
       : {}),

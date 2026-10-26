@@ -3,19 +3,19 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 
 // One explicitly reviewed quality-stop continuation. Never resets the approval.
-export function recoverBudget(text) {
+export function recoverBudget(text, prior) {
   const rows = text
     .trim()
     .split("\n")
     .map((s) => JSON.parse(s));
-  let calls = 0,
+  let calls = prior?.calls ?? 0,
     pending = false,
     last,
-    cases = {},
+    cases = prior?.cases ?? {},
     observed = {
-      inputTokens: 0,
-      outputTokens: 0,
-      completed: 0,
+      inputTokens: prior?.inputTokens ?? 0,
+      outputTokens: prior?.outputTokens ?? 0,
+      completed: prior?.completed ?? 0,
     };
   for (const row of rows) {
     if (
@@ -74,6 +74,95 @@ export function recoverBudget(text) {
     cases,
     ...observed,
     unknownCalls: calls - observed.completed,
+  };
+}
+
+// Owner-approved extra 20 minutes, scoped to the preserved Oct 26 records.
+// Case 6 is withheld: its unknown review request and intermediate outputs
+// cannot be recovered. This mode cannot silently repeat that case or 1–5.
+export function extensionPlan(originalDirectory, continuationDirectory) {
+  const original = recoveryPlan(originalDirectory);
+  const read = (n) =>
+    JSON.parse(fs.readFileSync(path.join(continuationDirectory, n), "utf8"));
+  const status = read("session-status.json"),
+    result = read("result.json");
+  if (
+    status.phase !== "closed" ||
+    !status.credentialDeleted ||
+    !status.receiverClosed ||
+    !result.localDatabaseClosed ||
+    !result.temporaryCredentialDeleted ||
+    result.terminal !== "stopped" ||
+    result.stopStage !== "diagnosis_6" ||
+    !read("owner-key-revocation.json").ownerReportedRevoked ||
+    fs.existsSync(path.join(continuationDirectory, "openai-key.json")) ||
+    read("pilot-review.json").approved !== true ||
+    read("review-5.json").approved !== true
+  )
+    throw Error("EXTENSION_BASELINE_NOT_CLOSED");
+  const text = fs.readFileSync(
+    path.join(continuationDirectory, "budget.jsonl"),
+    "utf8",
+  );
+  const lines = text.trim().split("\n"),
+    carried = JSON.parse(lines.shift());
+  if (
+    carried.phase !== "carried_forward" ||
+    carried.ledgerSHA256 !== original.ledgerSHA256 ||
+    JSON.stringify(carried.prior) !== JSON.stringify(original.prior)
+  )
+    throw Error("EXTENSION_HISTORY_MISMATCH");
+  const prior = recoverBudget(lines.join("\n"), original.prior);
+  if (
+    prior.calls !== 97 ||
+    prior.completed !== 95 ||
+    prior.unknownCalls !== 2 ||
+    prior.reservedNano !== 1288907125 ||
+    prior.inputTokens !== 302543 ||
+    prior.outputTokens !== 76746 ||
+    prior.cases["diagnosis:6"] !== 11 ||
+    [7, 8, 9, 10].some((n) => prior.cases[`diagnosis:${n}`]) ||
+    ["calls", "completed", "unknownCalls", "inputTokens", "outputTokens"].some(
+      (k) => result.budget[k] !== prior[k],
+    ) ||
+    Math.round(result.budget.reservedUSD * 1e9) !== prior.reservedNano
+  )
+    throw Error("EXTENSION_BUDGET_MISMATCH");
+  const execution = read("execution-start.json");
+  const end = fs.statSync(
+    path.join(continuationDirectory, "session-status.json"),
+  ).mtimeMs;
+  const previousRemainingMillis = Math.floor(
+    execution.remainingMillis - (end - execution.startedAt),
+  );
+  if (
+    execution.remainingMillis !== carried.remainingMillis ||
+    !Number.isSafeInteger(execution.startedAt) ||
+    !Number.isFinite(previousRemainingMillis) ||
+    previousRemainingMillis < 0 ||
+    previousRemainingMillis > 1200000
+  )
+    throw Error("EXTENSION_TIME_MISMATCH");
+  return {
+    prior,
+    remainingMillis: 1200000,
+    timeHistory: {
+      originalLimitMillis: 1200000,
+      additionalApprovedMillis: 1200000,
+      previousConsumedMillis: 1200000 - previousRemainingMillis,
+      previousRemainingMillis,
+      availableMillis: previousRemainingMillis + 1200000,
+      allocationMillis: 1200000,
+    },
+    originalLedgerSHA256: original.ledgerSHA256,
+    continuationLedgerSHA256: createHash("sha256").update(text).digest("hex"),
+    allowedCases: [7, 8, 9, 10],
+    blockedCases: [
+      {
+        caseNumber: 6,
+        reason: "unknown_review_request_no_saved_intermediate_output",
+      },
+    ],
   };
 }
 
