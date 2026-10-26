@@ -32,7 +32,14 @@ const price = {
   livemode: false,
   recurring: { interval: "month", interval_count: 1 },
 };
-function fixture({ fail, checkpointFail = false, signal } = {}) {
+function fixture({
+  fail,
+  checkpointFail = false,
+  signal,
+  advanceLag = 0,
+  invalidAdvanceResponse = false,
+  neverReady = false,
+} = {}) {
   let clockTime = Date.parse("2026-10-26T04:00:00Z"),
     calls = [],
     saved = [],
@@ -65,7 +72,21 @@ function fixture({ fail, checkpointFail = false, signal } = {}) {
     if (r.path.includes("test_clocks/")) {
       let id = r.path.split("/")[4],
         c = clocks[id];
+      if (r.method === "POST" && advanceLag) {
+        c.pending = r.body.frozen_time;
+        c.reads = advanceLag;
+        c.status = "advancing";
+        return {
+          ...c,
+          ...(invalidAdvanceResponse ? { id: "clock_wrong" } : {}),
+        };
+      }
       if (r.method === "POST") c.frozen_time = r.body.frozen_time;
+      if (r.method === "GET" && c.pending && !neverReady && --c.reads < 0) {
+        c.frozen_time = c.pending;
+        delete c.pending;
+        c.status = "ready";
+      }
       return { ...c };
     }
     if (r.path === "/v1/customers")
@@ -215,6 +236,66 @@ test("Clock cannot cross a second renewal, or advance failure without switching 
   await ops.advance("e", Math.floor(now() / 1000) - 7200);
   await ops.advance("e", Math.floor(now() / 1000) - 3600);
   assert.equal(ops.state().fixtures.e.advances, 2);
+});
+test("advancing response and polling retain old frozen time until ready; POST is not repeated", async () => {
+  const { ops, now, calls } = fixture({ advanceLag: 2 });
+  await ops.identify();
+  await ops.prepare("e");
+  await ops.attach("e");
+  await ops.createSubscription("e");
+  const target = Math.floor(now() / 1000) - 7200;
+  await ops.advance("e", target);
+  assert.equal(ops.state().fixtures.e.frozen, target);
+  assert.equal(ops.state().fixtures.e.pending, undefined);
+  assert.equal(calls.filter((r) => r.path.endsWith("/advance")).length, 1);
+});
+test("uncertain advance is never resent; cleanup waits for ready before its sole cancellation", async () => {
+  const { ops, now, calls } = fixture({
+    advanceLag: 2,
+    invalidAdvanceResponse: true,
+  });
+  await ops.identify();
+  await ops.prepare("e");
+  await ops.attach("e");
+  await ops.createSubscription("e");
+  await assert.rejects(
+    ops.advance("e", Math.floor(now() / 1000) - 7200),
+    /WRITE_UNKNOWN/,
+  );
+  await ops.beginCleanup();
+  await ops.closeSubscription("e");
+  assert.equal(calls.filter((r) => r.path.endsWith("/advance")).length, 1);
+  const cancel = calls.findIndex((r) => r.method === "DELETE");
+  assert.ok(cancel > 0);
+  assert.equal(
+    calls
+      .slice(0, cancel)
+      .filter(
+        (r) => r.path.includes("test_clocks/clock_e") && r.method === "GET",
+      ).length,
+    4,
+  );
+  assert.equal(calls.filter((r) => r.method === "DELETE").length, 1);
+});
+test("cleanup never cancels while clock remains advancing or extends its time allowance", async () => {
+  const { ops, now, calls } = fixture({
+    advanceLag: 2,
+    invalidAdvanceResponse: true,
+    neverReady: true,
+  });
+  await ops.identify();
+  await ops.prepare("e");
+  await ops.attach("e");
+  await ops.createSubscription("e");
+  await assert.rejects(
+    ops.advance("e", Math.floor(now() / 1000) - 7200),
+    /WRITE_UNKNOWN/,
+  );
+  await ops.beginCleanup();
+  const before = now();
+  await assert.rejects(ops.closeSubscription("e"), /CLEANUP_CLOCK_NOT_READY/);
+  assert.ok(now() - before <= 30000);
+  assert.equal(calls.filter((r) => r.method === "DELETE").length, 0);
 });
 test("app policy blocks non-webhook snapshots and every Stripe mutation", () => {
   const m = {

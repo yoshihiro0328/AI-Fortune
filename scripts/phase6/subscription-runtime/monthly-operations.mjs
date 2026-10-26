@@ -517,7 +517,11 @@ export function monthlyOperations({
           check(
             c.id === f.clock &&
               c.livemode === false &&
-              c.frozen_time === target,
+              ["advancing", "ready"].includes(c.status) &&
+              (c.status === "ready"
+                ? c.frozen_time === target
+                : [f.frozen, target].includes(c.frozen_time)),
+            "CLOCK_ADVANCE_RESPONSE_MISMATCH",
           );
         },
       );
@@ -528,7 +532,13 @@ export function monthlyOperations({
           "/v1/test_helpers/test_clocks/" + f.clock,
         );
         check(
-          c.id === f.clock && c.livemode === false && c.frozen_time === target,
+          c.id === f.clock &&
+            c.livemode === false &&
+            ["advancing", "ready"].includes(c.status) &&
+            (c.status === "ready"
+              ? c.frozen_time === target
+              : [f.frozen, target].includes(c.frozen_time)),
+          "CLOCK_POLL_RESPONSE_MISMATCH",
         );
         if (c.status === "ready") {
           f.frozen = target;
@@ -553,6 +563,29 @@ export function monthlyOperations({
     async closeSubscription(label) {
       const f = fixture(label);
       if (!f.subscription) return;
+      // Avoid canceling during asynchronous advancement. Wait by read only,
+      // within the existing cleanup window, before the sole cancel.
+      const readyUntil = Math.min(now() + 30000, cleanupDeadline - 15000);
+      let ready = false;
+      for (let n = 0; n < 7 && now() < readyUntil; n++) {
+        const c = await get(
+          "stripe",
+          "/v1/test_helpers/test_clocks/" + f.clock,
+          true,
+        );
+        check(c.id === f.clock && c.livemode === false, "CLEANUP_CLOCK_SCOPE");
+        if (c.status === "ready") {
+          check(
+            [f.frozen, f.pending].includes(c.frozen_time),
+            "CLEANUP_CLOCK_TIME",
+          );
+          ready = true;
+          break;
+        }
+        check(c.status === "advancing", "CLEANUP_CLOCK_STATUS");
+        await sleep(Math.min(5000, Math.max(0, readyUntil - now())));
+      }
+      check(ready, "CLEANUP_CLOCK_NOT_READY_NO_CANCEL_SENT");
       const s = await api.subscription(label, true);
       if (s.status === "canceled") return;
       await change(
