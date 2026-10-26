@@ -93,6 +93,15 @@ test("known draft returns only fixed permission labels and blank state", () => {
   assert.equal(JSON.stringify(result.selected), JSON.stringify(permissions));
   assert.equal(JSON.stringify(result).includes(name), false);
 });
+test("monthly names and approved resource labels remain subject to exact draft checks", () => {
+  const monthly = "yorisoi-monthly-ee8a0f00-lifecycle";
+  const rows = [["Payment Methods", "書き込み"], ["Test Clocks", "書き込み"]];
+  const result = evaluate(create, draft(monthly, rows), monthly);
+  assert.equal(result.allowed, true);
+  assert.equal(JSON.stringify(result.selected), JSON.stringify(rows));
+  assert.equal(evaluate(create, forbiddenDOM, "yorisoi-monthly-invalid-app").allowed, false);
+  assert.equal(evaluate(create.replace("/test/", "/"), forbiddenDOM, monthly).allowed, false);
+});
 test("broader permissions block submit; uncertain submit cannot be repeated", async () => {
   let submissions = 0;
   const submit = restrictedKeySubmitOnce();

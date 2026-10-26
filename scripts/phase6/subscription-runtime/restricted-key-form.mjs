@@ -5,7 +5,7 @@ export function restrictedKeyFormState({ expectedName }) {
   if (
     location.href !==
       "https://dashboard.stripe.com/acct_1UQlQdI73kTcvXz8/test/apikeys/create" ||
-    !/^yorisoi-plus-[a-f0-9]{8}-(listener|app|lifecycle)$/.test(expectedName)
+    !/^yorisoi-(plus|monthly)-[a-f0-9]{8}-(listener|app|lifecycle)$/.test(expectedName)
   )
     return denied;
   const input = document.querySelector('main input[id="key-name"]');
@@ -21,6 +21,8 @@ export function restrictedKeyFormState({ expectedName }) {
     "Subscriptions",
     "Invoices",
     "Customer Portal",
+    "Payment Methods",
+    "Test Clocks",
   ];
   const selected = [];
   const rows = document.querySelectorAll("main tr");
