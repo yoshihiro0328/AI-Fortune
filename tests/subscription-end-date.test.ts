@@ -574,6 +574,7 @@ describe("signed cancellation notification to entitlement (isolated)", () => {
     type: string,
     id: string,
     signatureSecret = "whsec_fixture",
+    invoiceId = "in_fixture",
   ) {
     const raw = JSON.stringify({
       id,
@@ -581,20 +582,19 @@ describe("signed cancellation notification to entitlement (isolated)", () => {
       livemode: false,
       created: 1,
       data: {
-        object:
-          type === "invoice.paid"
-            ? {
-                id: "in_fixture",
-                livemode: false,
-                parent: {
-                  subscription_details: { subscription: "sub_fixture" },
-                },
-              }
-            : {
-                id: "sub_fixture",
-                livemode: false,
-                status: type.endsWith("deleted") ? "canceled" : "active",
+        object: type.startsWith("invoice.")
+          ? {
+              id: invoiceId,
+              livemode: false,
+              parent: {
+                subscription_details: { subscription: "sub_fixture" },
               },
+            }
+          : {
+              id: "sub_fixture",
+              livemode: false,
+              status: type.endsWith("deleted") ? "canceled" : "active",
+            },
       },
     });
     const signature = new Stripe(
@@ -611,12 +611,12 @@ describe("signed cancellation notification to entitlement (isolated)", () => {
       }),
     );
   }
-  async function paid() {
+  async function paid(expired = false) {
     vi.stubEnv("STRIPE_MODE", "sandbox");
     vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_fixture");
     const now = Math.floor(Date.now() / 1000),
-      a = now - 60,
-      b = now + 86400;
+      a = now - (expired ? 86400 * 30 : 60),
+      b = expired ? now - 60 : now + 86400;
     const current = stripeSub({ created: a });
     current.items.data[0].current_period_start = a;
     current.items.data[0].current_period_end = b;
@@ -651,11 +651,146 @@ describe("signed cancellation notification to entitlement (isolated)", () => {
       (await signed("customer.subscription.created", "evt_start")).status,
     ).toBe(200);
     expect((await home()).data.usage).toMatchObject({
-      plan: "plus",
-      limit: 30,
+      plan: expired ? "free" : "plus",
+      limit: expired ? 3 : 30,
     });
     return { ...current, status: "canceled", ended_at: now, canceled_at: now };
   }
+  it("renewal notification extends paid coverage once, with the previous invoice retained", async () => {
+    const ended = await paid(true);
+    const current = {
+      ...ended,
+      status: "active",
+      ended_at: null,
+      canceled_at: null,
+    };
+    const original = structuredClone((await m.invoices()).data[0]);
+    const renewal = structuredClone(original);
+    renewal.id = "in_renewal";
+    renewal.lines.data[0].period.start = original.lines.data[0].period.end;
+    renewal.lines.data[0].period.end += 86400 * 30;
+    current.items.data[0].current_period_start =
+      renewal.lines.data[0].period.start;
+    current.items.data[0].current_period_end = renewal.lines.data[0].period.end;
+    m.retrieve.mockResolvedValue(current);
+    m.invoices.mockResolvedValue({ data: [renewal, original] });
+    for (let delivery = 0; delivery < 2; delivery++) {
+      expect(
+        (
+          await signed(
+            "invoice.paid",
+            "evt_renewal",
+            "whsec_fixture",
+            "in_renewal",
+          )
+        ).status,
+      ).toBe(200);
+      expect((await saved()).paid_through).toBe(
+        iso(renewal.lines.data[0].period.end),
+      );
+      expect((await home()).data.usage).toMatchObject({
+        plan: "plus",
+        limit: 30,
+      });
+    }
+    expect(
+      (await pg.query("select count(*)::int n from subscription_invoices"))
+        .rows,
+    ).toEqual([{ n: 2 }]);
+    expect(
+      (
+        await pg.query(
+          "select count(*)::int n from stripe_events where stripe_event_id='evt_renewal'",
+        )
+      ).rows,
+    ).toEqual([{ n: 1 }]);
+  });
+  it("failed renewal does not extend expired paid coverage and makes the actual entitlement/UI Free", async () => {
+    const ended = await paid(true);
+    const now = Math.floor(Date.now() / 1000);
+    const oldInvoice = structuredClone((await m.invoices()).data[0]);
+    oldInvoice.lines.data[0].period = {
+      start: now - 86400 * 30,
+      end: now - 60,
+    };
+    const failed = structuredClone(oldInvoice);
+    Object.assign(failed, {
+      id: "in_failed",
+      status: "open",
+      amount_paid: 0,
+      status_transitions: { paid_at: null },
+    });
+    failed.lines.data[0].period = { start: now - 60, end: now + 86400 * 30 };
+    const current = {
+      ...ended,
+      status: "past_due",
+      ended_at: null,
+      canceled_at: null,
+    };
+    current.items.data[0].current_period_start = now - 60;
+    current.items.data[0].current_period_end = now + 86400 * 30;
+    m.retrieve.mockResolvedValue(current);
+    m.invoices.mockResolvedValue({ data: [failed, oldInvoice] });
+    expect(
+      (
+        await signed(
+          "invoice.payment_failed",
+          "evt_failed",
+          "whsec_fixture",
+          "in_failed",
+        )
+      ).status,
+    ).toBe(200);
+    expect((await saved()).paid_through).toBe(iso(now - 60));
+    expect((await home()).data.usage).toMatchObject({ plan: "free", limit: 3 });
+    expect(
+      (
+        await pg.query(
+          "select status,amount from subscription_invoices where id='in_failed'",
+        )
+      ).rows,
+    ).toEqual([{ status: "open", amount: 0 }]);
+    expect(
+      (
+        await pg.query(
+          "select event_type from stripe_events where stripe_event_id='evt_failed'",
+        )
+      ).rows,
+    ).toEqual([{ event_type: "invoice.payment_failed" }]);
+  });
+  it("period-end reservation retains Plus until a signed deletion, without a reconciliation GET", async () => {
+    const ended = await paid();
+    const periodEnd = ended.items.data[0].current_period_end;
+    m.retrieve.mockResolvedValue({
+      ...ended,
+      status: "active",
+      ended_at: null,
+      canceled_at: null,
+      cancel_at: periodEnd,
+      cancel_at_period_end: true,
+    });
+    expect(
+      (await signed("customer.subscription.updated", "evt_scheduled")).status,
+    ).toBe(200);
+    expect((await home()).data.usage.plan).toBe("plus");
+    m.retrieve.mockResolvedValue({
+      ...ended,
+      ended_at: periodEnd,
+      cancel_at: periodEnd,
+      cancel_at_period_end: true,
+    });
+    expect(
+      (await signed("customer.subscription.deleted", "evt_period_end")).status,
+    ).toBe(200);
+    expect((await saved()).ended_at).toBe(iso(periodEnd));
+    const result = await home();
+    expect(result.data.usage).toMatchObject({ plan: "free", limit: 3 });
+    expect(result.html).toContain("解約済み");
+    expect(
+      (await pg.query("select count(*)::int n from subscription_invoices"))
+        .rows,
+    ).toEqual([{ n: 1 }]);
+  });
   it("signed deletion changes Plus to Free; duplicate deletion and reversed old events never restore access", async () => {
     const canceled = await paid();
     m.retrieve.mockResolvedValue(canceled);

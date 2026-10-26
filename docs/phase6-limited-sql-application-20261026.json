@@ -1,0 +1,26 @@
+{
+  "project": "ukdzggjfkcwjssjmnqim",
+  "sourceFile": "20261026034025_subscription_terminal_state.sql",
+  "sourceSha256": "595e1ec07a064dd069818a45f235b57bd08e85345b36163fd9db5f3037ee16ef",
+  "reviewedCommit": "52630ae0a5c4616a3a9809abbbd9833909bef8cc",
+  "reviewedCI": 40266153371,
+  "migrationVersion": "20261026040808",
+  "sourceMatchesCI": true,
+  "functionBodyMatches": true,
+  "aclUnchanged": true,
+  "businessDataUnchanged": true,
+  "migrationCountDelta": 1,
+  "writeAttempts": 1,
+  "event": {
+    "id": "evt_1UTg6KI73kTcvXz8GlQf7Pbk",
+    "created": 1792752812,
+    "type": "customer.subscription.deleted",
+    "subscription": "sub_1UTg3hI73kTcvXz8bbbuwStW",
+    "pendingWebhooks": 0,
+    "applicationProcessedRows": 0,
+    "deliveryHistory": "unavailable via connected API",
+    "historicalTransition": "not proven"
+  },
+  "protectedData": "unchanged",
+  "externalWrites": 1
+}
