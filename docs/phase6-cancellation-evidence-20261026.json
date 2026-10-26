@@ -1,0 +1,108 @@
+{
+  "auditedOn": "2026-10-26",
+  "mode": "saved evidence only; no external API, event replay, purchase or credentials",
+  "scope": {
+    "paidAttempt": "2d81ac35",
+    "postCloseAttempt": "50fec2d4"
+  },
+  "provenance": [
+    {
+      "source": "private-plus-retained-2d81ac35/closure-final.json",
+      "sha256": "02d8c190e4c55caa2e0f840da82f69ee8855b447fb0bbaa60ba1dd0ca994e020"
+    },
+    {
+      "source": "private-plus-retained-2d81ac35/evidence/runtime-372.enc",
+      "sha256": "036eb80b93c1c381f980638a068f4592a6837ad419a546067c618692b286f6a0"
+    },
+    {
+      "source": "private-plus-retained-2d81ac35/evidence/runtime-394.enc",
+      "sha256": "222cce2583fb40997e53247b2d28c056da6d431a2205d52adc6c7d246d892a30"
+    },
+    {
+      "source": "private-plus-retained-2d81ac35/evidence/runtime-399.enc",
+      "sha256": "08162c643f4ad4e2acf3bc8aead61b42ffd97f4826df6ff0a71075d007cbea65"
+    },
+    {
+      "source": "private-plus-retained-2d81ac35/evidence/scenario-13.enc",
+      "sha256": "9214bf8149be97110cde6e364c1e531f5c7b8473b5aead198614c198662c0b7f"
+    },
+    {
+      "source": "private-plus-retained-2d81ac35/evidence/scenario-16.enc",
+      "sha256": "fdcfe3767beab574264930e3e3148ac7b58ededd2969de65b15814626b58d300"
+    },
+    {
+      "source": "private-plus-retained-2d81ac35/evidence/provider-521.enc",
+      "sha256": "604319d4735c808a805f7ae5bb64a797814c37149ce863d7699482d8ad460631"
+    },
+    {
+      "source": "private-plus-post-close-50fec2d4/result.json",
+      "sha256": "029e58822a7fa7726a549df2dbf156cc5e583f676ff41281adf88a10b6f45f87"
+    },
+    {
+      "source": "private-plus-post-close-50fec2d4/browser-verification.json",
+      "sha256": "db95c737ea9c6555e13dee30d8cb35cb4889dcd65b88c8bf0d053f46f4563c75"
+    },
+    {
+      "source": "private-plus-post-close-50fec2d4/completion-summary.json",
+      "sha256": "1ed3f78b54387ed4af6ad4320989a61a7d68ab507efe21514c92522ae7e1fa3d"
+    },
+    {
+      "source": "private-plus-post-close-50fec2d4/anonymous-verification.json",
+      "sha256": "06283c7ad8a93175e7954a3fe5e4fcc30f8ce5534ac8808fed9754a437e2aef8"
+    }
+  ],
+  "paidAttempt": {
+    "encryptedJsonRecordsInspected": 2128,
+    "parseFailures": 0,
+    "exactDeletedEventStringOccurrences": 0,
+    "webhookHttp200Records": [
+      "runtime-372.enc",
+      "runtime-394.enc",
+      "runtime-399.enc"
+    ],
+    "paidEventEvidence": ["checkout.session.completed", "invoice.paid"],
+    "entitlementAfterPaid": {
+      "plan": "plus",
+      "limit": 30
+    },
+    "cleanupCancellation": {
+      "record": "provider-521.enc",
+      "operation": "cleanup_cancel",
+      "httpStatus": 200,
+      "prorate": false,
+      "invoice_now": false
+    },
+    "cleanupOrder": ["stopProcesses", "endContracts"],
+    "postCancelFreeVerified": false,
+    "actualCancellationEventDelivery": "not proven"
+  },
+  "postClose": {
+    "stripe": "two retained contracts canceled",
+    "databaseBefore": "latest contract active",
+    "databaseAfter": "canceled",
+    "entitlementAfter": {
+      "plan": "free",
+      "limit": 3
+    },
+    "source": "app_read_reconciliation_not_webhook",
+    "portalReturn": true,
+    "ownerJwtRls": true,
+    "cleanupComplete": true,
+    "keyRevocation": "owner reported and API verified",
+    "temporaryCredentialsDeleted": true
+  },
+  "unknowns": [
+    "cancellation event ID and creation evidence",
+    "signed cancellation receipt and successful committed event-linked update",
+    "Plus immediately before and Free immediately after webhook without billing GET or direct update",
+    "old and new Portal session invalidation/expiry"
+  ],
+  "localRegression": {
+    "beforeFix": "stale active snapshot restores canceled subscription: reproduced",
+    "fix": "atomic terminal-state predicate on existing canceled subscription ID",
+    "externalDatabaseApplied": false,
+    "testFile": "tests/subscription-end-date.test.ts",
+    "result": "24 passed including 5 new signed cancellation cases",
+    "classification": "isolated synthetic provider/signature, actual handler/sync/SQL/entitlement/UI; not live Stripe delivery proof"
+  }
+}

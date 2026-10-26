@@ -8,9 +8,9 @@ import {
   it,
   vi,
 } from "vitest";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import type { PGlite } from "@electric-sql/pglite";
-import type Stripe from "stripe";
+import Stripe from "stripe";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { isolatedDb, applyIsolation } from "./helpers/isolated-db";
@@ -25,6 +25,7 @@ const m = vi.hoisted(() => ({
   invoices: vi.fn(),
   home: null as unknown,
 }));
+vi.mock("next/server", () => ({ after: vi.fn() }));
 vi.mock("@/lib/stripe/environment", () => ({
   stripeEnvironment: async () => ({ mode: "sandbox", isTest: true }),
 }));
@@ -33,6 +34,7 @@ vi.mock("@/lib/ai/pipeline", () => ({
 }));
 vi.mock("@/lib/stripe/client", () => ({
   stripe: () => ({
+    webhooks: new Stripe("sk_test_fixture").webhooks,
     subscriptions: {
       retrieve: m.retrieve,
       list: async () => ({ data: [await m.retrieve()] }),
@@ -63,6 +65,7 @@ import {
   syncSubscription,
   subscriptionFromEvent,
 } from "@/lib/stripe/subscriptions";
+import { POST as webhookPOST } from "@/app/api/webhooks/stripe/route";
 import { GET as consultationGET } from "@/app/api/consultations/route";
 import { GET as billingGET } from "@/app/api/billing/route";
 import ConsultationSummary from "@/components/consultation-summary";
@@ -255,6 +258,10 @@ beforeAll(async () => {
   );
   before = await snapshot();
   await pg.exec(await readFile(migration, "utf8"));
+  for (const name of (await readdir("supabase/migrations"))
+    .filter((n) => n.endsWith(".sql") && n > migration.split("/").at(-1)!)
+    .sort())
+    await pg.exec(await readFile("supabase/migrations/" + name, "utf8"));
   m.db.mockReturnValue({ from, rpc });
 }, 30000);
 beforeEach(async () => {
@@ -265,6 +272,7 @@ beforeEach(async () => {
 afterEach(async () => {
   await pg.exec("rollback");
   m.home = null;
+  vi.unstubAllEnvs();
 });
 afterAll(async () => {
   await pg?.close();
@@ -556,5 +564,226 @@ describe("migration and existing purchases", () => {
       cancel_at: iso(end),
     } as Subscription;
     expect(subscriptionDisplay(sub, "free").date).toBeNull();
+  });
+});
+
+// Synthetic signatures/providers only; the real handler, sync, SQL and UI run.
+// No account refresh is used to make the cancellation assertion pass.
+describe("signed cancellation notification to entitlement (isolated)", () => {
+  async function signed(
+    type: string,
+    id: string,
+    signatureSecret = "whsec_fixture",
+  ) {
+    const raw = JSON.stringify({
+      id,
+      type,
+      livemode: false,
+      created: 1,
+      data: {
+        object:
+          type === "invoice.paid"
+            ? {
+                id: "in_fixture",
+                livemode: false,
+                parent: {
+                  subscription_details: { subscription: "sub_fixture" },
+                },
+              }
+            : {
+                id: "sub_fixture",
+                livemode: false,
+                status: type.endsWith("deleted") ? "canceled" : "active",
+              },
+      },
+    });
+    const signature = new Stripe(
+      "sk_test_fixture",
+    ).webhooks.generateTestHeaderString({
+      payload: raw,
+      secret: signatureSecret,
+    });
+    return webhookPOST(
+      new Request("http://fixture.invalid/api/webhooks/stripe", {
+        method: "POST",
+        headers: { "stripe-signature": signature },
+        body: raw,
+      }),
+    );
+  }
+  async function paid() {
+    vi.stubEnv("STRIPE_MODE", "sandbox");
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "whsec_fixture");
+    const now = Math.floor(Date.now() / 1000),
+      a = now - 60,
+      b = now + 86400;
+    const current = stripeSub({ created: a });
+    current.items.data[0].current_period_start = a;
+    current.items.data[0].current_period_end = b;
+    m.retrieve.mockResolvedValue(current);
+    m.invoices.mockResolvedValue({
+      data: [
+        {
+          id: "in_fixture",
+          livemode: false,
+          customer: "cus_fixture",
+          parent: { subscription_details: { subscription: "sub_fixture" } },
+          currency: "jpy",
+          amount_paid: 980,
+          total: 980,
+          status: "paid",
+          created: a,
+          status_transitions: { paid_at: a },
+          lines: {
+            has_more: false,
+            data: [
+              {
+                quantity: 1,
+                period: { start: a, end: b },
+                pricing: { price_details: { price: "price_fixture" } },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(
+      (await signed("customer.subscription.created", "evt_start")).status,
+    ).toBe(200);
+    expect((await home()).data.usage).toMatchObject({
+      plan: "plus",
+      limit: 30,
+    });
+    return { ...current, status: "canceled", ended_at: now, canceled_at: now };
+  }
+  it("signed deletion changes Plus to Free; duplicate deletion and reversed old events never restore access", async () => {
+    const canceled = await paid();
+    m.retrieve.mockResolvedValue(canceled);
+    for (const [type, id] of [
+      ["customer.subscription.deleted", "evt_delete"],
+      ["customer.subscription.deleted", "evt_delete"],
+      ["invoice.paid", "evt_old_invoice"],
+      ["customer.subscription.updated", "evt_old_update"],
+      ["customer.subscription.created", "evt_start"],
+    ]) {
+      expect((await signed(type, id)).status).toBe(200);
+      expect((await saved()).status).toBe("canceled");
+      const state = await home();
+      expect(state.data.usage).toMatchObject({ plan: "free", limit: 3 });
+      expect(state.html).toContain("解約済み");
+    }
+    expect(
+      (await pg.query("select count(*)::int n from stripe_events")).rows,
+    ).toEqual([{ n: 4 }]);
+    expect(
+      (
+        await pg.query(
+          "select count(*)::int n from subscription_invoices where id='in_fixture'",
+        )
+      ).rows,
+    ).toEqual([{ n: 1 }]);
+  });
+  it("rejects bad signatures without storing an event or revoking unrelated access", async () => {
+    const canceled = await paid();
+    m.retrieve.mockResolvedValue(canceled);
+    expect(
+      (await signed("customer.subscription.deleted", "evt_bad", "whsec_wrong"))
+        .status,
+    ).toBe(400);
+    expect((await saved()).status).toBe("active");
+    expect(
+      (
+        await pg.query(
+          "select count(*)::int n from stripe_events where stripe_event_id='evt_bad'",
+        )
+      ).rows,
+    ).toEqual([{ n: 0 }]);
+  });
+  it("a stale in-flight snapshot committed after cancellation cannot resurrect the same subscription", async () => {
+    const canceled = await paid(),
+      stale = await saved();
+    m.retrieve.mockResolvedValue(canceled);
+    expect(
+      (await signed("customer.subscription.deleted", "evt_delete")).status,
+    ).toBe(200);
+    // Models a separate worker whose earlier Stripe read completes after a lease
+    // expiry. Its later local updated_at must not override the terminal state.
+    await rpc("apply_subscription_snapshot", {
+      p_snapshot: {
+        ...stale,
+        updated_at: new Date(Date.now() + 1000).toISOString(),
+      },
+      p_invoices: [],
+      p_event: "evt_delayed_worker",
+      p_type: "customer.subscription.updated",
+      p_hash: "synthetic",
+    });
+    expect((await saved()).status).toBe("canceled");
+    expect((await saved()).ended_at).toBe(iso(canceled.ended_at));
+    expect((await home()).data.usage).toMatchObject({ plan: "free", limit: 3 });
+    expect(
+      (
+        await pg.query(
+          "select count(*)::int n from stripe_events where stripe_event_id='evt_delayed_worker'",
+        )
+      ).rows,
+    ).toEqual([{ n: 1 }]);
+  });
+  it("failed current-state retrieval records no cancellation; a later valid delivery revokes access", async () => {
+    const canceled = await paid();
+    m.retrieve.mockRejectedValueOnce(new Error("synthetic provider failure"));
+    expect(
+      (await signed("customer.subscription.deleted", "evt_retry")).status,
+    ).toBe(500);
+    expect((await saved()).status).toBe("active");
+    expect(
+      (
+        await pg.query(
+          "select count(*)::int n from stripe_events where stripe_event_id='evt_retry'",
+        )
+      ).rows,
+    ).toEqual([{ n: 0 }]);
+    m.retrieve.mockResolvedValue(canceled);
+    expect(
+      (await signed("customer.subscription.deleted", "evt_retry")).status,
+    ).toBe(200);
+    expect((await home()).data.usage).toMatchObject({ plan: "free", limit: 3 });
+  });
+  it("the terminal guard leaves scheduled cancellation reversible and a different subscription independent", async () => {
+    const canceled = await paid();
+    const active = await saved();
+    const apply = (snapshot: unknown) =>
+      rpc("apply_subscription_snapshot", {
+        p_snapshot: snapshot,
+        p_invoices: [],
+        p_event: null,
+        p_type: null,
+        p_hash: null,
+      });
+    await apply({ ...active, cancel_at_period_end: true });
+    expect((await saved()).cancel_at_period_end).toBe(true);
+    await apply(active);
+    expect((await saved()).cancel_at_period_end).toBe(false);
+    m.retrieve.mockResolvedValue(canceled);
+    expect(
+      (await signed("customer.subscription.deleted", "evt_delete")).status,
+    ).toBe(200);
+    await apply({
+      ...active,
+      id: "sub_independent",
+      created_at: new Date().toISOString(),
+    });
+    expect((await saved()).status).toBe("canceled");
+    expect(
+      (
+        await pg.query(
+          "select status from subscriptions where id='sub_independent'",
+        )
+      ).rows,
+    ).toEqual([{ status: "active" }]);
+    expect((await home()).data.usage).toMatchObject({
+      plan: "plus",
+      limit: 30,
+    });
   });
 });
