@@ -38,11 +38,15 @@ export const analysisSchema = z.object({
   positive_signals: z.array(signal).max(4),
   attention_signals: z.array(signal).max(3),
   uncertainties: z.array(text).min(1).max(5),
-  scores: z.object({
-    relationship_stability: z.number().int().min(0).max(100),
-    communication: z.number().int().min(0).max(100),
-    improvement_potential: z.number().int().min(0).max(100),
-  }),
+  scores: z
+    .object({
+      relationship_stability: z.number().int().min(0).max(100),
+      communication: z.number().int().min(0).max(100),
+      improvement_potential: z.number().int().min(0).max(100),
+    })
+    .describe(
+      "各指標は100点満点の0〜100整数。10点満点ではない。事実を整理する目安であり、確率や客観的に校正済みの尺度ではない。",
+    ),
   recommended_action: text,
   avoid_actions: z.array(text).max(5),
 });
