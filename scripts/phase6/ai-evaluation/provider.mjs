@@ -1,16 +1,34 @@
 import { aiEvaluation } from "../subscription-runtime/remaining-plan.mjs";
+import { open } from "node:fs/promises";
+
+// Exclusive creation prohibits silently resetting a crashed run's budget.
+// This journal contains only counts/reservations. A crash is a stop, never
+// permission to create a new journal and repeat calls under the same approval.
+export async function createEvaluationLedger(path) {
+  const handle = await open(path, "wx", 0o600);
+  return {
+    async checkpoint(summary) {
+      await handle.writeFile(JSON.stringify(summary) + "\n");
+      await handle.sync();
+    },
+    close: () => handle.close(),
+  };
+}
 
 // Dependency injection keeps CI offline. The live caller must provide a scoped
 // OpenAI client with SDK retries disabled, after separate cost approval.
 // This gate does not create/load credentials or enable any external test.
+/** @param {unknown} client
+ * @param {{ deadline?: number, now?: () => number, checkpoint?: (summary: object) => Promise<void> }} options */
 export function evaluationProvider(
   client,
-  { deadline = NaN, now = Date.now } = {},
+  { deadline = NaN, now = Date.now, checkpoint = undefined } = {},
 ) {
   if (
     !Number.isFinite(deadline) ||
     deadline <= now() ||
-    deadline > now() + 1200000
+    deadline > now() + 1200000 ||
+    typeof checkpoint !== "function"
   )
     throw Error("EVAL_DEADLINE_REQUIRED");
   const used = new Map();
@@ -73,6 +91,12 @@ export function evaluationProvider(
       reserved += hold;
       busy = true;
       try {
+        await checkpoint({
+          calls,
+          reservedUSD: reserved,
+          cases: Object.fromEntries(used),
+        });
+        if (now() >= deadline) throw Error("DEADLINE_REACHED");
         const params = structuredClone(request);
         const format = request.text?.format;
         if (format?.$brand && typeof format.$parseRaw === "function") {

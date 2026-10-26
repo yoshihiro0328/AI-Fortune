@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import OpenAI from "openai";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
-import { evaluationProvider } from "../scripts/phase6/ai-evaluation/provider.mjs";
+import {
+  evaluationProvider,
+  createEvaluationLedger,
+} from "../scripts/phase6/ai-evaluation/provider.mjs";
 const params = () => ({
   model: "gpt-6-luna",
   store: false,
@@ -44,7 +50,10 @@ describe("credential-free actual SDK evaluation gate", () => {
       fetch: fetcher,
       maxRetries: 0,
     });
-    const gate = evaluationProvider(client, { deadline: Date.now() + 60000 });
+    const gate = evaluationProvider(client, {
+      deadline: Date.now() + 60000,
+      checkpoint: async () => undefined,
+    });
     expect(
       (await gate.parse("consultation", 1, params())).output_parsed,
     ).toEqual({ ok: true });
@@ -68,7 +77,7 @@ describe("credential-free actual SDK evaluation gate", () => {
           parse,
         },
       },
-      { deadline: Date.now() + 60000 },
+      { deadline: Date.now() + 60000, checkpoint: async () => undefined },
     );
     await expect(gate.parse("consultation", 1, params())).rejects.toThrow(
       /^EVAL_PROVIDER_STOPPED$/,
@@ -88,7 +97,7 @@ describe("credential-free actual SDK evaluation gate", () => {
           parse,
         },
       },
-      { deadline: Date.now() + 60000 },
+      { deadline: Date.now() + 60000, checkpoint: async () => undefined },
     );
     await expect(gate.parse("consultation", 1, params())).rejects.toThrow(
       "STOPPED",
@@ -104,7 +113,7 @@ describe("credential-free actual SDK evaluation gate", () => {
           parse,
         },
       },
-      { deadline: Date.now() + 60000 },
+      { deadline: Date.now() + 60000, checkpoint: async () => undefined },
     );
     for (let i = 0; i < 3; i++) await gate.parse("consultation", 1, params());
     await expect(gate.parse("consultation", 1, params())).rejects.toThrow(
@@ -133,7 +142,7 @@ describe("credential-free actual SDK evaluation gate", () => {
             parse: async () => response,
           },
         },
-        { deadline: Date.now() + 60000 },
+        { deadline: Date.now() + 60000, checkpoint: async () => undefined },
       );
       await expect(gate.parse("diagnosis", 1, params())).rejects.toThrow(
         "STOPPED",
@@ -141,4 +150,40 @@ describe("credential-free actual SDK evaluation gate", () => {
       expect(gate.summary().calls).toBe(1);
     }
   });
+});
+
+it("persists reservation before dispatch and refuses to overwrite a previous journal", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "ai-budget-"));
+  const path = join(dir, "reservation.jsonl");
+  const journal = await createEvaluationLedger(path);
+  try {
+    const count = vi.fn(async () => {
+      expect(JSON.parse((await readFile(path, "utf8")).trim()).calls).toBe(1);
+      return { input_tokens: 30 };
+    });
+    const gate = evaluationProvider(
+      { responses: { inputTokens: { count }, parse: async () => result() } },
+      { deadline: Date.now() + 60000, checkpoint: journal.checkpoint },
+    );
+    await gate.parse("consultation", 1, params());
+    await expect(createEvaluationLedger(path)).rejects.toMatchObject({
+      code: "EEXIST",
+    });
+    const denied = evaluationProvider(
+      { responses: { inputTokens: { count } } },
+      {
+        deadline: Date.now() + 60000,
+        checkpoint: async () => {
+          throw Error("synthetic disk failure");
+        },
+      },
+    );
+    await expect(denied.parse("consultation", 2, params())).rejects.toThrow(
+      "STOPPED",
+    );
+    expect(count).toHaveBeenCalledTimes(1);
+  } finally {
+    await journal.close();
+    await rm(dir, { recursive: true, force: true });
+  }
 });
