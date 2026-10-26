@@ -18,6 +18,7 @@ const params = () => ({
 });
 const result = () => ({
   id: "resp_fixture",
+  status: "completed",
   model: "gpt-6-luna",
   service_tier: "default",
   usage: { input_tokens: 30, output_tokens: 10 },

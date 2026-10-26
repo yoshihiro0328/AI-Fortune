@@ -3,9 +3,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { aiKeyReceiver } from "./receiver.mjs";
+const synthetic = process.argv[2] === "--synthetic-session-check";
+if (process.argv.length > 2 && !synthetic) throw Error("SESSION_MODE_DENIED");
 const base = path.resolve("..");
 // One shared approval directory. Never choose a fresh path to reset spend.
-const directory = path.join(base, "private-ai-evaluation-B-20261026");
+const directory = synthetic
+  ? fs.mkdtempSync(path.join(process.env.TMPDIR || "/tmp", "ai-session-check-"))
+  : path.join(base, "private-ai-evaluation-B-20261026");
+if (synthetic) process.stdout.write(JSON.stringify({ directory }) + "\n");
 fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
 const dst = fs.lstatSync(directory);
 if (
@@ -91,7 +96,7 @@ poll = setInterval(async () => {
     HOME: process.env.HOME,
     TMPDIR: process.env.TMPDIR,
     NODE_ENV: "test",
-    AI_EVALUATION_MODE: "live",
+    AI_EVALUATION_MODE: synthetic ? "synthetic" : "live",
     AI_EVALUATION_DIRECTORY: directory,
   };
   // No source .env loading. The bridge loads one protected key, while all app

@@ -116,6 +116,7 @@ export function evaluationProvider(
         const u = result.usage;
         if (
           now() >= deadline ||
+          result.status !== "completed" ||
           result.model !== aiEvaluation.model ||
           result.service_tier !== "default" ||
           !u ||
