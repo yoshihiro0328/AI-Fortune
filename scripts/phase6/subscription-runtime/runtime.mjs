@@ -5,6 +5,7 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { TARGET, Policy, check } from "./policy.mjs";
 import { PostClosePolicy } from "./post-close-policy.mjs";
+import { MonthlyPolicy } from "./monthly-policy.mjs";
 import { startBroker } from "../payment-runtime/broker.mjs";
 import { copyApplication } from "../payment-runtime/launch.mjs";
 import {
@@ -55,7 +56,9 @@ export async function startRuntime({
   evidence,
   authOnly = false,
   browserState,
+  signal,
 }) {
+  check(!signal?.aborted, "RUNTIME_ABORTED");
   check(
     (authOnly &&
       m.scenario === "minimal-plus-v1" &&
@@ -75,7 +78,11 @@ export async function startRuntime({
     secret = webhookSecret || "whsec_" + randomBytes(32).toString("hex"),
     policy =
       browserState?.policy ??
-      (m.postClose ? new PostClosePolicy(m, reserve) : new Policy(m, reserve));
+      (m.scenario === "remaining-monthly-v1"
+        ? new MonthlyPolicy(m, reserve)
+        : m.postClose
+          ? new PostClosePolicy(m, reserve)
+          : new Policy(m, reserve));
   if (browserState)
     check(
       browserState.policy.m === m &&
@@ -104,6 +111,11 @@ export async function startRuntime({
     broker,
     closing = false,
     failure = null;
+  const interrupted = () => {
+    policy.stopped = true;
+    failure ??= "APP_EXIT";
+    void stopChild(app).catch(() => {});
+  };
   const stop = (code) => {
     policy.stopped = true;
     failure ??= code;
@@ -176,6 +188,8 @@ export async function startRuntime({
     app.on("exit", () => {
       if (!closing) stop("APP_EXIT");
     });
+    signal?.addEventListener("abort", interrupted, { once: true });
+    if (signal?.aborted) interrupted();
     await waitReady(app);
     return {
       dir,
@@ -198,6 +212,7 @@ export async function startRuntime({
           "AUTH_CONTINUITY_ONLY",
         );
         closing = true;
+        signal?.removeEventListener("abort", interrupted);
         if (!continueAuthenticated) policy.stopped = true;
         const stopped = await Promise.allSettled([
           stopChild(app),
@@ -217,6 +232,7 @@ export async function startRuntime({
     };
   } catch (e) {
     closing = true;
+    signal?.removeEventListener("abort", interrupted);
     const results = await Promise.allSettled([stopChild(app), broker?.stop()]);
     try {
       fs.rmSync(dir, { recursive: true, force: true });

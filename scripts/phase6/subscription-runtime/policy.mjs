@@ -56,7 +56,9 @@ export function validate(m) {
     ["product", "prod_"],
     ["portal", "bpc_"],
   ])
-    if (k === "clock" && m.scenario === "minimal-plus-v1")
+    if (k === "portal" && m.scenario === "remaining-monthly-v1")
+      check(m.portal === null);
+    else if (k === "clock" && m.scenario === "minimal-plus-v1")
       check(m.clock === null);
     else check(m[k]?.startsWith(p));
   check(

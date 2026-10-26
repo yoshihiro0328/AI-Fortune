@@ -32,6 +32,7 @@ export function evaluationProvider(
   )
     throw Error("EVAL_DEADLINE_REQUIRED");
   const used = new Map();
+  const observed = { inputTokens: 0, outputTokens: 0, completed: 0 };
   let reserved = 0,
     calls = 0,
     stopped = false,
@@ -92,6 +93,7 @@ export function evaluationProvider(
       busy = true;
       try {
         await checkpoint({
+          phase: "reserved",
           calls,
           reservedUSD: reserved,
           cases: Object.fromEntries(used),
@@ -142,6 +144,16 @@ export function evaluationProvider(
           u.output_tokens > params.max_output_tokens
         )
           throw Error("USAGE_REJECTED");
+        observed.inputTokens += u.input_tokens;
+        observed.outputTokens += u.output_tokens;
+        observed.completed++;
+        await checkpoint({
+          phase: "usage_observed",
+          calls,
+          reservedUSD: reserved,
+          ...observed,
+          billedUSD: null,
+        });
         return result;
       } catch {
         stopped = true;
@@ -152,7 +164,13 @@ export function evaluationProvider(
       }
     },
     summary() {
-      return { calls, reservedUSD: reserved, stopped };
+      return {
+        calls,
+        reservedUSD: reserved,
+        stopped,
+        ...observed,
+        billedUSD: null,
+      };
     },
   };
 }
