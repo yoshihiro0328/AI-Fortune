@@ -124,3 +124,82 @@ it("only accepted editorial review releases a candidate", async () => {
     ),
   ).toEqual({ summary: "会って話してみてください。" });
 });
+
+const messageSchema = z.object({ messages: z.object({ natural: z.string() }) });
+const sourceAnswers = [
+  {
+    question_text: "今の関係は？",
+    answer_text:
+      "友人に片思い。仲間とは会いますが二人では会ったことがなく、お茶に誘いたいです。",
+  },
+];
+it("paid editing fails closed before generating when primary answers are absent", async () => {
+  await expect(
+    editForReader("id", "paid_report", messageSchema, {
+      messages: { natural: "この前話してたお店でお茶しない？" },
+    }),
+  ).rejects.toThrow("source answers");
+  expect(run).not.toHaveBeenCalled();
+});
+it("rejects a fluent draft unchanged by editing when source review finds an invented past event", async () => {
+  for (let pass = 0; pass < 3; pass++) {
+    run.mockResolvedValueOnce({
+      edits: [
+        { path: "messages.natural", text: "この前話してたお店でお茶しない？" },
+      ],
+    });
+    run.mockResolvedValueOnce({
+      faithful: false,
+      natural: true,
+      safe: true,
+      actionable: true,
+      issues: ["messages.natural: 店について話した事実が回答にない"],
+    });
+  }
+  await expect(
+    editForReader(
+      "id",
+      "paid_report",
+      messageSchema,
+      {
+        messages: { natural: "この前話してたお店でお茶しない？" },
+      },
+      {},
+      sourceAnswers,
+    ),
+  ).rejects.toThrow("withheld");
+  for (const call of run.mock.calls)
+    expect(call[4].sourceAnswers).toEqual(sourceAnswers);
+  expect(run.mock.calls[1][2]).toContain("originalと同じでもfaithful=false");
+});
+it("allows only a reviewed repair grounded in the source, without mutating the saved draft", async () => {
+  const original = {
+    messages: { natural: "この前話してたお店でお茶しない？" },
+  };
+  run.mockResolvedValueOnce({
+    edits: [
+      {
+        path: "messages.natural",
+        text: "よかったら二人でお茶しない？都合のよい日があれば教えてね。",
+      },
+    ],
+  });
+  run.mockResolvedValueOnce({
+    faithful: true,
+    natural: true,
+    safe: true,
+    actionable: true,
+    issues: [],
+  });
+  const result = await editForReader(
+    "id",
+    "paid_report",
+    messageSchema,
+    original,
+    {},
+    sourceAnswers,
+  );
+  expect(result.messages.natural).not.toContain("この前");
+  expect(original.messages.natural).toContain("この前");
+  expect(run.mock.calls[1][4].sourceAnswers).toEqual(sourceAnswers);
+});

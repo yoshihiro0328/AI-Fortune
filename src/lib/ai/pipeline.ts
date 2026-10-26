@@ -311,6 +311,7 @@ export async function generatePaid(id: string) {
       paidSchema,
       draft,
       options,
+      answers!,
     );
     checked(
       await db().rpc("finish_report", {

@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir, lstat, rm } from "node:fs/promises";
 import path from "node:path";
 import { evaluationDatabase } from "./isolated-db";
 import { evaluationProvider, createEvaluationLedger } from "./provider.mjs";
+import { recoveryPlan } from "./recovery.mjs";
 import consultation from "./consultation-cases.json";
 import diagnosis from "./diagnosis-cases.json";
 const bridge = vi.hoisted(() => ({
@@ -31,6 +32,8 @@ import { triageRisk } from "@/lib/risk";
 import { chatAnswer, checkChatSafety } from "@/lib/consultation/ai";
 import { analyzeDiagnosis, generatePaid } from "@/lib/ai/pipeline";
 import { initializeFlow, selectedQuestions } from "@/lib/questions/engine";
+import { editForReader } from "@/lib/ai/editor";
+import { paidSchema } from "@/lib/ai/schemas";
 
 function requireCheck(ok: unknown, code: string): asserts ok {
   if (!ok) throw Error(code);
@@ -100,7 +103,16 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
   globalThis.fetch = async () => {
     throw Error("UNAPPROVED_NETWORK");
   };
-  const deadline = Date.now() + 1200000;
+  const recoveryDirectory = process.env.AI_EVALUATION_RECOVERY_DIRECTORY;
+  const recovery = recoveryDirectory ? recoveryPlan(recoveryDirectory) : null;
+  const executionStart = recovery
+    ? JSON.parse(
+        await readFile(path.join(directory, "execution-start.json"), "utf8"),
+      )
+    : null;
+  const deadline = recovery
+    ? executionStart.startedAt + recovery.remainingMillis
+    : Date.now() + 1200000;
   let group = "consultation",
     caseNumber = 1;
   const caseResults: { group: string; caseNumber: number; status: string }[] =
@@ -215,7 +227,14 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
     gate = evaluationProvider(client, {
       deadline,
       checkpoint: journal.checkpoint,
+      ...(recovery ? { prior: recovery.prior } : {}),
     });
+    if (recovery)
+      await journal.checkpoint({
+        phase: "carried_forward",
+        ...recovery,
+        billedUSD: null,
+      });
     bridge.parse = async (p) => gate!.parse(group, caseNumber, p);
     await local.pg.query(
       "insert into payment_environment(id,mode,stripe_account_id) values(true,'sandbox','acct_fixture') on conflict(id) do update set stripe_account_id='acct_fixture'",
@@ -403,13 +422,54 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
         throw Error("CASE_STOPPED");
       }
     }
-    // Representative normal/safety consultations and real v2 free+paid pipeline.
-    for (const [g, n] of [
-      ["consultation", 1],
-      ["consultation", 14],
-      ["diagnosis", 1],
-    ] as const)
-      await runCase(g, n);
+    // Preserve completed cases. Repair only the rejected message draft, then
+    // evaluate the unfinished cases with the common budget and remaining time.
+    if (recovery && recoveryDirectory) {
+      group = "diagnosis";
+      caseNumber = 4;
+      stopStage = "diagnosis_4_repair";
+      const saved = JSON.parse(
+        await readFile(
+          path.join(recoveryDirectory, "diagnosis-4.json"),
+          "utf8",
+        ),
+      );
+      const type = (
+        await local.pg.query<{ id: string }>(
+          "select id from diagnosis_types where slug='partner-mind'",
+        )
+      ).rows[0].id;
+      const repairId = "50000000-0000-4000-8000-000000000104";
+      await local.pg.query(
+        "insert into diagnoses(id,diagnosis_type_id,anonymous_session_id,question_flow_version) values($1,$2,'synthetic-evaluation','v1')",
+        [repairId, type],
+      );
+      const repaired = await editForReader(
+        repairId,
+        "paid_report",
+        paidSchema,
+        paidSchema.parse(saved.paid[0].report_json),
+        { deadline },
+        [{ question_text: "今回の合成回答", answer_text: saved.answer }],
+      );
+      await save("diagnosis-4-repaired.json", {
+        label: saved.label,
+        answer: saved.answer,
+        originalPreserved: true,
+        paid: repaired,
+      });
+      caseResults.push({
+        group,
+        caseNumber,
+        status: "automated_checks_passed_quality_review_pending",
+      });
+    } else
+      for (const [g, n] of [
+        ["consultation", 1],
+        ["consultation", 14],
+        ["diagnosis", 1],
+      ] as const)
+        await runCase(g, n);
     await save("pilot-ready.json", {
       cases: caseResults,
       budget: gate.summary(),
@@ -431,8 +491,34 @@ it("isolated evaluation from login-free fixtures through reports and cleanup", a
       }
       requireCheck(Date.now() < deadline, "EVALUATION_DEADLINE");
     }
-    for (let n = 2; n <= 13; n++) await runCase("consultation", n);
-    for (let n = 2; n <= 10; n++) await runCase("diagnosis", n);
+    if (!recovery)
+      for (let n = 2; n <= 13; n++) await runCase("consultation", n);
+    for (let n = recovery ? 5 : 2; n <= 10; n++) {
+      await runCase("diagnosis", n);
+      // Review every newly completed live report before spending on the next.
+      if (live) {
+        await save(`review-ready-${n}.json`, {
+          caseNumber: n,
+          budget: gate.summary(),
+        });
+        let approved = false;
+        while (Date.now() < deadline) {
+          try {
+            const review = JSON.parse(
+              await readFile(path.join(directory, `review-${n}.json`), "utf8"),
+            );
+            requireCheck(review.approved === true, "QUALITY_REJECTED");
+            approved = true;
+            break;
+          } catch (e) {
+            if ((e as { code?: string }).code !== "ENOENT")
+              throw Error("QUALITY_REJECTED");
+          }
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        requireCheck(approved, "EVALUATION_DEADLINE");
+      }
+    }
     terminal = "completed";
   } catch {
     terminal = "stopped";

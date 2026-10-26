@@ -19,10 +19,10 @@ export async function createEvaluationLedger(path) {
 // OpenAI client with SDK retries disabled, after separate cost approval.
 // This gate does not create/load credentials or enable any external test.
 /** @param {unknown} client
- * @param {{ deadline?: number, now?: () => number, checkpoint?: (summary: object) => Promise<void> }} options */
+ * @param {{ deadline?: number, now?: () => number, checkpoint?: (summary: object) => Promise<void>, prior?: {calls:number, reservedNano:number, cases:object, inputTokens:number, outputTokens:number, completed:number, unknownCalls:number} }} options */
 export function evaluationProvider(
   client,
-  { deadline = NaN, now = Date.now, checkpoint = undefined } = {},
+  { deadline = NaN, now = Date.now, checkpoint = undefined, prior } = {},
 ) {
   if (
     !Number.isFinite(deadline) ||
@@ -31,10 +31,32 @@ export function evaluationProvider(
     typeof checkpoint !== "function"
   )
     throw Error("EVAL_DEADLINE_REQUIRED");
-  const used = new Map();
-  const observed = { inputTokens: 0, outputTokens: 0, completed: 0 };
-  let reservedNano = 0,
-    calls = 0,
+  if (
+    prior &&
+    (!Number.isSafeInteger(prior.reservedNano) ||
+      prior.reservedNano < 0 ||
+      prior.reservedNano > 12000000000 ||
+      !Number.isInteger(prior.calls) ||
+      prior.calls < 0 ||
+      prior.calls > 842 ||
+      ![
+        prior.completed,
+        prior.unknownCalls,
+        prior.inputTokens,
+        prior.outputTokens,
+      ].every((n) => Number.isSafeInteger(n) && n >= 0) ||
+      Object.values(prior.cases).reduce((a, b) => a + b, 0) !== prior.calls ||
+      prior.completed + prior.unknownCalls !== prior.calls)
+  )
+    throw Error("EVAL_RECOVERY_DENIED");
+  const used = new Map(Object.entries(prior?.cases ?? {}));
+  const observed = {
+    inputTokens: prior?.inputTokens ?? 0,
+    outputTokens: prior?.outputTokens ?? 0,
+    completed: prior?.completed ?? 0,
+  };
+  let reservedNano = prior?.reservedNano ?? 0,
+    calls = prior?.calls ?? 0,
     stopped = false,
     busy = false;
   return {
@@ -51,7 +73,8 @@ export function evaluationProvider(
         !Number.isInteger(caseNumber) ||
         caseNumber < 1 ||
         caseNumber > cap.cases ||
-        (used.get(key) ?? 0) >= cap.callsPerCase
+        (used.get(key) ?? 0) >= cap.callsPerCase ||
+        calls >= 842
       )
         throw Error("EVAL_ALLOWANCE_DENIED");
       const allowed = [
@@ -160,6 +183,7 @@ export function evaluationProvider(
         stopped,
         ...observed,
         billedUSD: null,
+        unknownCalls: calls - observed.completed,
       };
     },
   };
