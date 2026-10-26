@@ -34,6 +34,8 @@ const price = {
 };
 function fixture({
   fail,
+  continuation = false,
+  fixtureUsers = users,
   checkpointFail = false,
   signal,
   advanceLag = 0,
@@ -122,7 +124,8 @@ function fixture({
   };
   const ops = monthlyOperations({
     run,
-    users,
+    users: fixtureUsers,
+    continuation,
     signal,
     now,
     deadline: now() + 1200000,
@@ -362,4 +365,57 @@ test("interruption forbids new mutations but preserves bounded cancellation", as
     t.calls.filter((c) => c.operation === "monthly_user_f").length,
     0,
   );
+});
+
+test("G/F resume carries E expenditure, protects E and never resets payment allowance", async () => {
+  const { ops, saved, calls, now } = fixture({ continuation: true });
+  await ops.identify();
+  assert.equal(saved.at(-1).allowance.used.successfulPayments, 1);
+  assert.equal(ops.state().continuation.roles.e, "G");
+  for (const label of ["e", "f"]) {
+    await ops.prepare(label);
+    await ops.attach(label);
+    await ops.createSubscription(label);
+  }
+  await ops.attach("f", true);
+  await ops.switchFailureMethod();
+  await ops.advance("e", Math.floor(now() / 1000) - 7200);
+  const used = saved.at(-1).allowance.used;
+  assert.equal(used.users, 3);
+  assert.equal(used.customers, 3);
+  assert.equal(used.clocks, 3);
+  assert.equal(used.subscriptions, 3);
+  assert.equal(used.successfulPayments, 4);
+  assert.equal(used.paymentMethodAttachments, 4);
+  assert.equal(used.clockAdvances, 2);
+  await assert.rejects(ops.prepare("e"));
+  await assert.rejects(ops.createSubscription("f"));
+  assert.equal(
+    calls.filter((r) => r.path === "/v1/subscriptions" && r.method === "POST")
+      .length,
+    2,
+  );
+  await ops.beginCleanup();
+  await ops.closeSubscription("e");
+  await ops.closeSubscription("f");
+  assert(
+    calls
+      .filter((r) => r.method === "DELETE")
+      .every((r) =>
+        ["/v1/subscriptions/sub_e", "/v1/subscriptions/sub_f"].includes(r.path),
+      ),
+  );
+});
+test("retained E is rejected before any provider operation in either mode", () => {
+  const id = "5615e8f4-228c-4d13-bc8d-36c511315d44";
+  for (const continuation of [false, true])
+    assert.throws(() =>
+      fixture({
+        continuation,
+        fixtureUsers: {
+          ...users,
+          e: { ...users.e, id, email: `plus-${run}-${id}@example.com` },
+        },
+      }),
+    );
 });

@@ -34,8 +34,18 @@ export const remainingPlan = Object.freeze({
 // A global stop is latched BEFORE dispatch. Unknown external outcomes consume the
 // allowance and block further writes; only bounded read reconciliation/cleanup
 // is permitted by the runbook. This object deliberately cannot perform writes.
-export function operationLedger(plan = remainingPlan) {
+export function operationLedger(plan = remainingPlan, carry = {}) {
   const used = Object.fromEntries(Object.keys(plan.limits).map((k) => [k, 0]));
+  for (const [key, value] of Object.entries(carry)) {
+    if (
+      !Object.hasOwn(used, key) ||
+      !Number.isSafeInteger(value) ||
+      value < 0 ||
+      value > plan.limits[key]
+    )
+      throw Error("REMAINING_PLAN_CARRY_DENIED");
+    used[key] = value;
+  }
   const issued = new Set();
   let stopped = false;
   return {

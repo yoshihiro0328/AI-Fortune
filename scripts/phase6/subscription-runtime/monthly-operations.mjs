@@ -1,5 +1,11 @@
 import { remainingPlan, operationLedger } from "./remaining-plan.mjs";
 import { TARGET, check } from "./policy.mjs";
+import {
+  retainedE,
+  resumedMonthlyPlan,
+  monthlyCarry,
+  monthlyContinuation,
+} from "./monthly-resume.mjs";
 
 export const MONTHLY_PRICE = "price_1UQlpjI73kTcvXz814TUAfOd";
 export const MONTHLY_VERSION = "plus-integration-202610-980-v1";
@@ -10,6 +16,7 @@ const identifier = (s, prefix) =>
 const protectedUsers = new Set([
   "74a7ac25-66f2-450e-a6a4-c72e498fd638",
   "ff82e4fe-6de5-4dde-887f-9ae7e8caf89b",
+  retainedE,
 ]);
 
 // UTC calendar arithmetic, including the February/month-end clamp. Not 30 days.
@@ -35,6 +42,7 @@ export function monthlyOperations({
   checkpoint,
   deadline,
   signal,
+  continuation = false,
   now = Date.now,
   sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
 }) {
@@ -54,16 +62,19 @@ export function monthlyOperations({
         typeof u.password === "string" &&
         u.password.length >= 16,
     );
-  const ledger = operationLedger();
+  check(typeof continuation === "boolean");
+  const plan = continuation ? resumedMonthlyPlan : remainingPlan;
+  const ledger = operationLedger(plan, continuation ? monthlyCarry : {});
   const state = {
     run,
+    continuation: continuation ? monthlyContinuation : null,
     fixtures: {
       e: { expectedUser: users.e.id },
       f: { expectedUser: users.f.id },
     },
     journal: [],
     stopped: false,
-    successfulInvoices: [],
+    successfulInvoices: continuation ? [monthlyContinuation.paidInvoice] : [],
     failedAttempts: 0,
     notificationPhaseEnded: false,
   };
@@ -411,7 +422,10 @@ export function monthlyOperations({
           check(i.amount_paid === 980 && i.amount_remaining === 0);
           if (!state.successfulInvoices.includes(i.id))
             state.successfulInvoices.push(i.id);
-          check(state.successfulInvoices.length <= 3, "MONTHLY_PAYMENT_CAP");
+          check(
+            state.successfulInvoices.length <= plan.limits.successfulPayments,
+            "MONTHLY_PAYMENT_CAP",
+          );
         }
         if (label === "f" && i.status !== "paid") {
           check(Number.isSafeInteger(i.attempt_count) && i.attempt_count <= 9);
@@ -469,7 +483,7 @@ export function monthlyOperations({
         Number.isSafeInteger(target) &&
           target > f.frozen &&
           target - f.frozen <= 32 * 86400 &&
-          f.advances < (label === "e" ? 4 : 12) &&
+          f.advances < (label === "e" ? (continuation ? 3 : 4) : 12) &&
           !f.pending,
         "MONTHLY_CLOCK_DENIED",
       );

@@ -115,3 +115,17 @@ test("AI proposal includes all attempts, cache writes and premium, but grants no
   assert.equal(cost.externalApprovalGranted, false);
   assert.equal(cost.taxIncluded, false);
 });
+
+test("carry-in is validated and consumes the same cumulative limits", () => {
+  for (const carry of [
+    { users: -1 },
+    { users: 0.5 },
+    { users: 3 },
+    { unknown: 0 },
+  ])
+    assert.throws(() => operationLedger(remainingPlan, carry));
+  const ledger = operationLedger(remainingPlan, { users: 1, clockAdvances: 1 });
+  ledger.reserve("users", "only-one-left");
+  assert.throws(() => ledger.reserve("users", "no-reset"));
+  assert.equal(ledger.summary().used.users, 2);
+});

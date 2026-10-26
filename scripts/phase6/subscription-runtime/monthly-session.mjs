@@ -10,6 +10,12 @@ import { providerWire } from "./wire.mjs";
 import { executeMonthly } from "./monthly-live.mjs";
 import { testPassword } from "./test-password.mjs";
 import { verifyRevocation } from "./revocation.mjs";
+import {
+  monthlyContinuation,
+  claimMonthlyContinuation,
+  monthlyCarry,
+  resumedMonthlyPlan,
+} from "./monthly-resume.mjs";
 
 // Explicitly launched interactive owner. No startup external writes and no env
 // credential fallback. Receipt URLs stay in a private file, never stdout.
@@ -31,6 +37,8 @@ check(
     "all_proxy",
   ].every((k) => !process.env[k]),
 );
+const claimPath = path.join(base, "monthly-gf-approval-consumed.json");
+check(!fs.existsSync(claimPath), "CUMULATIVE_APPROVAL_ALREADY_CONSUMED");
 const run = randomUUID(),
   root = path.join(base, "private-monthly-" + run.slice(0, 8));
 fs.mkdirSync(root, { mode: 0o700 });
@@ -64,6 +72,9 @@ const outcomes = {
   keyNames: names,
   closed: false,
   externalStarted: false,
+  continuation: monthlyContinuation,
+  cumulativeCarry: monthlyCarry,
+  cumulativeLimits: resumedMonthlyPlan.limits,
 };
 function record(kind, value) {
   const file = path.join(root, `record-${String(++seq).padStart(5, "0")}.json`);
@@ -186,6 +197,9 @@ async function execute() {
         preflight.osIsolationPassed === true,
       "PREFLIGHT_REQUIRED",
     );
+    // Exclusive durable claim before the first write; process restarts cannot
+    // obtain another G/F allowance from the same historical carry-in.
+    claimMonthlyContinuation(claimPath, run);
     outcomes.externalStarted = true;
     const deadline = Math.min(Date.now() + 1200000, secretDeadline - 380000);
     deadlineTimer = setTimeout(
@@ -196,6 +210,7 @@ async function execute() {
       Math.max(1, deadline - Date.now()),
     );
     outcomes.execution = await executeMonthly({
+      continuation: true,
       signal: interrupted.signal,
       run,
       users,

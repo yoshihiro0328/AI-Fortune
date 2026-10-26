@@ -25,6 +25,7 @@ export async function executeMonthly({
   checkpoint,
   record,
   signal,
+  continuation = false,
 }) {
   const runtimes = new Set(),
     deliveries = new Map();
@@ -43,6 +44,7 @@ export async function executeMonthly({
     deadline,
     checkpoint,
     signal: deadlineSignal,
+    continuation,
   });
   const recordDiagnostic = runtimeDiagnostics((_name, value) => {
     record("runtime-" + ++diagnosticSequence, value);
