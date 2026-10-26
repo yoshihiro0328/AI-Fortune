@@ -33,7 +33,7 @@ export function evaluationProvider(
     throw Error("EVAL_DEADLINE_REQUIRED");
   const used = new Map();
   const observed = { inputTokens: 0, outputTokens: 0, completed: 0 };
-  let reserved = 0,
+  let reservedNano = 0,
     calls = 0,
     stopped = false,
     busy = false;
@@ -81,54 +81,37 @@ export function evaluationProvider(
         )
       )
         throw Error("EVAL_REQUEST_DENIED");
-      const hold =
-        ((cap.inputTokens * 0.25 + request.max_output_tokens * 0.5) / 1e6) *
-        1.1;
-      if (reserved + hold > aiEvaluation.proposedReservationUSD)
-        throw Error("EVAL_COST_DENIED");
-      // Both counters and the full reservation remain consumed on every error.
+      // Official model context ceiling includes message/schema formatting.
+      // No local tokenizer estimate is used as a billing guarantee.
+      // Standard long-context 12h write $0.50/M, output $0.75/M, +10%.
+      const params = structuredClone(request);
+      const format = request.text?.format;
+      if (format?.$brand && typeof format.$parseRaw === "function") {
+        Object.defineProperties(params.text.format, {
+          $brand: { value: format.$brand },
+          $parseRaw: { value: format.$parseRaw },
+        });
+      }
+      params.service_tier = "default";
+      const hold = 1050000 * 550 + request.max_output_tokens * 825;
+      if (reservedNano + hold > 12000000000) throw Error("EVAL_COST_DENIED");
+      // Every dispatch attempt counts. Unknown/failed outcomes retain the full hold.
       used.set(key, (used.get(key) ?? 0) + 1);
       calls++;
-      reserved += hold;
+      reservedNano += hold;
       busy = true;
       try {
         await checkpoint({
           phase: "reserved",
           calls,
-          reservedUSD: reserved,
+          reservedUSD: reservedNano / 1e9,
           cases: Object.fromEntries(used),
         });
         if (now() >= deadline) throw Error("DEADLINE_REACHED");
-        const params = structuredClone(request);
-        const format = request.text?.format;
-        if (format?.$brand && typeof format.$parseRaw === "function") {
-          Object.defineProperties(params.text.format, {
-            $brand: { value: format.$brand },
-            $parseRaw: { value: format.$parseRaw },
-          });
-        }
-        params.service_tier = "default";
         const signal = AbortSignal.timeout(Math.min(110000, deadline - now()));
         const options = { signal, maxRetries: 0 };
-        const countParams = {
-          model: params.model,
-          input: params.input,
-          text: params.text,
-          ...(params.reasoning ? { reasoning: params.reasoning } : {}),
-        };
-        const count = await client.responses.inputTokens.count(
-          countParams,
-          options,
-        );
-        if (
-          !Number.isInteger(count.input_tokens) ||
-          count.input_tokens < 0 ||
-          count.input_tokens > cap.inputTokens ||
-          now() >= deadline
-        )
-          throw Error("COUNT_REJECTED");
-        // Preserve SDK's non-enumerable structured-output parser, while all
-        // transmitted fields remain equal to the token-counted plain clone.
+        // Reject excess context instead of silently truncating evaluation input.
+        params.truncation = "disabled";
         const result = await client.responses.parse(params, options);
         const u = result.usage;
         if (
@@ -144,16 +127,22 @@ export function evaluationProvider(
           u.output_tokens > params.max_output_tokens
         )
           throw Error("USAGE_REJECTED");
+        // Keep a conservative settled cost, not a claim of invoiced cost.
+        // Input verified <= original case cap (short context); assume all input
+        // at the most expensive 12h write rate and include regional premium.
+        const settled = u.input_tokens * 275 + u.output_tokens * 550;
+        const nextReserved = reservedNano - hold + settled;
         observed.inputTokens += u.input_tokens;
         observed.outputTokens += u.output_tokens;
         observed.completed++;
         await checkpoint({
           phase: "usage_observed",
           calls,
-          reservedUSD: reserved,
+          reservedUSD: nextReserved / 1e9,
           ...observed,
           billedUSD: null,
         });
+        reservedNano = nextReserved;
         return result;
       } catch {
         stopped = true;
@@ -166,7 +155,7 @@ export function evaluationProvider(
     summary() {
       return {
         calls,
-        reservedUSD: reserved,
+        reservedUSD: reservedNano / 1e9,
         stopped,
         ...observed,
         billedUSD: null,

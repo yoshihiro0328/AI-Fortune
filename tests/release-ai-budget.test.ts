@@ -32,7 +32,7 @@ const result = () => ({
   ],
 });
 describe("credential-free actual SDK evaluation gate", () => {
-  it("counts the exact schema/input then parses through SDK with fixed model/tier and no retry", async () => {
+  it("reserves official context ceiling before one SDK generation without count API", async () => {
     const requests: { path: string; body: Record<string, unknown> }[] = [];
     const fetcher = vi.fn(
       async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -57,13 +57,9 @@ describe("credential-free actual SDK evaluation gate", () => {
     expect(
       (await gate.parse("consultation", 1, params())).output_parsed,
     ).toEqual({ ok: true });
-    expect(requests.map((r) => r.path)).toEqual([
-      "/v1/responses/input_tokens",
-      "/v1/responses",
-    ]);
-    for (const key of ["model", "input", "text"])
-      expect(requests[0].body[key]).toEqual(requests[1].body[key]);
-    expect(requests[1].body.service_tier).toBe("default");
+    expect(requests.map((r) => r.path)).toEqual(["/v1/responses"]);
+    expect(requests[0].body.service_tier).toBe("default");
+    expect(requests[0].body.truncation).toBe("disabled");
     expect(gate.summary()).toMatchObject({ calls: 1, stopped: false });
   });
   it("unknown result is redacted, reserved and permanently stops further generation", async () => {
@@ -88,8 +84,11 @@ describe("credential-free actual SDK evaluation gate", () => {
     expect(parse).toHaveBeenCalledTimes(1);
     expect(gate.summary().reservedUSD).toBeGreaterThan(0);
   });
-  it("oversized counted input never reaches generation", async () => {
-    const parse = vi.fn();
+  it("unexpected observed input retains full context reservation and stops", async () => {
+    const parse = vi.fn(async () => ({
+      ...result(),
+      usage: { input_tokens: 12001, output_tokens: 10 },
+    }));
     const gate = evaluationProvider(
       {
         responses: {
@@ -102,7 +101,8 @@ describe("credential-free actual SDK evaluation gate", () => {
     await expect(gate.parse("consultation", 1, params())).rejects.toThrow(
       "STOPPED",
     );
-    expect(parse).not.toHaveBeenCalled();
+    expect(parse).toHaveBeenCalledTimes(1);
+    expect(gate.summary().reservedUSD).toBe(0.57948);
   });
   it("per-case allowance includes edits and attempts; wrong scope/model/tools are blocked", async () => {
     const parse = vi.fn().mockImplementation(async () => result());
@@ -157,12 +157,12 @@ it("persists reservation before dispatch and refuses to overwrite a previous jou
   const path = join(dir, "reservation.jsonl");
   const journal = await createEvaluationLedger(path);
   try {
-    const count = vi.fn(async () => {
+    const parse = vi.fn(async () => {
       expect(JSON.parse((await readFile(path, "utf8")).trim()).calls).toBe(1);
-      return { input_tokens: 30 };
+      return result();
     });
     const gate = evaluationProvider(
-      { responses: { inputTokens: { count }, parse: async () => result() } },
+      { responses: { parse } },
       { deadline: Date.now() + 60000, checkpoint: journal.checkpoint },
     );
     await gate.parse("consultation", 1, params());
@@ -170,7 +170,7 @@ it("persists reservation before dispatch and refuses to overwrite a previous jou
       code: "EEXIST",
     });
     const denied = evaluationProvider(
-      { responses: { inputTokens: { count } } },
+      { responses: { parse } },
       {
         deadline: Date.now() + 60000,
         checkpoint: async () => {
@@ -181,9 +181,81 @@ it("persists reservation before dispatch and refuses to overwrite a previous jou
     await expect(denied.parse("consultation", 2, params())).rejects.toThrow(
       "STOPPED",
     );
-    expect(count).toHaveBeenCalledTimes(1);
+    expect(parse).toHaveBeenCalledTimes(1);
   } finally {
     await journal.close();
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+it("all 842 worst-case verified calls fit while each dispatch holds the full context risk", async () => {
+  let cap = { input: 12000, output: 2400 };
+  let peak = 0;
+  const gate = evaluationProvider(
+    {
+      responses: {
+        parse: async () => ({
+          ...result(),
+          usage: { input_tokens: cap.input, output_tokens: cap.output },
+        }),
+      },
+    },
+    {
+      deadline: Date.now() + 1200000,
+      checkpoint: async (summary: object) => {
+        const s = summary as { reservedUSD: number };
+        peak = Math.max(peak, s.reservedUSD);
+        expect(s.reservedUSD).toBeLessThanOrEqual(12);
+      },
+    },
+  );
+  for (const [group, cases, attempts, input, output] of [
+    ["consultation", 14, 3, 12000, 2400],
+    ["diagnosis", 10, 80, 30000, 8500],
+  ] as const) {
+    cap = { input, output };
+    for (let c = 1; c <= cases; c++)
+      for (let n = 0; n < attempts; n++)
+        await gate.parse(group, c, { ...params(), max_output_tokens: output });
+  }
+  expect(gate.summary()).toMatchObject({
+    calls: 842,
+    completed: 842,
+    reservedUSD: 10.53404,
+  });
+  expect(peak).toBeGreaterThan(11);
+  await expect(gate.parse("diagnosis", 10, params())).rejects.toThrow(
+    "ALLOWANCE",
+  );
+});
+
+it("a journal failure after response does not release its hold; concurrent call is blocked", async () => {
+  let release!: () => void;
+  const wait = new Promise<void>((r) => {
+    release = r;
+  });
+  let checkpoints = 0;
+  const gate = evaluationProvider(
+    {
+      responses: {
+        parse: async () => {
+          await wait;
+          return result();
+        },
+      },
+    },
+    {
+      deadline: Date.now() + 60000,
+      checkpoint: async () => {
+        if (++checkpoints === 2) throw Error("disk");
+      },
+    },
+  );
+  const first = gate.parse("consultation", 1, params());
+  await expect(gate.parse("consultation", 2, params())).rejects.toThrow(
+    "ALLOWANCE",
+  );
+  release();
+  await expect(first).rejects.toThrow("STOPPED");
+  expect(gate.summary().reservedUSD).toBe(0.57948);
 });
