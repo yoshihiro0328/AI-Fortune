@@ -259,4 +259,155 @@ it("a journal failure after response does not release its hold; concurrent call 
   release();
   await expect(first).rejects.toThrow("STOPPED");
   expect(gate.summary().reservedUSD).toBe(0.57948);
+  expect(gate.summary()).toMatchObject({
+    completed: 0,
+    unknownCalls: 1,
+    inputTokens: 0,
+    outputTokens: 0,
+    stopDiagnostic: { reason: "settlement_persistence_failed" },
+  });
+});
+
+describe("nonsecret evaluation stop diagnostics", () => {
+  it.each(["RateLimitError", "sensitive-error-name"])(
+    "records only allowlisted metadata for %s, never provider payloads",
+    async (name) => {
+      const rows: object[] = [];
+      const parse = vi
+        .fn()
+        .mockRejectedValue(
+          Object.assign(
+            new Error(
+              "sensitive-message https://example.invalid/?secret=synthetic",
+            ),
+            {
+              name,
+              status: 429,
+              headers: { authorization: "sensitive-header" },
+              error: { message: "sensitive-body" },
+              request_id: "sensitive-id",
+            },
+          ),
+        );
+      const gate = evaluationProvider(
+        { responses: { parse } },
+        {
+          deadline: Date.now() + 60000,
+          checkpoint: async (row: object) => {
+            rows.push(row);
+          },
+        },
+      );
+      const request = params();
+      request.text.format.name = "sensitive-schema-name";
+      await expect(gate.parse("diagnosis", 6, request)).rejects.toThrow(
+        /^EVAL_PROVIDER_STOPPED$/,
+      );
+      expect(gate.summary().stopDiagnostic).toEqual({
+        group: "diagnosis",
+        caseNumber: 6,
+        stage: "other",
+        reason: "provider_exception",
+        errorClass: name === "RateLimitError" ? name : "other",
+        httpStatus: 429,
+        response: null,
+      });
+      expect(rows.map((row) => (row as { phase: string }).phase)).toEqual([
+        "reserved",
+        "stopped",
+      ]);
+      expect(JSON.stringify({ rows, summary: gate.summary() })).not.toMatch(
+        /sensitive|https:\/\/|secret=/,
+      );
+      await expect(gate.parse("diagnosis", 6, request)).rejects.toThrow(
+        "ALLOWANCE",
+      );
+      expect(parse).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    [
+      {
+        status: "incomplete",
+        incomplete_details: { reason: "max_output_tokens" },
+      },
+      "response_not_completed",
+    ],
+    [
+      { usage: { input_tokens: 30001, output_tokens: 10 } },
+      "usage_invalid_or_over_cap",
+    ],
+    [{ model: "sensitive-model" }, "model_mismatch"],
+    [{ service_tier: "sensitive-tier" }, "tier_mismatch"],
+    [
+      {
+        status: "sensitive-status",
+        incomplete_details: { reason: "sensitive-reason" },
+      },
+      "response_not_completed",
+    ],
+  ])(
+    "distinguishes invalid responses without exposing text (%j)",
+    async (override, reason) => {
+      const rows: object[] = [];
+      const gate = evaluationProvider(
+        {
+          responses: {
+            parse: async () => ({
+              ...result(),
+              ...override,
+              output_text: "sensitive-output",
+              error: { message: "sensitive-error" },
+            }),
+          },
+        },
+        {
+          deadline: Date.now() + 60000,
+          checkpoint: async (row: object) => {
+            rows.push(row);
+          },
+        },
+      );
+      const request = params();
+      request.text.format.name = "paid_report_review_1";
+      await expect(gate.parse("diagnosis", 6, request)).rejects.toThrow(
+        "STOPPED",
+      );
+      expect(gate.summary()).toMatchObject({
+        calls: 1,
+        completed: 0,
+        unknownCalls: 1,
+        reservedUSD: 0.57948,
+        stopDiagnostic: { reason, stage: "paid_report_review_1" },
+      });
+      expect(JSON.stringify({ rows, summary: gate.summary() })).not.toContain(
+        "sensitive",
+      );
+    },
+  );
+
+  it("stops before dispatch when reservation cannot be saved, without leaking disk error", async () => {
+    const parse = vi.fn();
+    const gate = evaluationProvider(
+      { responses: { parse } },
+      {
+        deadline: Date.now() + 60000,
+        checkpoint: async () => {
+          throw Error("sensitive-local-path");
+        },
+      },
+    );
+    await expect(gate.parse("diagnosis", 6, params())).rejects.toThrow(
+      /^EVAL_PROVIDER_STOPPED$/,
+    );
+    expect(parse).not.toHaveBeenCalled();
+    expect(gate.summary()).toMatchObject({
+      reservedUSD: 0.57948,
+      completed: 0,
+      unknownCalls: 1,
+      stopDiagnostic: { reason: "reservation_persistence_failed" },
+    });
+    expect(JSON.stringify(gate.summary())).not.toContain("sensitive");
+  });
 });

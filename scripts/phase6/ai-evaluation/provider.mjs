@@ -1,6 +1,44 @@
 import { aiEvaluation } from "../subscription-runtime/remaining-plan.mjs";
 import { open } from "node:fs/promises";
 
+function safeStage(name) {
+  return typeof name === "string" &&
+    /^(?:chat(?:_safety)?|classify|analyze|followup|free_report|paid_report)(?:_(?:rewrite|review)_[012])?$/.test(
+      name,
+    )
+    ? name
+    : "other";
+}
+function safeFailure(error) {
+  const names = new Set([
+    "APIError",
+    "APIConnectionError",
+    "APIConnectionTimeoutError",
+    "APIUserAbortError",
+    "AuthenticationError",
+    "PermissionDeniedError",
+    "RateLimitError",
+    "BadRequestError",
+    "InternalServerError",
+    "SyntaxError",
+    "LengthFinishReasonError",
+    "ContentFilterFinishReasonError",
+    "AbortError",
+    "TimeoutError",
+  ]);
+  return {
+    errorClass: names.has(error?.name) ? error.name : "other",
+    httpStatus:
+      Number.isInteger(error?.status) &&
+      error.status >= 100 &&
+      error.status <= 599
+        ? error.status
+        : null,
+  };
+}
+const safeCount = (n) =>
+  Number.isSafeInteger(n) && n >= 0 && n <= 1e9 ? n : null;
+
 // Exclusive creation prohibits silently resetting a crashed run's budget.
 // This journal contains only counts/reservations. A crash is a stop, never
 // permission to create a new journal and repeat calls under the same approval.
@@ -59,6 +97,7 @@ export function evaluationProvider(
     calls = prior?.calls ?? 0,
     stopped = false,
     busy = false;
+  let stopDiagnostic = null;
   return {
     async parse(group, caseNumber, request) {
       const cap = ["consultation", "diagnosis"].includes(group)
@@ -123,22 +162,61 @@ export function evaluationProvider(
       calls++;
       reservedNano += hold;
       busy = true;
+      const stage = safeStage(format?.name);
+      let reason = "reservation_persistence_failed",
+        response = null;
       try {
         await checkpoint({
           phase: "reserved",
           calls,
           reservedUSD: reservedNano / 1e9,
           cases: Object.fromEntries(used),
+          group,
+          caseNumber,
+          stage,
         });
+        reason = "deadline_before_dispatch";
         if (now() >= deadline) throw Error("DEADLINE_REACHED");
         const signal = AbortSignal.timeout(Math.min(110000, deadline - now()));
         const options = { signal, maxRetries: 0 };
         // Reject excess context instead of silently truncating evaluation input.
         params.truncation = "disabled";
+        reason = "provider_exception";
         const result = await client.responses.parse(params, options);
         const u = result.usage;
+        response = {
+          status: [
+            "completed",
+            "incomplete",
+            "failed",
+            "cancelled",
+            "queued",
+            "in_progress",
+          ].includes(result.status)
+            ? result.status
+            : "other",
+          modelMatches: result.model === aiEvaluation.model,
+          tierMatches: result.service_tier === "default",
+          inputTokens: safeCount(u?.input_tokens),
+          outputTokens: safeCount(u?.output_tokens),
+          incompleteReason: ["max_output_tokens", "content_filter"].includes(
+            result.incomplete_details?.reason,
+          )
+            ? result.incomplete_details.reason
+            : null,
+        };
+        const responseAfterDeadline = now() >= deadline;
+        reason = responseAfterDeadline
+          ? "deadline_after_response"
+          : result.status !== "completed"
+            ? "response_not_completed"
+            : result.model !== aiEvaluation.model
+              ? "model_mismatch"
+              : result.service_tier !== "default"
+                ? "tier_mismatch"
+                : "usage_invalid_or_over_cap";
         if (
-          now() >= deadline ||
+          responseAfterDeadline ||
           result.status !== "completed" ||
           result.model !== aiEvaluation.model ||
           result.service_tier !== "default" ||
@@ -156,20 +234,46 @@ export function evaluationProvider(
         // at the most expensive 12h write rate and include regional premium.
         const settled = u.input_tokens * 275 + u.output_tokens * 550;
         const nextReserved = reservedNano - hold + settled;
-        observed.inputTokens += u.input_tokens;
-        observed.outputTokens += u.output_tokens;
-        observed.completed++;
+        const nextObserved = {
+          inputTokens: observed.inputTokens + u.input_tokens,
+          outputTokens: observed.outputTokens + u.output_tokens,
+          completed: observed.completed + 1,
+        };
+        reason = "settlement_persistence_failed";
         await checkpoint({
           phase: "usage_observed",
           calls,
           reservedUSD: nextReserved / 1e9,
-          ...observed,
+          ...nextObserved,
           billedUSD: null,
+          group,
+          caseNumber,
+          stage,
         });
+        Object.assign(observed, nextObserved);
         reservedNano = nextReserved;
         return result;
-      } catch {
+      } catch (error) {
         stopped = true;
+        stopDiagnostic = {
+          group,
+          caseNumber,
+          stage,
+          reason,
+          ...safeFailure(error),
+          response,
+        };
+        try {
+          await checkpoint({
+            phase: "stopped",
+            calls,
+            reservedUSD: reservedNano / 1e9,
+            ...observed,
+            diagnostic: stopDiagnostic,
+          });
+        } catch {
+          /* Never release the hold or expose a persistence error. */
+        }
         // Never propagate raw provider errors, URLs, headers or response bodies.
         throw Error("EVAL_PROVIDER_STOPPED");
       } finally {
@@ -184,6 +288,7 @@ export function evaluationProvider(
         ...observed,
         billedUSD: null,
         unknownCalls: calls - observed.completed,
+        stopDiagnostic,
       };
     },
   };
