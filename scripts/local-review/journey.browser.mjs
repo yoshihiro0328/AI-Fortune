@@ -296,6 +296,17 @@ try {
     assert.equal(await p.locator("#chat-text").count(), 0);
     assert.equal(await p.locator(".chat-exchange").count(), 0);
     await logout.close();
+    await reset("free");
+    await go("/consult");
+    await p.locator("#chat-text").fill("画面を離れると消える下書き");
+    await p
+      .getByRole("link", { name: "マイページ", exact: true })
+      .first()
+      .click();
+    await p.waitForURL(base + "/account");
+    await p.goBack({ waitUntil: "networkidle" });
+    await p.locator("#chat-text").waitFor();
+    assert.equal(await p.locator("#chat-text").inputValue(), "");
     assert.deepEqual(errors, []);
     assert.equal(external, 0);
     results.push({

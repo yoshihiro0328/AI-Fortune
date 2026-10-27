@@ -188,9 +188,11 @@ export default function Consultation({
       });
     return () => {
       alive = false;
-      invalidate();
+      // Also clear retained React UI state when a route is hidden/unmounted.
+      // A later history return must not paint the previous account's conversation.
+      clearPrivate();
     };
-  }, [load, open, switchDraft, invalidate]);
+  }, [load, open, switchDraft, clearPrivate]);
   useEffect(() => {
     // Cross-tab identity changes carry no user data or consultation text.
     const changed = () => {
