@@ -39,6 +39,10 @@ jobs:
         run: npm run test:payment-scripts
       - name: Portable Plus connected scenario, restoration and provider HTTP (synthetic only; no Mac browser or OS sandbox)
         run: npm run test:subscription-scripts
+      - name: Use official signed Ubuntu archive for browser prerequisites
+        run: |
+          python3 scripts/ci/prepare-browser-packages.test.py
+          sudo --preserve-env=GITHUB_ACTIONS,RUNNER_OS python3 scripts/ci/prepare-browser-packages.py
       - name: Install Chromium for synthetic local key form regression
         run: npx playwright install --with-deps chromium
       - name: Native browser key form (synthetic only; no attached user browser)
