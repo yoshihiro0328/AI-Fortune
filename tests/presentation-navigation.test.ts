@@ -14,7 +14,9 @@ describe("presentation preserves purchase conditions and honest progress", () =>
     expect(html).toMatch(
       /href="\/diagnosis\/partner-mind"[^>]*>無料診断をはじめる/,
     );
-    expect(html).toMatch(/href="\/account"[^>]*>マイページで診断履歴を見る/);
+    expect(html).toMatch(
+      /href="\/account#diagnosis-history"[^>]*>マイページで診断履歴を見る/,
+    );
     expect(html).not.toContain("詳細診断");
     expect(html).toContain('type="checkbox"');
     expect(html).toMatch(/<button[^>]*disabled=""/);

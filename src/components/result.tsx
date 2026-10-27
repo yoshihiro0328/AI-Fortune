@@ -3,6 +3,7 @@ import { usePaymentDisplay } from "./payment-display-provider";
 import { useEffect, useState } from "react";
 import { pricing } from "@/lib/pricing";
 import Link from "next/link";
+import ContinueDiagnosis from "./continue-diagnosis";
 import SaveResultNote from "./save-result-note";
 import { request, track, type Diagnosis } from "@/lib/client";
 export default function Result({ id }: { id: string }) {
@@ -158,7 +159,16 @@ export default function Result({ id }: { id: string }) {
                 <Link className="button" href={"/report/" + id}>
                   購入したレポートを見る
                 </Link>
-                <SaveResultNote />
+                <SaveResultNote
+                  key={id}
+                  state={d.saveState}
+                  onSaved={() =>
+                    setD((current) =>
+                      current ? { ...current, saveState: "saved" } : current,
+                    )
+                  }
+                  returnTo={"/result/" + id}
+                />
               </>
             ) : d.payment_status === "refunded" ? (
               <>
@@ -185,7 +195,16 @@ export default function Result({ id }: { id: string }) {
                 <p className="fine">
                   1回のお支払いで、自動更新はありません。{payment.notice}
                 </p>
-                <SaveResultNote />
+                <SaveResultNote
+                  key={id}
+                  state={d.saveState}
+                  onSaved={() =>
+                    setD((current) =>
+                      current ? { ...current, saveState: "saved" } : current,
+                    )
+                  }
+                  returnTo={"/result/" + id}
+                />
                 <button className="button" onClick={checkout} disabled={busy}>
                   {busy ? "決済画面を準備中…" : "詳細レポートの購入へ進む"}
                 </button>
@@ -196,9 +215,9 @@ export default function Result({ id }: { id: string }) {
               </>
             )}
           </section>
-          <p>
-            <Link href="/account">診断をアカウントに保存する</Link>
-          </p>
+          <div>
+            <ContinueDiagnosis id={id} state={d.saveState} />
+          </div>
         </>
       ) : (
         d && (

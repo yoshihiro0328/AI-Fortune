@@ -2,12 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ChatCircleDots } from "@phosphor-icons/react/dist/ssr";
 import { pricing, yen } from "@/lib/pricing";
+import { topics } from "@/lib/trial/topics";
 import { homeSample } from "@/lib/home-sample";
 
 export default function Home({
   trialEnabled = false,
+  freeLimit,
 }: {
   trialEnabled?: boolean;
+  freeLimit?: number;
 }) {
   return (
     <main id="main" className="yorisoi-home">
@@ -42,8 +45,36 @@ export default function Home({
             相談をはじめる
             <ArrowRight size={21} aria-hidden />
           </Link>
+          <p className="home-conditions fine">
+            {trialEnabled
+              ? "登録なしのお試し相談が利用できます。"
+              : "相談には無料登録・ログインが必要です。"}
+            {freeLimit !== undefined
+              ? ` 登録後は月${freeLimit}往復まで無料。`
+              : " 無料範囲は料金ページで確認できます。"}
+            無料プランでも履歴を引き継げます。
+          </p>
         </div>
       </section>
+      <nav className="home-entry-links" aria-label="相談の入口">
+        <p>自由な文章で相談するなら</p>
+        <ul>
+          {(["reply", "crush", "distance", "reunion"] as const).map((id) => (
+            <li key={id}>
+              <Link
+                href={(trialEnabled ? "/chat" : "/consult") + "?topic=" + id}
+              >
+                {topics[id].name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+        <p>
+          <Link href="/diagnosis/partner-mind">質問に答える無料診断</Link>
+          <span aria-hidden> · </span>
+          <Link href="/consult">前回の相談を続ける</Link>
+        </p>
+      </nav>
       <section className="home-answer" aria-labelledby="answer-heading">
         <h2 id="answer-heading">回答イメージ</h2>
         <div className="home-dialogue" aria-label="AIの回答例・サンプル">
@@ -125,10 +156,15 @@ export default function Home({
             <dd>
               <strong>月額{yen(pricing.plus)}</strong>
               <span>（税込）</span>
-              <p>履歴を踏まえて相談を続けるプラン。詳細レポートは別売です。</p>
+              <p>
+                月の相談回数を増やすプラン。履歴の引き継ぎは無料プランでも利用でき、詳細レポートは別売です。
+              </p>
             </dd>
           </div>
         </dl>
+        <p>
+          <Link href="/report-sample">購入前に詳細レポートの見本を見る</Link>
+        </p>
         <Link className="home-secondary" href="/plans">
           料金・利用条件を見る
           <ArrowRight size={20} aria-hidden />

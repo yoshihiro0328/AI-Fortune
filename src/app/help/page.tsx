@@ -32,6 +32,46 @@ export default function Page() {
           </li>
         </ul>
       </nav>
+      <section className="help-section" aria-labelledby="faq-heading">
+        <h2 id="faq-heading">よくある質問</h2>
+        <details>
+          <summary>どこまで無料？ 登録は必要？</summary>
+          <p>
+            初回診断は登録なしで利用できます。継続相談は無料登録・ログイン後、月の無料枠内で利用でき、無料プランでも履歴を引き継げます。登録なしのお試し相談は、提供中の場合にトップから案内します。
+          </p>
+          <Link href="/plans">現在の無料回数と利用条件</Link>
+        </details>
+        <details>
+          <summary>人が回答するサービスですか？</summary>
+          <p>
+            相談・診断・レポートの回答はAIが作成します。人間の相談員による相談や医療・専門的な判断ではなく、相手の本心や将来を保証しません。
+          </p>
+          <Link href="/legal/ai">AI利用について</Link>
+        </details>
+        <details>
+          <summary>相談内容はどう扱われますか？</summary>
+          <p>
+            回答に必要な内容を外部のAIサービスへ送信します。相談と履歴は相手ごとに管理します。実名や連絡先などは入力しないでください。
+          </p>
+          <Link href="/legal/privacy">保存・削除とデータの扱い</Link>
+        </details>
+        <details>
+          <summary>Plusに入ると詳細レポートも読めますか？</summary>
+          <p>
+            Plusは月の相談回数を増やすプランです。診断ごとの詳細レポートは別売で、レポートだけの購入に月額契約は不要です。
+          </p>
+          <Link href="/report-sample">レポートの見本</Link> ·{" "}
+          <Link href="/plans">料金・プラン</Link>
+        </details>
+        <details>
+          <summary>Plusはどう解約しますか？</summary>
+          <p>
+            マイページの契約管理から次回の自動更新を停止できます。解約手続き後も支払い済みの期間は利用できます。
+          </p>
+          <Link href="/account">マイページ</Link> ·{" "}
+          <Link href="/legal/refund">解約・返金の詳しい条件</Link>
+        </details>
+      </section>
       <section className="help-section" aria-labelledby="help-contact-heading">
         <h2 id="help-contact-heading">解決しないときは</h2>
         <p>

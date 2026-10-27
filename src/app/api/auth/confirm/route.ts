@@ -1,3 +1,5 @@
+import { consumeReturn } from "@/lib/auth-return-server";
+import { accountReturnLink } from "@/lib/auth-return";
 import { z } from "zod";
 import { api, csrf, body, authClient, rateIP, HttpError } from "@/lib/http";
 import { setRecovery } from "@/lib/auth";
@@ -21,6 +23,11 @@ export async function POST(req: Request) {
       );
     if (input.type === "recovery") await setRecovery(data.user.id);
     // A token-hash link is not PKCE-bound: never auto-claim the current browser's diagnoses here.
-    return { ok: true, recovery: input.type === "recovery" };
+    const path = input.type !== "recovery" ? await consumeReturn() : null;
+    return {
+      ok: true,
+      recovery: input.type === "recovery",
+      returnTo: path ? accountReturnLink(path) : null,
+    };
   });
 }

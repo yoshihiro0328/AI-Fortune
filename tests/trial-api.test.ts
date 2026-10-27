@@ -24,6 +24,7 @@ vi.mock("next/headers", () => ({
     get: (k: string) =>
       state.jar.has(k) ? { value: state.jar.get(k) } : undefined,
     getAll: () => [],
+    delete: (k: string) => state.jar.delete(k),
     set: (k: string, v: string, o: unknown) => {
       state.jar.set(k, v);
       state.cookieOptions.push(o);

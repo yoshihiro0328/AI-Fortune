@@ -19,10 +19,21 @@ export async function GET(req: Request) {
         .eq("thread_id", id)
         .eq("user_id", user)
         .neq("user_text", "[削除済み]");
-      if (before) q = q.lt("created_at", before);
+      const beforeId = new URL(req.url).searchParams.get("beforeId");
+      if (beforeId && (!before || !z.uuid().safeParse(beforeId).success))
+        throw new HttpError(400, "履歴の位置を確認してください。");
+      if (before && beforeId)
+        q = q.or(
+          `created_at.lt.${before},and(created_at.eq.${before},id.lt.${beforeId})`,
+        );
+      else if (before) q = q.lt("created_at", before);
       const turns =
-        checked(await q.order("created_at", { ascending: false }).limit(30)) ??
-        [];
+        checked(
+          await q
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .limit(30),
+        ) ?? [];
       return {
         thread,
         subject,
@@ -67,6 +78,7 @@ export async function GET(req: Request) {
           .maybeSingle(),
       ]);
     return {
+      ownerId: user,
       subjects: checked(subjects),
       threads: checked(threads),
       links: checked(links),
@@ -77,6 +89,10 @@ export async function GET(req: Request) {
   });
 }
 const schema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("search"),
+    query: z.string().trim().min(2).max(80),
+  }),
   z.object({
     action: z.literal("create_subject"),
     nickname: z.string().trim().min(1).max(40),
@@ -117,6 +133,81 @@ export async function POST(req: Request) {
     const user = await member();
     await rate("consultation-manage:" + user, 100, 3600);
     const input = await body(req, schema);
+    if (input.action === "search") {
+      const pattern = "%" + input.query.replace(/[\\%_]/g, "\\$&") + "%";
+      const [names, titles, messages, replies] = await Promise.all([
+        db()
+          .from("consultation_subjects")
+          .select("id")
+          .eq("user_id", user)
+          .neq("nickname", "[削除済み]")
+          .ilike("nickname", pattern)
+          .limit(40),
+        db()
+          .from("consultation_threads")
+          .select("id")
+          .eq("user_id", user)
+          .neq("title", "[削除済み]")
+          .ilike("title", pattern)
+          .order("updated_at", { ascending: false })
+          .limit(50),
+        db()
+          .from("consultation_turns")
+          .select("thread_id")
+          .eq("user_id", user)
+          .neq("user_text", "[削除済み]")
+          .ilike("user_text", pattern)
+          .order("created_at", { ascending: false })
+          .limit(100),
+        db()
+          .from("consultation_turns")
+          .select("thread_id")
+          .eq("user_id", user)
+          .neq("user_text", "[削除済み]")
+          .ilike("assistant_text", pattern)
+          .order("created_at", { ascending: false })
+          .limit(100),
+      ]);
+      const subjectIds = (checked(names) ?? []).map((x) => x.id);
+      const ids = [
+        ...new Set([
+          ...(checked(titles) ?? []).map((x) => x.id),
+          ...(checked(messages) ?? []).map((x) => x.thread_id),
+          ...(checked(replies) ?? []).map((x) => x.thread_id),
+        ]),
+      ];
+      const byIds = ids.length
+        ? (checked(
+            await db()
+              .from("consultation_threads")
+              .select("id,subject_id,title,updated_at")
+              .eq("user_id", user)
+              .neq("title", "[削除済み]")
+              .in("id", ids)
+              .order("updated_at", { ascending: false })
+              .limit(50),
+          ) ?? [])
+        : [];
+      const byNames = subjectIds.length
+        ? (checked(
+            await db()
+              .from("consultation_threads")
+              .select("id,subject_id,title,updated_at")
+              .eq("user_id", user)
+              .neq("title", "[削除済み]")
+              .in("subject_id", subjectIds)
+              .order("updated_at", { ascending: false })
+              .limit(50),
+          ) ?? [])
+        : [];
+      return {
+        threads: [
+          ...new Map([...byIds, ...byNames].map((t) => [t.id, t])).values(),
+        ]
+          .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+          .slice(0, 50),
+      };
+    }
     if (input.action === "create_subject") {
       const count = await db()
         .from("consultation_subjects")

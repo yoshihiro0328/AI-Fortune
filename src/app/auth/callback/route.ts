@@ -1,3 +1,4 @@
+import { consumeReturn } from "@/lib/auth-return-server";
 import { NextResponse } from "next/server";
 import { authClient } from "@/lib/http";
 import { claimDiagnoses, setRecovery } from "@/lib/auth";
@@ -23,7 +24,7 @@ export async function GET(req: Request) {
       return redirect("/account?mode=update");
     }
     await claimDiagnoses(data.user);
-    return redirect("/account?verified=1");
+    return redirect((await consumeReturn()) ?? "/account?verified=1");
   } catch {
     return redirect("/account?error=auth");
   }

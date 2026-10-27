@@ -2,7 +2,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { exchangeExplanation } from "@/lib/display-copy";
-import { request } from "@/lib/client";
+import {
+  ConversationDrafts,
+  type PendingConsultation,
+} from "@/lib/consultation/drafts";
+import { accountReturnLink } from "@/lib/auth-return";
+import { topics, topicIds } from "@/lib/trial/topics";
+import ConsultationEvents from "./consultation-events";
+import ConsultationAnswer from "./consultation-answer";
+import { RequestError, request as apiRequest } from "@/lib/client";
 import {
   memoryLabels,
   type ConsultationHome,
@@ -17,7 +25,11 @@ const date = (s: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
-export default function Consultation() {
+export default function Consultation({
+  eventsEnabled = false,
+}: {
+  eventsEnabled?: boolean;
+}) {
   const [home, setHome] = useState<ConsultationHome | null>(null),
     [subjectId, setSubjectId] = useState(""),
     [threadId, setThreadId] = useState(""),
@@ -35,57 +47,138 @@ export default function Consultation() {
     [notes, setNotes] = useState(""),
     [moveTarget, setMoveTarget] = useState(""),
     [rename, setRename] = useState(""),
-    [diagnosis, setDiagnosis] = useState("");
-  const pending = useRef<{
-    requestId: string;
-    text: string;
-    regenerate?: boolean;
-    regenerationId?: string;
-  } | null>(null);
+    [diagnosis, setDiagnosis] = useState(""),
+    [expanded, setExpanded] = useState(false),
+    [search, setSearch] = useState(""),
+    [searchResults, setSearchResults] = useState<Thread[] | null>(null),
+    [topic, setTopic] = useState(""),
+    [returnPath, setReturnPath] = useState("/consult");
+  const pending = useRef<PendingConsultation | null>(null);
+  const drafts = useRef(new ConversationDrafts());
+  const activeKey = useRef("");
+  const authEpoch = useRef(0);
   const generation = useRef(0);
+  const owner = useRef<string | null>(null);
+  const invalidate = useCallback(() => {
+    authEpoch.current++;
+    generation.current++;
+    drafts.current.clear();
+    owner.current = null;
+  }, []);
+  const switchDraft = useCallback((key: string) => {
+    activeKey.current = key;
+    const draft = drafts.current.get(key);
+    setText(draft.text);
+    pending.current = draft.pending;
+    setHasPending(!!draft.pending);
+    setExpanded(false);
+  }, []);
+  const clearPrivate = useCallback(() => {
+    invalidate();
+    activeKey.current = "";
+    pending.current = null;
+    setHome(null);
+    setTurns([]);
+    setText("");
+    setThreadId("");
+    setSubjectId("");
+    setHasPending(false);
+    setNotes("");
+    setNickname("");
+    setRename("");
+    setSearch("");
+    setSearchResults(null);
+    setBusy(false);
+  }, [invalidate]);
+  const request = useCallback(
+    async <T,>(url: string, data?: unknown): Promise<T> => {
+      const epoch = authEpoch.current;
+      try {
+        const value = await apiRequest<T>(url, data);
+        if (epoch !== authEpoch.current)
+          throw new Error(
+            "ログイン状態が変わりました。ページを開き直してください。",
+          );
+        return value;
+      } catch (e) {
+        if (e instanceof RequestError && e.status === 401) clearPrivate();
+        throw e;
+      }
+    },
+    [clearPrivate],
+  );
   const load = useCallback(async () => {
+    const epoch = authEpoch.current;
     const h = await request<ConsultationHome>("/api/consultations");
+    if (epoch !== authEpoch.current)
+      throw new Error("アカウントが変わりました。ページを開き直してください。");
+    if (!h.ownerId)
+      throw new Error("アカウントを確認できません。ログインし直してください。");
+    if (owner.current && owner.current !== h.ownerId) {
+      clearPrivate();
+      throw new Error("アカウントが変わりました。ページを開き直してください。");
+    }
+    owner.current = h.ownerId;
+    drafts.current.setOwner(h.ownerId);
     setHome(h);
     return h;
-  }, []);
-  const open = useCallback(async (id: string) => {
-    const seq = ++generation.current;
-    setError("");
-    const d = await request<{
-      thread: Thread;
-      subject: Subject;
-      turns: Turn[];
-      hasMore: boolean;
-    }>("/api/consultations?thread=" + id);
-    if (seq !== generation.current) return;
-    setThreadId(id);
-    setSidebarOpen(false);
-    setSubjectId(d.subject.id);
-    setTurns(d.turns);
-    setMore(d.hasMore);
-    setText("");
-    pending.current = null;
-    setHasPending(false);
-    setMemoryEdit(false);
-    setRename(d.subject.nickname);
-    window.history.replaceState(null, "", "/consult?thread=" + id);
-  }, []);
+  }, [request, clearPrivate]);
+  const open = useCallback(
+    async (id: string) => {
+      const seq = ++generation.current;
+      setError("");
+      const d = await request<{
+        thread: Thread;
+        subject: Subject;
+        turns: Turn[];
+        hasMore: boolean;
+      }>("/api/consultations?thread=" + id);
+      if (seq !== generation.current) return;
+      setThreadId(id);
+      setSidebarOpen(false);
+      setSubjectId(d.subject.id);
+      setTurns(d.turns);
+      setMore(d.hasMore);
+      switchDraft(id);
+      setMemoryEdit(false);
+      setRename(d.subject.nickname);
+      window.history.replaceState(null, "", "/consult?thread=" + id);
+    },
+    [switchDraft, request],
+  );
   useEffect(() => {
     let alive = true;
+    const initialPath = "/consult" + location.search;
+    void Promise.resolve().then(() => setReturnPath(initialPath));
     void Promise.resolve()
       .then(load)
       .then(async (h) => {
         if (!alive) return;
         const p = new URLSearchParams(location.search);
-        setDiagnosis(p.get("diagnosis") ?? "");
-        const id =
-          p.get("thread") ??
-          (!p.has("diagnosis") ? h.threads[0]?.id : undefined);
+        setReturnPath("/consult" + location.search);
+        const selectedTopic = p.get("topic");
+        if (topicIds.some((id) => id === selectedTopic))
+          setTopic(selectedTopic!);
+        const diagnosisId = p.get("diagnosis") ?? "";
+        const linked = h.links.find((l) => l.diagnosis_id === diagnosisId);
+        setDiagnosis(linked ? "" : diagnosisId);
+        const id = linked
+          ? h.threads.find((t) => t.subject_id === linked.subject_id)?.id
+          : (p.get("thread") ?? (!diagnosisId ? h.threads[0]?.id : undefined));
         if (id) await open(id);
-        else if (h.subjects[0]) {
-          setSubjectId(h.subjects[0].id);
-          setRename(h.subjects[0].nickname);
+        else {
+          const selected = linked
+            ? h.subjects.find((s) => s.id === linked.subject_id)
+            : !diagnosisId
+              ? h.subjects[0]
+              : undefined;
+          if (selected) {
+            setSubjectId(selected.id);
+            setRename(selected.nickname);
+            switchDraft("new:" + selected.id);
+          }
         }
+        if (linked) setNotice("この診断に紐づく相談相手を開きました。");
       })
       .catch((e) => {
         if (alive) setError(e.message);
@@ -95,8 +188,34 @@ export default function Consultation() {
       });
     return () => {
       alive = false;
+      invalidate();
     };
-  }, [load, open]);
+  }, [load, open, switchDraft, invalidate]);
+  useEffect(() => {
+    // Cross-tab identity changes carry no user data or consultation text.
+    const changed = () => {
+      clearPrivate();
+      setError("ログイン状態が変わりました。ページを開き直してください。");
+    };
+    const channel = new BroadcastChannel("yorisoi-auth-change");
+    channel.onmessage = changed;
+    window.addEventListener("yorisoi-auth-change", changed);
+    const check = () => {
+      void request<ConsultationHome>("/api/consultations")
+        .then((h) => {
+          if (home && h.ownerId !== home.ownerId) changed();
+        })
+        .catch((e) => {
+          if (e instanceof RequestError && e.status === 401) changed();
+        });
+    };
+    window.addEventListener("focus", check);
+    return () => {
+      channel.close();
+      window.removeEventListener("yorisoi-auth-change", changed);
+      window.removeEventListener("focus", check);
+    };
+  }, [clearPrivate, home, request]);
   const subject = home?.subjects.find((s) => s.id === subjectId);
   async function act(fn: () => Promise<void>) {
     setBusy(true);
@@ -105,6 +224,7 @@ export default function Consultation() {
     try {
       await fn();
     } catch (e) {
+      if (e instanceof RequestError && e.status === 401) clearPrivate();
       setError((e as Error).message);
     } finally {
       setBusy(false);
@@ -138,6 +258,10 @@ export default function Consultation() {
       const t = home?.threads.find((t) => t.subject_id === s.id);
       if (t) await open(t.id);
       else {
+        generation.current++;
+        switchDraft("new:" + s.id);
+        setMore(false);
+        setSidebarOpen(false);
         setSubjectId(s.id);
         setThreadId("");
         setTurns([]);
@@ -148,6 +272,8 @@ export default function Consultation() {
   }
   async function send(retry = false, turn?: Turn) {
     await act(async () => {
+      // Verify the current owner before any send, including retry after a background account change.
+      await load();
       let id = threadId;
       if (!id) {
         if (!subjectId) throw new Error("相談相手の呼び名を追加してください。");
@@ -156,6 +282,8 @@ export default function Consultation() {
           subject: subjectId,
         });
         id = t.id;
+        drafts.current.move(activeKey.current, id);
+        activeKey.current = id;
         setThreadId(id);
         setSidebarOpen(false);
       }
@@ -167,13 +295,23 @@ export default function Consultation() {
             ? { regenerate: true, regenerationId: crypto.randomUUID() }
             : {}),
         };
-      } else if (!retry)
+      } else if (!retry) {
+        if (pending.current)
+          throw new Error(
+            "前の送信結果を確認するため、同じ内容の再送をご利用ください。",
+          );
         pending.current = { requestId: crypto.randomUUID(), text: text.trim() };
+      }
       setHasPending(true);
       if (!pending.current?.text)
         throw new Error("相談したいことを入力してください。");
+      drafts.current.update(id, { pending: pending.current });
+      const epoch = authEpoch.current;
       await request("/api/consultations/" + id + "/send", pending.current);
+      if (epoch !== authEpoch.current) return;
+      drafts.current.remove(id);
       pending.current = null;
+      setText("");
       setHasPending(false);
       await load();
       await open(id);
@@ -197,7 +335,7 @@ export default function Consultation() {
       ) : !home ? (
         <div className="panel">
           <p>{error || "継続相談にはログインが必要です。"}</p>
-          <Link className="button" href="/account">
+          <Link className="button" href={accountReturnLink(returnPath)}>
             ログイン・無料登録
           </Link>
           <p>初回診断は登録なしで利用できます。</p>
@@ -265,6 +403,68 @@ export default function Consultation() {
                 }
               >
                 <h2>相談相手</h2>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    void act(async () => {
+                      const epoch = authEpoch.current;
+                      const result = await request<{ threads: Thread[] }>(
+                        "/api/consultations",
+                        { action: "search", query: search },
+                      );
+                      if (epoch === authEpoch.current)
+                        setSearchResults(result.threads);
+                    });
+                  }}
+                >
+                  <label htmlFor="history-search">相談履歴を検索</label>
+                  <input
+                    id="history-search"
+                    type="search"
+                    minLength={2}
+                    maxLength={80}
+                    required
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="呼び名・タイトル・会話の言葉"
+                  />
+                  <button disabled={busy}>検索する</button>
+                </form>
+                {searchResults && (
+                  <section aria-label="検索結果">
+                    <p role="status">
+                      {searchResults.length
+                        ? "最近一致した相談（最大50件）"
+                        : "一致する相談はありません。"}
+                    </p>
+                    <ul className="thread-list">
+                      {searchResults.map((t) => (
+                        <li key={t.id}>
+                          <button
+                            disabled={busy}
+                            onClick={() => act(() => open(t.id))}
+                          >
+                            {
+                              home.subjects.find((s) => s.id === t.subject_id)
+                                ?.nickname
+                            }{" "}
+                            · {t.title}
+                            <small>{date(t.updated_at)}</small>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setSearchResults(null);
+                        setSearch("");
+                      }}
+                    >
+                      検索を閉じる
+                    </button>
+                  </section>
+                )}
                 <div className="subject-tabs">
                   {home.subjects.map((s) => (
                     <button
@@ -444,6 +644,12 @@ export default function Consultation() {
                   )}
                 </details>
               )}
+              {subject && eventsEnabled && (
+                <ConsultationEvents
+                  key={home.ownerId + ":" + subject.id}
+                  subject={subject.id}
+                />
+              )}
               <div
                 className="chat-messages"
                 aria-live="polite"
@@ -462,7 +668,9 @@ export default function Consultation() {
                           "/api/consultations?thread=" +
                             threadId +
                             "&before=" +
-                            encodeURIComponent(turns[0].created_at),
+                            encodeURIComponent(turns[0].created_at) +
+                            "&beforeId=" +
+                            encodeURIComponent(turns[0].id),
                         );
                         setTurns([...d.turns, ...turns]);
                         setMore(d.hasMore);
@@ -488,7 +696,10 @@ export default function Consultation() {
                         <small>
                           よりそい{t.safety ? " · 安全についてのご案内" : ""}
                         </small>
-                        <p>{t.assistant_text}</p>
+                        <ConsultationAnswer
+                          text={t.assistant_text}
+                          safety={t.safety}
+                        />
                         {!t.safety && t.generation < 3 && (
                           <button
                             className="text-button"
@@ -526,25 +737,67 @@ export default function Consultation() {
                   void send();
                 }}
               >
+                {topic && (
+                  <p className="fine">
+                    相談のテーマ：{topics[topic as keyof typeof topics].name}
+                  </p>
+                )}
                 <label htmlFor="chat-text">相談したいこと</label>
+                <button
+                  className="text-button"
+                  type="button"
+                  aria-expanded={expanded}
+                  aria-controls="chat-text"
+                  onClick={() => {
+                    setExpanded(!expanded);
+                    document.getElementById("chat-text")?.focus();
+                  }}
+                >
+                  {" "}
+                  {expanded ? "入力欄を小さくする" : "入力欄を広げる"}
+                </button>
                 <textarea
                   id="chat-text"
                   maxLength={4000}
                   required
-                  rows={4}
+                  rows={expanded ? 12 : 4}
+                  className={expanded ? "composer-expanded" : ""}
                   value={text}
                   disabled={busy || !subject}
-                  onChange={(e) => setText(e.target.value)}
-                  placeholder="昨日LINEが来たので、返信を一緒に考えたい…"
+                  onChange={(e) => {
+                    setText(e.target.value);
+                    drafts.current.update(activeKey.current, {
+                      text: e.target.value,
+                    });
+                  }}
+                  onKeyDown={(e) => {
+                    if (
+                      (e.ctrlKey || e.metaKey) &&
+                      e.key === "Enter" &&
+                      !e.nativeEvent.isComposing &&
+                      !busy &&
+                      subject &&
+                      text.trim() &&
+                      !hasPending
+                    ) {
+                      e.preventDefault();
+                      void send();
+                    }
+                  }}
+                  placeholder={
+                    topic
+                      ? topics[topic as keyof typeof topics].placeholder
+                      : "昨日LINEが来たので、返信を一緒に考えたい…"
+                  }
                 />
                 <div className="actions">
                   <button
                     className="button"
-                    disabled={busy || !subject || !text.trim()}
+                    disabled={busy || !subject || !text.trim() || hasPending}
                   >
                     相談を送る
                   </button>
-                  {hasPending && error && (
+                  {hasPending && (
                     <button
                       className="button secondary"
                       type="button"
@@ -555,6 +808,10 @@ export default function Consultation() {
                     </button>
                   )}
                 </div>
+                <p className="fine">
+                  下書きはこの画面を開いている間、相談ごとに保持します。送信成功・ログアウト・画面を閉じると消えます。失敗時は保持します。Ctrl
+                  / ⌘ + Enterで送信できます。
+                </p>
                 <p className="fine">
                   AIが回答を作るため、必要な相談内容を外部のAIサービスに送信します。氏名・住所・電話番号は書かないでください。
                   <Link href="/legal/privacy">データの扱い</Link>
@@ -660,6 +917,8 @@ export default function Consultation() {
                             )
                               void act(async () => {
                                 await manage("delete_thread", { id: threadId });
+                                drafts.current.remove(threadId);
+                                switchDraft("new:" + subjectId);
                                 setThreadId("");
                                 setTurns([]);
                               });
@@ -681,6 +940,11 @@ export default function Consultation() {
                       )
                         void act(async () => {
                           await manage("delete_subject");
+                          home.threads
+                            .filter((t) => t.subject_id === subjectId)
+                            .forEach((t) => drafts.current.remove(t.id));
+                          drafts.current.remove("new:" + subjectId);
+                          switchDraft("");
                           setSubjectId("");
                           setThreadId("");
                           setTurns([]);

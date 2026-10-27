@@ -2,6 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { request } from "@/lib/client";
+import { safeReturnTo } from "@/lib/auth-return";
 import ConsultationSummary from "./consultation-summary";
 type Mode = "login" | "signup" | "resend" | "reset" | "update";
 type Row = { id: string; status: string; created_at: string };
@@ -30,13 +31,17 @@ export default function Account({
     [boot, setBoot] = useState(true),
     [user, setUser] = useState<{ email: string } | null>(null),
     [rows, setRows] = useState<Row[]>([]),
-    [more, setMore] = useState(false);
+    [more, setMore] = useState(false),
+    [hasUnsaved, setHasUnsaved] = useState(false),
+    [returnTo, setReturnTo] = useState<string | null>(null);
   const load = useCallback(async () => {
     const auth = await request<{
       user: { email: string } | null;
       recovery: boolean;
+      hasUnsaved?: boolean;
     }>("/api/auth");
     setUser(auth.user);
+    setHasUnsaved(auth.hasUnsaved === true);
     if (auth.recovery) setMode("update");
     const data = await request<Row[]>("/api/diagnoses?offset=0");
     setRows(data);
@@ -47,13 +52,14 @@ export default function Account({
       .then(load)
       .then(() => {
         const params = new URLSearchParams(location.search);
+        setReturnTo(safeReturnTo(params.get("next")));
         if (params.has("error"))
           setError(
             "確認リンクが無効か期限切れです。手続きを始めたブラウザで開き直すか、メールを再送してください。",
           );
         if (params.has("verified"))
           setMessage(
-            "メールアドレスの確認が完了しました。下のボタンから、このブラウザの診断を保存できます。",
+            "メールアドレスの確認が完了しました。診断の保存状態は下で確認できます。",
           );
       })
       .catch(() =>
@@ -70,17 +76,34 @@ export default function Account({
     try {
       if ((action === "signup" || action === "update") && password !== confirm)
         throw new Error("パスワードが一致していません。");
-      const result = await request<{ message?: string; count?: number }>(
-        "/api/auth",
-        { action, email, password, consent },
-      );
+      const result = await request<{
+        message?: string;
+        count?: number;
+        returnTo?: string;
+      }>("/api/auth", {
+        action,
+        email,
+        password,
+        consent,
+        returnTo: returnTo ?? undefined,
+      });
       setPassword("");
       setConfirm("");
       if (action === "logout" || action === "update") {
         localStorage.removeItem("yorisoi_diagnosis");
         setMode("login");
       }
+      if (["logout", "login", "update"].includes(action)) {
+        const channel = new BroadcastChannel("yorisoi-auth-change");
+        channel.postMessage("changed");
+        channel.close();
+        window.dispatchEvent(new Event("yorisoi-auth-change"));
+      }
       await load();
+      if (action === "login" && safeReturnTo(result.returnTo)) {
+        location.assign(safeReturnTo(result.returnTo)!);
+        return;
+      }
       setMessage(
         result.message ??
           (action === "claim"
@@ -129,22 +152,31 @@ export default function Account({
           {user && mode !== "update" ? (
             <>
               {!verificationOnly && <ConsultationSummary />}
-              <aside
-                className="notice account-save"
-                aria-label="未保存診断の保存"
-              >
-                <h2>このブラウザの診断を保存する</h2>
-                <p>
-                  まだアカウントに保存していない診断がある場合は、ここから保存できます。保存前にCookieを削除したり、別の端末へ移ると、購入済みレポートも開けなくなることがあります。
-                </p>
-                <button
-                  className="button secondary"
-                  disabled={busy}
-                  onClick={() => act("claim")}
+              {hasUnsaved && (
+                <aside
+                  className="notice account-save"
+                  aria-label="未保存診断の保存"
                 >
-                  このブラウザの診断を保存
-                </button>
-              </aside>
+                  <h2>このブラウザの診断を保存する</h2>
+                  <p>
+                    まだアカウントに保存していない診断がある場合は、ここから保存できます。保存前にCookieを削除したり、別の端末へ移ると、購入済みレポートも開けなくなることがあります。
+                  </p>
+                  <button
+                    className="button secondary"
+                    disabled={busy}
+                    onClick={() => act("claim")}
+                  >
+                    このブラウザの診断を保存
+                  </button>
+                </aside>
+              )}
+              {returnTo && !hasUnsaved && (
+                <p>
+                  <Link className="button secondary" href={returnTo}>
+                    元の診断・相談へ戻る
+                  </Link>
+                </p>
+              )}
             </>
           ) : (
             <div className="panel">

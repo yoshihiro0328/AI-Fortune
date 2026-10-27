@@ -82,22 +82,20 @@ export default function ReportContents({ report }: { report: PaidReport }) {
       >
         <h2>読みたいところから</h2>
         <p className="fine">
-          3つの章・13項目。番号は元のレポートの項目番号です。
+          3つの章・13項目。章を開くと、読みたい項目へ移動できます。
         </p>
         <div className="report-toc-groups">
           {chapters.map((chapter) => (
-            <div key={chapter.title}>
-              <h3>{chapter.title}</h3>
+            <details key={chapter.title}>
+              <summary>{chapter.title}</summary>
               <ul>
                 {chapter.indices.map((i) => (
                   <li key={i}>
-                    <a href={`#report-item-${i + 1}`}>
-                      {i + 1}. {titles[i]}
-                    </a>
+                    <a href={`#report-item-${i + 1}`}>{titles[i]}</a>
                   </li>
                 ))}
               </ul>
-            </div>
+            </details>
           ))}
         </div>
       </nav>
@@ -118,7 +116,7 @@ export default function ReportContents({ report }: { report: PaidReport }) {
               aria-labelledby={`report-item-${i + 1}`}
             >
               <h3 id={`report-item-${i + 1}`} tabIndex={-1}>
-                {i + 1}. {titles[i]}
+                {titles[i]}
               </h3>
               {content[i]}
             </section>

@@ -56,6 +56,7 @@ export default function LocalReviewBanner() {
             ["/report/sample-result", "詳細レポート"],
             ["/consult", "相談・履歴"],
             ["/plans", "料金"],
+            ["/report-sample", "レポート見本"],
             ["/account", "マイページ"],
             ["/guides", "読みもの"],
             ["/contact", "問い合わせ"],
@@ -84,6 +85,7 @@ export default function LocalReviewBanner() {
             onChange={(e) => setMode(e.target.value)}
             style={{ width: "auto" }}
           >
+            <option value="unsaved">ログイン済み・未保存</option>
             <option value="free">無料会員</option>
             <option value="plus">Plus</option>
             <option value="scheduled">解約予約・Plus</option>

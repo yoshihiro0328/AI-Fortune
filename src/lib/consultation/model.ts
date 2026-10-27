@@ -62,6 +62,7 @@ export type Subscription = {
   cancel_at: string | null;
 };
 export type ConsultationHome = {
+  ownerId?: string;
   subjects: Subject[];
   threads: Thread[];
   links: { diagnosis_id: string; subject_id: string }[];

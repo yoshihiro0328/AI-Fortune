@@ -63,6 +63,10 @@ try {
     assert.equal(await p.locator("#report-toc a").count(), 13);
     await p.screenshot({ path: `${out}/report-${width}.png`, fullPage: true });
     await p.screenshot({ path: `${out}/report-top-${width}.png` });
+    for (const summary of await p.locator("#report-toc summary").all()) {
+      await summary.focus();
+      await p.keyboard.press("Enter");
+    }
     for (let n = 1; n <= 13; n++) {
       const link = p.locator(`#report-toc a[href="#report-item-${n}"]`);
       await link.focus();

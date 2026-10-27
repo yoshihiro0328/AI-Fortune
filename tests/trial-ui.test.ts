@@ -13,6 +13,9 @@ vi.mock("@/lib/supabase/admin", () => ({
     return r.data;
   },
 }));
+vi.mock("@/lib/service-settings", () => ({
+  serviceSettings: async () => ({ free_limit: 3, plus_limit: 30 }),
+}));
 import Page from "@/app/page";
 import TrialRetention from "@/components/phase6/trial-retention";
 afterEach(() => {

@@ -5,6 +5,7 @@ import Link from "next/link";
 import PaidFollowup from "./paid-followup";
 import ReportContents from "./report-contents";
 import type { Question } from "@/lib/client";
+import ContinueDiagnosis from "./continue-diagnosis";
 import SaveResultNote from "./save-result-note";
 import { request, track } from "@/lib/client";
 import type { PaidReport } from "@/lib/ai/schemas";
@@ -24,11 +25,14 @@ export default function Report({
     [answers, setAnswers] = useState<
       { question_key: string; answer_text: string }[]
     >([]),
-    [attempts, setAttempts] = useState(0);
+    [attempts, setAttempts] = useState(0),
+    [saveState, setSaveState] =
+      useState<import("@/lib/save-state").SaveState>();
   const tracked = useRef(false);
   const load = useCallback(async () => {
     try {
       const r = await request<{
+        saveState?: import("@/lib/save-state").SaveState;
         status: string;
         report: PaidReport | null;
         attempts: number;
@@ -42,6 +46,7 @@ export default function Report({
       setQuestions(r.questions ?? []);
       setAnswers(r.answers ?? []);
       setStatus(r.status);
+      setSaveState(r.saveState);
       setAttempts(r.attempts);
       setReport(r.report);
       setError("");
@@ -145,11 +150,16 @@ export default function Report({
           <p className="fine">
             回答に基づく可能性の整理です。相手の気持ちや未来を保証するものではありません。
           </p>
-          {!verificationOnly && <SaveResultNote />}
+          {!verificationOnly && (
+            <SaveResultNote
+              key={id}
+              onSaved={() => setSaveState("saved")}
+              state={saveState}
+              returnTo={"/report/" + id}
+            />
+          )}
           <ReportContents report={report} />
-          <Link href="/account" className="button">
-            アカウントに保存する
-          </Link>
+          <ContinueDiagnosis id={id} state={saveState} />
         </>
       )}
       <p>

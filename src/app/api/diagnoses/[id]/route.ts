@@ -1,3 +1,5 @@
+import { diagnosisSaveState } from "@/lib/save-state";
+import { identity } from "@/lib/http";
 import { getPublicFlow } from "@/lib/questions/engine";
 import { api, owned } from "@/lib/http";
 import { db, checked } from "@/lib/supabase/admin";
@@ -8,6 +10,10 @@ export async function GET(
   return api(async () => {
     const { id } = await params;
     const d = await owned(id);
+    const saveState = diagnosisSaveState(
+      d.user_id,
+      !!(await identity()).userId,
+    );
     const [a, f, p] = await Promise.all([
       db()
         .from("diagnosis_answers")
@@ -26,6 +32,7 @@ export async function GET(
     ]);
     return {
       id,
+      saveState,
       status: d.status,
       question_flow_version: d.question_flow_version,
       questions:

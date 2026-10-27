@@ -8,12 +8,17 @@ export default function Confirm() {
     setBusy(true);
     try {
       const q = new URLSearchParams(location.search);
-      const r = await request<{ recovery: boolean }>("/api/auth/confirm", {
-        token_hash: q.get("token_hash"),
-        type: q.get("type"),
-      });
+      const r = await request<{ recovery: boolean; returnTo?: string }>(
+        "/api/auth/confirm",
+        {
+          token_hash: q.get("token_hash"),
+          type: q.get("type"),
+        },
+      );
       location.replace(
-        r.recovery ? "/account?mode=update" : "/account?verified=1",
+        r.recovery
+          ? "/account?mode=update"
+          : (r.returnTo ?? "/account?verified=1"),
       );
     } catch (e) {
       setError((e as Error).message);

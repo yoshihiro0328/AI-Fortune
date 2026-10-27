@@ -1,3 +1,6 @@
+import { rememberReturn, consumeReturn } from "@/lib/auth-return-server";
+import { safeReturnTo } from "@/lib/auth-return";
+import { db, checked } from "@/lib/supabase/admin";
 import { authMailAllowed } from "@/lib/auth-mail";
 import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import { localPaymentIntegration } from "@/lib/stripe/local-integration";
@@ -22,7 +25,19 @@ export async function GET() {
     const {
       data: { user },
     } = await auth.auth.getUser();
+    const who = await identity();
+    const unsaved = who.session
+      ? checked(
+          await db()
+            .from("diagnoses")
+            .select("id")
+            .eq("anonymous_session_id", who.session)
+            .is("user_id", null)
+            .limit(1),
+        )
+      : [];
     return {
+      hasUnsaved: !!unsaved?.length,
       user: user
         ? { email: user.email, confirmed: !!user.email_confirmed_at }
         : null,
@@ -74,6 +89,7 @@ export async function POST(req: Request) {
       if (error) throw error;
       (await cookies()).delete("yorisoi_recovery");
       await rotateAnonymous();
+      await consumeReturn();
       return { ok: true };
     }
     if (action === "claim" || action === "update") {
@@ -112,10 +128,13 @@ export async function POST(req: Request) {
         );
       }
       await claimDiagnoses(data.user);
-      return { ok: true };
+      await consumeReturn();
+      return { ok: true, returnTo: safeReturnTo(input.returnTo) };
     }
     if (!("email" in input))
       throw new HttpError(400, "入力内容をご確認ください。");
+    if (action === "signup" || action === "resend")
+      await rememberReturn(input.returnTo);
     let error;
     if (action === "signup" && "password" in input)
       ({ error } = await auth.auth.signUp({

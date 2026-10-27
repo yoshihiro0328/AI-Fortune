@@ -1,3 +1,5 @@
+import { diagnosisSaveState } from "@/lib/save-state";
+import { identity } from "@/lib/http";
 import { paymentEnvironment } from "@/lib/stripe/environment";
 import { getPublicFlow } from "@/lib/questions/engine";
 import { api, csrf, owned, rate, HttpError } from "@/lib/http";
@@ -12,6 +14,10 @@ export async function GET(
     const { id } = await params;
     const environment = await paymentEnvironment();
     const d = await owned(id);
+    const saveState = diagnosisSaveState(
+      d.user_id,
+      !!(await identity()).userId,
+    );
     if (d.status === "safety")
       return { status: "safety", report: null, attempts: 0 };
     const p = checked(
@@ -38,6 +44,7 @@ export async function GET(
         .maybeSingle(),
     );
     return {
+      saveState,
       questions:
         d.question_flow_version === "v2" ? await getPublicFlow(id, true) : [],
       answers: checked(

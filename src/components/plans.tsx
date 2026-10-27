@@ -101,7 +101,10 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             <li>LINE文面3案</li>
             <li>7日・30日の行動プラン</li>
           </ul>
-          <Link className="button secondary" href="/account">
+          <p>
+            <Link href="/report-sample">詳細レポートの見本を見る</Link>
+          </p>
+          <Link className="button secondary" href="/account#diagnosis-history">
             マイページで診断履歴を見る
           </Link>
           <p className="fine">

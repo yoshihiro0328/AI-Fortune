@@ -54,6 +54,7 @@ export type Question = {
 };
 export type Diagnosis = {
   id: string;
+  saveState?: import("./save-state").SaveState;
   status: string;
   answers: { question_key: string; answer_text: string }[];
   followup: Question[];

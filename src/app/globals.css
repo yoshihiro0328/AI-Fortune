@@ -935,3 +935,79 @@ button:disabled {
     display: none;
   }
 }
+
+/* Keep the approved hero type sizes; conditions and entrances are secondary. */
+.home-conditions {
+  max-width: 38em;
+  margin: 0.75rem 0 0;
+  font: 400 14px/1.7 var(--font-body, sans-serif);
+}
+.home-entry-links {
+  max-width: 1160px;
+  margin: 1.25rem auto 2rem;
+  padding: 0 28px;
+}
+.home-entry-links p {
+  font-size: 15px;
+}
+.home-entry-links ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  padding: 0;
+  list-style: none;
+}
+.home-entry-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  text-underline-offset: 5px;
+}
+.report-toc summary {
+  font-family: var(--font-heading, serif);
+  font-weight: 600;
+  padding: 12px 0;
+  cursor: pointer;
+}
+.report-toc details {
+  border-bottom: 1px solid #c9d3c8;
+}
+.help-section details {
+  border-bottom: 1px solid #c9d3c8;
+  padding: 12px 0;
+}
+.help-section summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 10px 0;
+  font-weight: 600;
+}
+.chat-composer textarea.composer-expanded {
+  max-height: 50dvh;
+  min-height: 240px;
+}
+.consult-answer-text p {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .home-entry-links {
+    padding-inline: 20px;
+  }
+  .home-conditions {
+    font-size: 13px;
+  }
+  .report-toc-groups {
+    display: block;
+  }
+  .chat-composer textarea.composer-expanded {
+    min-height: 180px;
+  }
+}
+
+.home-entry-links li {
+  margin: 0;
+}
+.home-entry-links a {
+  text-decoration: underline;
+}

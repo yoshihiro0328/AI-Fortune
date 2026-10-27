@@ -223,7 +223,7 @@ async function deliver(type: string, id = type) {
 async function snapshot() {
   return (
     await pg.query(
-      `select jsonb_build_object('payments',(select jsonb_agg(to_jsonb(p)) from payments p),'reports',(select jsonb_agg(to_jsonb(r)) from paid_reports r),'diagnoses',(select jsonb_agg(to_jsonb(d)) from diagnoses d),'subscriptions',(select jsonb_agg(to_jsonb(s)-'ended_at') from subscriptions s),'policies',(select jsonb_agg(to_jsonb(p) order by schemaname,tablename,policyname) from pg_policies p)) value`,
+      `select jsonb_build_object('payments',(select jsonb_agg(to_jsonb(p)) from payments p),'reports',(select jsonb_agg(to_jsonb(r)) from paid_reports r),'diagnoses',(select jsonb_agg(to_jsonb(d)) from diagnoses d),'subscriptions',(select jsonb_agg(to_jsonb(s)-'ended_at') from subscriptions s),'policies',(select jsonb_agg(to_jsonb(p) order by schemaname,tablename,policyname) from pg_policies p where tablename <> 'consultation_events')) value`,
     )
   ).rows;
 }

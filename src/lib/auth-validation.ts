@@ -17,14 +17,20 @@ export const authSchema = z.discriminatedUnion("action", [
     email,
     password: passwordSchema,
     consent: z.literal(true),
+    returnTo: z.string().max(240).optional(),
   }),
   z.object({
     action: z.literal("login"),
     email,
     password: z.string().min(1).max(128),
+    returnTo: z.string().max(240).optional(),
   }),
   ...["resend", "reset"].map((action) =>
-    z.object({ action: z.literal(action), email }),
+    z.object({
+      action: z.literal(action),
+      email,
+      returnTo: z.string().max(240).optional(),
+    }),
   ),
   z.object({ action: z.literal("update"), password: passwordSchema }),
   z.object({ action: z.literal("logout") }),

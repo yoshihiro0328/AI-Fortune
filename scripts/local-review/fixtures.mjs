@@ -78,7 +78,8 @@ export function createFixture(root) {
     answers = [],
     finished = false,
     turns = [],
-    trial = null;
+    trial = null,
+    manualEvents = [];
   const subjects = [
     {
       id: "sample-person",
@@ -96,6 +97,20 @@ export function createFixture(root) {
       memory_reset_at: null,
     },
   ];
+  subjects.push({
+    id: "sample-person-b",
+    nickname: "サンプルBさん（別の架空の相手）",
+    memory: [],
+    updated_at: now,
+    memory_reset_at: null,
+  });
+  subjects.push({
+    id: "sample-person-c",
+    nickname: "サンプルCさん（会話なし）",
+    memory: [],
+    updated_at: now,
+    memory_reset_at: null,
+  });
   const threads = [
     {
       id: "sample-thread",
@@ -104,6 +119,12 @@ export function createFixture(root) {
       updated_at: now,
     },
   ];
+  threads.push({
+    id: "sample-thread-b",
+    subject_id: "sample-person-b",
+    title: "週末の予定（合成）",
+    updated_at: now,
+  });
   function seedTurns() {
     turns = [
       {
@@ -123,9 +144,10 @@ export function createFixture(root) {
   }
   seedTurns();
   const home = () => ({
+    ownerId: "sample-owner",
     subjects: mode === "empty" ? [] : subjects,
     threads: mode === "empty" ? [] : threads,
-    links: [],
+    links: [{ diagnosis_id: "sample-result", subject_id: "sample-person-b" }],
     usage: {
       plan: ["plus", "scheduled"].includes(mode) ? "plus" : "free",
       limit: ["plus", "scheduled"].includes(mode) ? 30 : 3,
@@ -151,6 +173,12 @@ export function createFixture(root) {
   });
   const diagnosis = (id) => ({
     id,
+    saveState:
+      mode === "anonymous"
+        ? "anonymous"
+        : mode === "unsaved"
+          ? "unsaved"
+          : "saved",
     status: finished || id === "sample-result" ? "ready" : "answering",
     answers,
     followup: [],
@@ -174,6 +202,7 @@ export function createFixture(root) {
       if (
         ![
           "free",
+          "unsaved",
           "plus",
           "scheduled",
           "canceled",
@@ -183,6 +212,7 @@ export function createFixture(root) {
       )
         return false;
       mode = value;
+      manualEvents = [];
       answers = [];
       finished = false;
       trial = null;
@@ -192,6 +222,19 @@ export function createFixture(root) {
     handle(method, url, b = {}) {
       const p = url.pathname,
         ok = (data) => ({ status: 200, data });
+      if (
+        p === "/api/auth" &&
+        method === "POST" &&
+        b.action === "claim" &&
+        mode === "unsaved"
+      ) {
+        mode = "free";
+        return ok({ ok: true, count: 1 });
+      }
+      if (p === "/api/auth" && method === "POST" && b.action === "logout") {
+        mode = "anonymous";
+        return ok({ ok: true });
+      }
       if (p === "/api/auth")
         return method === "GET"
           ? ok({
@@ -200,6 +243,7 @@ export function createFixture(root) {
                   ? null
                   : { email: "sample@example.invalid", confirmed: true },
               recovery: false,
+              hasUnsaved: mode === "unsaved",
             })
           : denied;
       if (p === "/api/questions" && method === "GET") return ok(questions);
@@ -261,7 +305,17 @@ export function createFixture(root) {
         /^\/api\/diagnoses\/(sample-result|sample-draft)\/report$/.test(p) &&
         method === "GET"
       )
-        return ok({ status: "ready", report, attempts: 0 });
+        return ok({
+          status: "ready",
+          report,
+          attempts: 0,
+          saveState:
+            mode === "anonymous"
+              ? "anonymous"
+              : mode === "unsaved"
+                ? "unsaved"
+                : "saved",
+        });
       if (p === "/api/consultations" && method === "GET") {
         if (mode === "anonymous")
           return {
@@ -271,16 +325,78 @@ export function createFixture(root) {
                 "未ログイン状態の合成表示です。上の切替で無料会員またはPlusを選んでください。",
             },
           };
-        if (url.searchParams.has("thread"))
+        if (url.searchParams.has("thread")) {
+          const thread = threads.find(
+            (t) => t.id === url.searchParams.get("thread"),
+          );
+          if (!thread)
+            return { status: 404, data: { error: "合成の相談がありません。" } };
           return ok({
-            thread: threads[0],
-            subject: subjects[0],
-            turns,
+            thread,
+            subject: subjects.find((s) => s.id === thread.subject_id),
+            turns: turns.filter((t) => t.thread_id === thread.id),
             hasMore: false,
           });
+        }
         return ok(home());
       }
-      if (p === "/api/consultations/sample-thread/send" && method === "POST") {
+      if (
+        p === "/api/consultations" &&
+        method === "POST" &&
+        b.action === "search"
+      ) {
+        const query = String(b.query).toLowerCase();
+        return ok({
+          threads: threads.filter((t) =>
+            [
+              t.title,
+              subjects.find((s) => s.id === t.subject_id)?.nickname,
+              ...turns
+                .filter((v) => v.thread_id === t.id)
+                .flatMap((v) => [v.user_text, v.assistant_text]),
+            ].some((v) => v?.toLowerCase().includes(query)),
+          ),
+        });
+      }
+      if (p === "/api/consultation-events" && mode !== "anonymous") {
+        if (method === "GET")
+          return ok({
+            events: manualEvents.filter(
+              (e) => e.subject_id === url.searchParams.get("subject"),
+            ),
+          });
+        const old = manualEvents.find((e) => e.id === b.id);
+        if (method === "POST" && !old) {
+          const event = {
+            id: b.id,
+            subject_id: b.subject,
+            event_date: b.date,
+            text: b.text,
+            source_type: "manual",
+            revision: 1,
+          };
+          manualEvents.push(event);
+          return ok({ event });
+        }
+        if (!old || old.revision !== b.revision)
+          return { status: 409, data: { error: "合成の更新競合です。" } };
+        if (method === "PATCH") {
+          Object.assign(old, {
+            event_date: b.date,
+            text: b.text,
+            revision: old.revision + 1,
+          });
+          return ok({ event: old });
+        }
+        if (method === "DELETE") {
+          manualEvents = manualEvents.filter((e) => e.id !== b.id);
+          return ok({ event: { id: b.id, deleted: true } });
+        }
+      }
+      if (
+        /^\/api\/consultations\/sample-thread(?:-b)?\/send$/.test(p) &&
+        method === "POST"
+      ) {
         if (mode === "anonymous")
           return { status: 401, data: { error: "合成の未ログイン状態です。" } };
         if (typeof b.text !== "string" || b.text.length > 2000)
@@ -298,7 +414,7 @@ export function createFixture(root) {
           };
         turns.push({
           id: "sample-turn-" + turns.length,
-          thread_id: "sample-thread",
+          thread_id: p.split("/")[3],
           user_text: b.text,
           assistant_text:
             "【合成の固定回答・AI未使用】画面操作を確認できました。実機能では、この位置に相談内容に沿った回答が表示されます。",

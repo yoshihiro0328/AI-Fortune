@@ -12,7 +12,9 @@ describe("home offer and consultation presentation", () => {
     expect(html).toMatch(/href="\/consult"[^>]*>.*?相談をはじめる/s);
     expect(html).not.toContain('href="/chat"');
     expect(html).not.toContain("登録不要");
-    expect(html).not.toContain("無料");
+    expect(html).toContain("相談には無料登録・ログインが必要です");
+    expect(html).not.toContain("登録なしのお試し相談が利用できます");
+    expect(html).toContain("無料プランでも履歴を引き継げます");
   });
   it("keeps the enabled trial, separate report and recurring offer, and sample disclosure", () => {
     const html = renderToStaticMarkup(
