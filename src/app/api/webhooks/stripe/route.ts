@@ -1,3 +1,4 @@
+import { safeOperationalLog } from "@/lib/production/log";
 import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import {
   localPaymentIntegration,
@@ -118,12 +119,12 @@ export async function POST(req: Request) {
         try {
           await generatePaid(diagnosis!);
         } catch {
-          console.error("paid_report_failed", { diagnosis_id: diagnosis });
+          safeOperationalLog("paid_report_failed");
         }
       });
     return Response.json({ received: true });
   } catch {
-    console.error("webhook_processing_failed", { event_id: e.id });
+    safeOperationalLog("webhook_processing_failed");
     return Response.json({ error: "Retry required" }, { status: 500 });
   }
 }

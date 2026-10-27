@@ -1,3 +1,4 @@
+import { safeOperationalLog } from "@/lib/production/log";
 import { db, checked } from "@/lib/supabase/admin";
 import { generatePaid } from "@/lib/ai/pipeline";
 import { required } from "@/lib/config";
@@ -25,9 +26,7 @@ export async function GET(req: Request) {
     try {
       await syncSubscription(subscription.id);
     } catch {
-      console.error("subscription_reconciliation_failed", {
-        id: subscription.id,
-      });
+      safeOperationalLog("subscription_reconciliation_failed");
     }
   }
   const jobs = checked(
@@ -44,7 +43,7 @@ export async function GET(req: Request) {
     try {
       await generatePaid(j.diagnosis_id);
     } catch {
-      console.error("retry_report_failed", { diagnosis_id: j.diagnosis_id });
+      safeOperationalLog("retry_report_failed");
     }
   }
   return Response.json({ checked: jobs?.length ?? 0 });

@@ -26,6 +26,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Public snapshot secret-pattern check (values suppressed)
+        run: node scripts/security/check-public-content.mjs HEAD
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
@@ -51,6 +53,8 @@ jobs:
           docker pull --platform linux/amd64 "$POSTGRES_SOURCE"
           test "$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$POSTGRES_SOURCE")" = linux/amd64
           docker tag "$POSTGRES_SOURCE" public.ecr.aws/supabase/postgres:17.11.0.004
+      - name: Shared production budget concurrent connections (network isolated)
+        run: node scripts/production/budget-concurrency.mjs
       - name: Frozen complete STEP10 SQL in isolated PostgreSQL
         run: python3 scripts/phase6/step10-complete-sql-verify.py --synthetic-ci --report phase6-complete-sql-results.json
       - name: Offline scoped Stripe catalog initialization

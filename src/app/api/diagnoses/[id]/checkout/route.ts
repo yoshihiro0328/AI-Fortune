@@ -1,3 +1,4 @@
+import { assertProductionSales } from "@/lib/production/controls";
 import {
   assertIntegrationDiagnosis,
   localPaymentIntegration,
@@ -41,6 +42,7 @@ export async function POST(
     return lock("checkout:" + id, async () => {
       const environment = await stripeEnvironment();
       assertCheckoutEnabled();
+      await assertProductionSales();
       const s = stripe();
       let p = checked(
         await db()
@@ -115,6 +117,7 @@ export async function POST(
             .in("status", ["pending", "failed"]),
         );
       }
+      await assertProductionSales();
       const session = await s.checkout.sessions.create(
         {
           mode: "payment",

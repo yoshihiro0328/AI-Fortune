@@ -100,7 +100,7 @@ async function close() {
 try {
   runtime = await startRuntime({
     m,
-    webhookSecret: "whsec_NoProviderCredentialProbe",
+    webhookSecret: "whsec_synthetic_browser_probe",
     record: (event) => events.push(event),
     // No provider transport, credentials, authentication or mutations. Anonymous
     // page reads use empty retained diagnoses and the approved 3/30 display limits.

@@ -1,3 +1,4 @@
+import { productionRuntime, ProductionStop } from "@/lib/production/config";
 import "server-only";
 import OpenAI from "openai";
 import { z } from "zod";
@@ -40,6 +41,8 @@ export async function structured<T>(args: {
   inputLimit: number;
   outputLimit: number;
 }) {
+  // Anonymous trial is not approved for Production; never bypass shared controls.
+  if (productionRuntime()) throw new ProductionStop();
   // Cache pricing is reserved at the highest input rate; store:false is not ZDR.
   const client = new OpenAI({
     apiKey: args.apiKey,

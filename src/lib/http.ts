@@ -1,3 +1,4 @@
+import { safeOperationalLog } from "@/lib/production/log";
 import "server-only";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
@@ -123,7 +124,7 @@ export async function event(
         }),
     );
   } catch {
-    console.error("analytics_event_failed", { event_name: name });
+    safeOperationalLog("analytics_event_failed");
   }
 }
 export async function api(fn: () => Promise<unknown>) {
@@ -137,9 +138,7 @@ export async function api(fn: () => Promise<unknown>) {
         { error: e.message },
         { status: e.status, headers: { "Cache-Control": "private, no-store" } },
       );
-    console.error("request_failed", {
-      type: e instanceof Error ? e.name : "unknown",
-    });
+    safeOperationalLog("request_failed");
     return Response.json(
       {
         error:

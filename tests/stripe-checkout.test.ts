@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
 const m = vi.hoisted(() => ({
+  productionSales: false,
   payment: null as Record<string, unknown> | null,
   customer: null as Record<string, unknown> | null,
   kind: "report",
@@ -42,6 +43,7 @@ vi.mock("@/lib/service-settings", () => ({
 vi.mock("@/lib/supabase/admin", async (original) => ({
   ...(await original<typeof import("../src/lib/supabase/admin")>()),
   db: () => ({
+    rpc: async () => ({ data: m.productionSales, error: null }),
     from: (table: string) => {
       const q = {
         select: () => q,
@@ -155,6 +157,7 @@ beforeEach(() => {
   vi.stubEnv("VERCEL_ENV", "preview");
   vi.stubEnv("NEXT_PUBLIC_APP_URL", "https://fixture.invalid");
   vi.spyOn(console, "error").mockImplementation(() => {});
+  m.productionSales = false;
   m.payment = null;
   m.customer = null;
   m.kind = "report";
@@ -242,6 +245,24 @@ it("Live checkout remains disabled even in Production until explicitly enabled (
   expect((await buyPlus()).status).toBe(503);
   expect(m.created).not.toHaveBeenCalled();
   vi.stubEnv("STRIPE_LIVE_CHECKOUT_ENABLED", "true");
+  for (const [key, value] of Object.entries({
+    PRODUCTION_ENVIRONMENT_ID: "fixture-production",
+    PRODUCTION_SUPABASE_REF: "abcdefghijklmnopqrst",
+    NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
+    OPENAI_MODEL: "gpt-6-luna",
+    PRODUCTION_OPENAI_PROJECT_ID: "proj_fixture",
+    STRIPE_ACCOUNT_ID: "acct_fixture",
+    STRIPE_SECRET_KEY: "rk_live_fixture",
+    OPENAI_API_KEY: "synthetic",
+    SUPABASE_SERVICE_ROLE_KEY: "synthetic",
+    NEXT_PUBLIC_SUPABASE_ANON_KEY: "synthetic",
+    SESSION_SECRET: "synthetic",
+    STRIPE_WEBHOOK_SECRET: "synthetic",
+  }))
+    vi.stubEnv(key, value);
+  expect((await buyPlus()).status).toBe(503);
+  expect(m.created).not.toHaveBeenCalled();
+  m.productionSales = true;
   expect((await buyPlus()).status).toBe(200);
   expect(m.created.mock.calls[0][1].idempotencyKey).toContain("live");
 });

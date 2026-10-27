@@ -1,3 +1,5 @@
+import { withProductionBudget } from "@/lib/production/controls";
+import { productionRuntime } from "@/lib/production/config";
 import "server-only";
 import OpenAI from "openai";
 import { z } from "zod";
@@ -30,18 +32,26 @@ async function invoke<T>(
         stage,
         model,
         plan: ctx.plan,
-        is_test: ctx.isTest ?? true,
+        is_test: productionRuntime() ? false : (ctx.isTest ?? true),
       })
       .select("id")
       .single(),
   )!;
   let usage: OpenAI.Responses.ResponseUsage | undefined;
   try {
-    const r = await new OpenAI({
+    const client = new OpenAI({
       apiKey: required("OPENAI_API_KEY"),
+      ...(productionRuntime()
+        ? {
+            baseURL: "https://api.openai.com/v1",
+            organization: null,
+            project: process.env.PRODUCTION_OPENAI_PROJECT_ID,
+          }
+        : {}),
       maxRetries: 0,
       timeout: 60000,
-    }).responses.parse({
+    });
+    const request = {
       model,
       store: false,
       reasoning: { effort: "low" },
@@ -51,7 +61,10 @@ async function invoke<T>(
       ],
       text: { format: zodTextFormat(schema, stage) },
       max_output_tokens: 2400,
-    });
+    } satisfies OpenAI.Responses.ResponseCreateParamsNonStreaming;
+    const r = await withProductionBudget(request, (params) =>
+      client.responses.parse(params),
+    );
     usage = r.usage;
     const parsed = schema.parse(r.output_parsed);
     checked(

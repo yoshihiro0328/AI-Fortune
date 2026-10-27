@@ -1,3 +1,4 @@
+import { assertProductionSales } from "@/lib/production/controls";
 import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import { assertCheckoutPrice } from "@/lib/stripe/checkout";
 import { stripeId } from "@/lib/stripe/subscriptions";
@@ -144,6 +145,7 @@ export async function POST(req: Request) {
           "月額料金と自動更新・解約方法をご確認ください。",
         );
       assertCheckoutEnabled();
+      await assertProductionSales();
       const { price, row } = await offer("plus");
       const limits = await serviceSettings();
       if (!customer) {
@@ -217,6 +219,7 @@ export async function POST(req: Request) {
           assertStripeMode(completed, environment.mode);
         }
       }
+      await assertProductionSales();
       const session = await s.checkout.sessions.create(
         {
           mode: "subscription",

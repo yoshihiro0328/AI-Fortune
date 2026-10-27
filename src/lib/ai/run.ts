@@ -1,3 +1,6 @@
+import { withProductionBudget } from "@/lib/production/controls";
+import { productionRuntime } from "@/lib/production/config";
+import { safeOperationalLog } from "@/lib/production/log";
 import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import { localPaymentIntegration } from "@/lib/stripe/local-integration";
 import "server-only";
@@ -40,6 +43,7 @@ export async function runAI<T>(
         .eq("model", model)
         .eq("prompt_version", version)
         .eq("input_hash", inputHash)
+        .eq("is_test", !productionRuntime())
         .eq("success", true)
         .eq("cache_usable", true)
         .order("created_at", { ascending: false })
@@ -48,7 +52,7 @@ export async function runAI<T>(
     );
     if (cached?.output_json) return schema.parse(cached.output_json);
   }
-  let attempts = options.attempts ?? 1;
+  let attempts = productionRuntime() ? 1 : (options.attempts ?? 1);
   let transientRetried = false;
   for (let attempt = 0; attempt < attempts; attempt++) {
     const remaining = (options.deadline ?? Date.now() + 120000) - Date.now();
@@ -65,11 +69,18 @@ export async function runAI<T>(
         prompt_version: version,
         input_hash: inputHash,
         success: false,
-        is_test: true,
+        is_test: !productionRuntime(),
       }),
     );
     const client = new OpenAI({
       apiKey: required("OPENAI_API_KEY"),
+      ...(productionRuntime()
+        ? {
+            baseURL: "https://api.openai.com/v1",
+            organization: null,
+            project: process.env.PRODUCTION_OPENAI_PROJECT_ID,
+          }
+        : {}),
       timeout: Math.min(
         remaining,
         options.timeout ?? (stage === "paid_report" ? 110000 : 50000),
@@ -77,7 +88,7 @@ export async function runAI<T>(
       maxRetries: 0,
     });
     try {
-      const r = await client.responses.parse({
+      const request = {
         model,
         store: false,
         input: [
@@ -87,7 +98,10 @@ export async function runAI<T>(
         text: { format: zodTextFormat(schema, stage) },
         max_output_tokens:
           options.maxTokens ?? (stage === "paid_report" ? 6500 : 2500),
-      });
+      } satisfies OpenAI.Responses.ResponseCreateParamsNonStreaming;
+      const r = await withProductionBudget(request, (params) =>
+        client.responses.parse(params),
+      );
       const data = schema.parse(r.output_parsed);
       const it = r.usage?.input_tokens ?? 0,
         ot = r.usage?.output_tokens ?? 0;
@@ -123,12 +137,7 @@ export async function runAI<T>(
         status?: number;
         code?: string;
       };
-      console.error("ai_stage_failed", {
-        stage,
-        type: providerError.name,
-        status: providerError.status,
-        code: providerError.code,
-      });
+      safeOperationalLog("ai_stage_failed");
       await db()
         .from("ai_calls")
         .update({
@@ -147,6 +156,7 @@ export async function runAI<T>(
           providerError.name ?? "",
         );
       if (
+        !productionRuntime() &&
         transient &&
         !transientRetried &&
         (options.deadline ?? Date.now() + 120000) - Date.now() > 15000
