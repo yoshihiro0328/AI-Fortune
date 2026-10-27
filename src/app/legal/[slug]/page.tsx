@@ -1,12 +1,9 @@
+import { paymentDisplay, paymentDisplayMode } from "@/lib/payment-display";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { operator, operatorInfoComplete } from "@/lib/operator";
 import { serviceSettings } from "@/lib/service-settings";
-import {
-  sentence,
-  responseTimeLabel,
-  testPaymentNotice,
-} from "@/lib/display-copy";
+import { sentence, responseTimeLabel } from "@/lib/display-copy";
 import BillingTerms from "@/components/billing-terms";
 export const dynamic = "force-dynamic";
 type Section = {
@@ -134,7 +131,7 @@ const pages: Record<string, { title: string; sections: Section[] }> = {
           sentence(operator.retention),
           "次の相談に引き継ぐメモは、相談画面で確認・修正・削除できます。相談履歴も削除できます。削除した会話やメモは、その後の回答には使いません。",
           "不正利用防止のため、本文を含まない利用回数の記録は利用期間中保持し、期間終了後の定期処理で削除します。決済記録と購入済みの診断は別に管理します。",
-          "現在はテスト公開中です。実在する人の個人情報や、健康などの特に配慮が必要な情報を入力しないでください。",
+          "実在する人を特定できる情報や、健康などの特に配慮が必要な情報を入力しないでください。",
         ],
       },
       {
@@ -192,7 +189,7 @@ const pages: Record<string, { title: string; sections: Section[] }> = {
       {
         title: "レポートの提供時期",
         paragraphs: [
-          "決済を確認した後にAIがレポートを作成し、通常は数分以内に画面に表示します。障害が起きた場合は、改めて作成します。",
+          "決済を確認した後にAIがレポートを作成し、通常は数分以内に画面に表示します。処理の結果を確認できない場合や提供を停止している場合は、状況を照合してから対応します。",
         ],
       },
       {
@@ -210,13 +207,13 @@ const pages: Record<string, { title: string; sections: Section[] }> = {
       {
         title: "この方針の対象",
         paragraphs: [
-          "以下は、実際に代金をお支払いいただく場合の返金・キャンセル方針です。現在のテスト決済では実請求は発生しません。",
+          "以下は、実際に代金をお支払いいただく場合の返金・キャンセル方針です。",
         ],
       },
       {
         title: "レポートを作成できなかった場合",
         paragraphs: [
-          "再購入せず、同じ診断の画面から追加料金なしで作成をやり直してください。",
+          "再購入せず、まず同じ診断の画面で作成状況をご確認ください。画面に再試行が案内されている場合は、追加料金なしで続けられます。確認中や停止中の表示が続く場合は、お問い合わせください。",
           "システム障害で提供できない場合や、同じ購入で重複課金が確認された場合は、運営が確認したうえで返金します。",
         ],
       },
@@ -343,10 +340,12 @@ export default async function Legal({
       <h1>{p.title}</h1>
       {!operatorInfoComplete && (
         <p className="notice">
-          テスト公開用の内容です。運営者情報に未設定の項目があるため、本番販売は開始していません。
+          公開準備中の文面です。運営者情報や運用方針に未確定の項目があります。未設定の内容を確定した方針として扱わないでください。
         </p>
       )}
-      <p className="fine legal-test-note">{testPaymentNotice}</p>
+      <p className="fine legal-test-note">
+        {paymentDisplay(paymentDisplayMode(process.env)).notice}
+      </p>
       <nav className="legal-toc" aria-label="このページの目次">
         <p>
           <strong>このページの内容</strong>

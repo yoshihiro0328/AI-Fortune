@@ -1,3 +1,5 @@
+import { PaymentDisplayProvider } from "@/components/payment-display-provider";
+import { paymentDisplayMode } from "@/lib/payment-display";
 import type { Metadata } from "next";
 import Link from "next/link";
 import Visit from "@/components/visit";
@@ -68,7 +70,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         ) ? (
           <Visit />
         ) : null}
-        {demo ? children : <Phase6Shell>{children}</Phase6Shell>}
+        <PaymentDisplayProvider mode={paymentDisplayMode(process.env)}>
+          {demo ? children : <Phase6Shell>{children}</Phase6Shell>}
+        </PaymentDisplayProvider>
         <footer>
           <div className="brand">
             よりそい<span>あなたのペースで、一歩ずつ。</span>
@@ -92,7 +96,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <Link href="/plans">料金・プラン</Link>
             <Link href="/safety">危険やつらさを感じるとき</Link>
           </nav>
-          <small>テスト公開中。医療・心理療法の診断ではありません。</small>
+          <small>医療・心理療法の診断ではありません。</small>
         </footer>
       </body>
     </html>

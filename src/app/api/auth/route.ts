@@ -1,3 +1,4 @@
+import { authMailAllowed } from "@/lib/auth-mail";
 import { localSubscriptionIntegration } from "@/lib/stripe/local-subscription";
 import { localPaymentIntegration } from "@/lib/stripe/local-integration";
 import { cookies } from "next/headers";
@@ -40,6 +41,12 @@ export async function POST(req: Request) {
       throw new HttpError(
         403,
         "決済検証では既存アカウントのログインだけを使用します。",
+      );
+    // Refuse before session creation, database access, or an email request.
+    if (!authMailAllowed(input.action))
+      throw new HttpError(
+        503,
+        "現在、確認・再設定メールの送信を停止しています。時間をおいてご確認ください。",
       );
     const who = await identity(true);
     const action = input.action;

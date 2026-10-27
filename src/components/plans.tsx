@@ -1,11 +1,13 @@
 "use client";
+import { usePaymentDisplay } from "./payment-display-provider";
 import { useState } from "react";
 import Link from "next/link";
 import { request } from "@/lib/client";
 import BillingTerms from "./billing-terms";
-import { testPaymentNotice, exchangeExplanation } from "@/lib/display-copy";
+import { exchangeExplanation } from "@/lib/display-copy";
 import { pricing, yen } from "@/lib/pricing";
 export default function Plans({ free, plus }: { free: number; plus: number }) {
+  const payment = usePaymentDisplay();
   const [consent, setConsent] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
@@ -68,14 +70,15 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
               onChange={(e) => setConsent(e.target.checked)}
             />
             月額{yen(pricing.plus)}
-            （税込）で、解約するまで毎月自動更新します。マイページから次回の更新を停止できることを確認しました。現在はテスト決済のみで実請求は発生しません。
+            （税込）で、解約するまで毎月自動更新します。マイページから次回の更新を停止できることを確認しました。
+            {payment.notice}
           </label>
           <button
             className="button"
             disabled={busy || !consent}
             onClick={checkout}
           >
-            {busy ? "手続き画面を開いています…" : "Plusのテスト契約へ"}
+            {busy ? "手続き画面を開いています…" : payment.checkoutLabel}
           </button>
           <p className="fine">
             登録後、メールアドレスの確認が必要です。
@@ -112,7 +115,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
       )}
       <section className="panel">
         <BillingTerms free={free} plus={plus} />
-        <p>{testPaymentNotice}</p>
+        <p>{payment.notice}</p>
         <Link href="/legal/refund">返金・キャンセルの方針</Link>
       </section>
     </>

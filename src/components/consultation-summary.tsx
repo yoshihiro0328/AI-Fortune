@@ -1,4 +1,5 @@
 "use client";
+import { usePaymentDisplay } from "./payment-display-provider";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { exchangeExplanation } from "@/lib/display-copy";
@@ -9,6 +10,7 @@ import {
 } from "@/lib/consultation/subscription-display";
 import type { ConsultationHome } from "@/lib/consultation/model";
 export default function ConsultationSummary() {
+  const payment = usePaymentDisplay();
   const [data, setData] = useState<ConsultationHome | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -134,7 +136,7 @@ export default function ConsultationSummary() {
         </p>
       )}
       <p className="fine">
-        現在はテスト決済のみで実請求は発生しません。Plusには単発の詳細診断は含まれません。
+        {payment.notice}Plusには単発の詳細診断は含まれません。
       </p>
     </section>
   );

@@ -21,11 +21,23 @@ import { productionIssues } from "@/lib/production/config";
 import { safeOperationalLog } from "@/lib/production/log";
 let pg: PGlite;
 const env = {
+  PUBLIC_POLICIES_APPROVED: "true",
+  OPERATOR_NAME: "synthetic operator",
+  OPERATOR_REPRESENTATIVE: "synthetic representative",
+  OPERATOR_ADDRESS: "synthetic address",
+  OPERATOR_PHONE: "synthetic phone",
+  OPERATOR_EMAIL: "synthetic@example.org",
+  DATA_RETENTION_POLICY: "synthetic retention",
+  REFUND_REQUEST_PERIOD: "synthetic refund",
+  SUPPORT_RESPONSE_TIME: "synthetic response",
   VERCEL_ENV: "production",
   PRODUCTION_ENVIRONMENT_ID: "fixture-production",
   PRODUCTION_SUPABASE_REF: "abcdefghijklmnopqrst",
   NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
   NEXT_PUBLIC_APP_URL: "https://example.org",
+  PRODUCTION_PUBLIC_ORIGIN: "https://example.org",
+  PRODUCTION_VERCEL_PROJECT_ID: "prj_fixture",
+  VERCEL_PROJECT_ID: "prj_fixture",
   OPENAI_MODEL: "gpt-6-luna",
   PRODUCTION_OPENAI_PROJECT_ID: "proj_fixture",
   STRIPE_MODE: "live",
@@ -382,4 +394,17 @@ describe("production shared accounting and stops (isolated SQL)", () => {
     safeOperationalLog("request_failed");
     expect(log).toHaveBeenCalledWith("request_failed");
   });
+});
+
+it.each([
+  "PUBLIC_POLICIES_APPROVED",
+  "OPERATOR_NAME",
+  "DATA_RETENTION_POLICY",
+  "REFUND_REQUEST_PERIOD",
+])("blocks sales with unconfirmed public copy: %s", async (key) => {
+  vi.stubEnv(key, "");
+  await expect(assertProductionSales()).rejects.toThrow(
+    "Production operation unavailable",
+  );
+  expect(mock.rpc).not.toHaveBeenCalled();
 });

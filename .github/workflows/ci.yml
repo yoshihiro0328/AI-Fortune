@@ -31,6 +31,8 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
+      - name: Local review fixtures (synthetic only; no server or external requests)
+        run: node --test scripts/local-review/fixtures.test.mjs
       - name: AI evaluation full isolated path (synthetic only)
         run: npx vitest run --config scripts/phase6/ai-evaluation/evaluation.config.ts
       - name: Portable payment script regressions (synthetic only; no Mac browser or OS sandbox)

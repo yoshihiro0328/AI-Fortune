@@ -30,6 +30,7 @@ afterEach(() => {
   vi.resetModules();
 });
 function configure(values: Record<string, string | undefined>) {
+  vi.stubEnv("STRIPE_MODE", "sandbox");
   for (const [key, value] of Object.entries(values)) vi.stubEnv(key, value);
   vi.resetModules();
 }
@@ -71,7 +72,9 @@ describe("operator information readiness", () => {
   );
   it("shows the incomplete notice when just one field is blank", async () => {
     configure({ ...env, OPERATOR_PHONE: " " });
-    expect(await renderLegal("terms")).toContain("運営者情報に未設定の項目");
+    expect(await renderLegal("terms")).toContain(
+      "運営者情報や運用方針に未確定の項目",
+    );
   });
   it("renders configured identity, retention and refund policy without conflicting timing", async () => {
     configure(env);
@@ -99,4 +102,15 @@ describe("operator information readiness", () => {
       env.SUPPORT_RESPONSE_TIME,
     );
   });
+});
+
+it("does not promise blind regeneration or claim production is a test", async () => {
+  configure(env);
+  expect(await renderLegal("refund")).toContain(
+    "まず同じ診断の画面で作成状況をご確認ください",
+  );
+  expect(await renderLegal("commerce")).toContain(
+    "状況を照合してから対応します",
+  );
+  expect(await renderLegal("privacy")).not.toContain("現在はテスト公開中");
 });

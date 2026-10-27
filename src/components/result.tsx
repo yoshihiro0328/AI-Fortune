@@ -1,10 +1,12 @@
 "use client";
+import { usePaymentDisplay } from "./payment-display-provider";
 import { useEffect, useState } from "react";
 import { pricing } from "@/lib/pricing";
 import Link from "next/link";
 import SaveResultNote from "./save-result-note";
 import { request, track, type Diagnosis } from "@/lib/client";
 export default function Result({ id }: { id: string }) {
+  const payment = usePaymentDisplay();
   const [d, setD] = useState<Diagnosis | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -152,7 +154,7 @@ export default function Result({ id }: { id: string }) {
               <span>円（税込）</span>
             </div>
             <p className="fine">
-              1回のお支払いで、自動更新はありません。現在はテスト決済のみで実請求は発生しません。
+              1回のお支払いで、自動更新はありません。{payment.notice}
             </p>
             <SaveResultNote />
             {d.payment_status === "paid" ? (

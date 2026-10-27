@@ -1,3 +1,4 @@
+import { getOperatorConfig } from "@/lib/operator";
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { db } from "@/lib/supabase/admin";
@@ -9,6 +10,11 @@ import {
 import { safeOperationalLog } from "./log";
 export async function assertProductionSales() {
   if (!productionRuntime()) return;
+  if (
+    process.env.PUBLIC_POLICIES_APPROVED !== "true" ||
+    !getOperatorConfig(process.env).isComplete
+  )
+    throw new ProductionStop();
   const environment = productionEnvironment();
   const r = await db().rpc("production_sales_allowed", {
     p_environment: environment,

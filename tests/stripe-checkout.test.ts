@@ -247,6 +247,9 @@ it("Live checkout remains disabled even in Production until explicitly enabled (
   vi.stubEnv("STRIPE_LIVE_CHECKOUT_ENABLED", "true");
   for (const [key, value] of Object.entries({
     PRODUCTION_ENVIRONMENT_ID: "fixture-production",
+    PRODUCTION_PUBLIC_ORIGIN: "https://fixture.invalid",
+    PRODUCTION_VERCEL_PROJECT_ID: "prj_fixture",
+    VERCEL_PROJECT_ID: "prj_fixture",
     PRODUCTION_SUPABASE_REF: "abcdefghijklmnopqrst",
     NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
     OPENAI_MODEL: "gpt-6-luna",

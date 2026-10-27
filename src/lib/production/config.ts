@@ -43,13 +43,19 @@ export function productionIssues(
       u.search ||
       u.hash ||
       u.pathname !== "/" ||
-      u.hostname.endsWith(".vercel.app") ||
-      u.hostname === "localhost"
+      u.hostname === "localhost" ||
+      u.origin !== env.PRODUCTION_PUBLIC_ORIGIN ||
+      u.port !== ""
     )
       issues.push("PUBLIC_ORIGIN");
   } catch {
     issues.push("PUBLIC_ORIGIN");
   }
+  if (
+    !/^prj_[A-Za-z0-9]+$/.test(env.PRODUCTION_VERCEL_PROJECT_ID ?? "") ||
+    env.VERCEL_PROJECT_ID !== env.PRODUCTION_VERCEL_PROJECT_ID
+  )
+    issues.push("HOSTING_PROJECT_BINDING");
   if (
     env.OPENAI_MODEL !== "gpt-6-luna" ||
     (env.OPENAI_CHAT_MODEL && env.OPENAI_CHAT_MODEL !== "gpt-6-luna")
