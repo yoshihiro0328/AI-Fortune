@@ -2,6 +2,11 @@
 begin;
 set local lock_timeout = '5s';
 set local statement_timeout = '60s';
+-- Future usage records follow the database binding; existing history is untouched.
+alter table public.consultation_turns alter column is_test set default public.payment_is_test();
+alter table public.diagnoses alter column is_test set default public.payment_is_test();
+alter table public.analytics_events alter column is_test set default public.payment_is_test();
+
 create table public.production_controls (
   singleton boolean primary key default true check (singleton),
   environment_id text not null check (environment_id ~ '^[a-zA-Z0-9_-]{1,80}$'),

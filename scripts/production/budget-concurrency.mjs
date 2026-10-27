@@ -62,6 +62,9 @@ try {
     "do $$ begin if not exists(select 1 from pg_roles where rolname='anon') then create role anon; end if; if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated; end if; if not exists(select 1 from pg_roles where rolname='service_role') then create role service_role bypassrls; end if; end $$;",
   );
   sql(
+    "create table public.consultation_turns(is_test boolean not null default true); create table public.diagnoses(is_test boolean not null default true); create table public.analytics_events(is_test boolean not null default true); create function public.payment_is_test() returns boolean language sql as $$ select false $$;",
+  );
+  sql(
     readFileSync(
       "supabase/migrations/20261027072559_production_operation_controls.sql",
       "utf8",

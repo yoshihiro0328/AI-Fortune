@@ -1,3 +1,4 @@
+import { productionRuntime } from "@/lib/production/config";
 import { initializeFlow } from "@/lib/questions/engine";
 import { api, csrf, identity, rate, event, owned } from "@/lib/http";
 import { db, checked } from "@/lib/supabase/admin";
@@ -28,6 +29,7 @@ export async function POST(req: Request) {
           user_id: who.userId,
           diagnosis_type_id: type!.id,
           question_flow_version: "v2",
+          is_test: !productionRuntime(),
         })
         .select("id")
         .single(),

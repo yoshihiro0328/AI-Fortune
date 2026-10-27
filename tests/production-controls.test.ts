@@ -71,6 +71,9 @@ beforeAll(async () => {
     "create role anon; create role authenticated; create role service_role bypassrls;",
   );
   await pg.exec(
+    "create table public.consultation_turns(is_test boolean not null default true); create table public.diagnoses(is_test boolean not null default true); create table public.analytics_events(is_test boolean not null default true); create function public.payment_is_test() returns boolean language sql as $$ select false $$;",
+  );
+  await pg.exec(
     await readFile(
       "supabase/migrations/20261027072559_production_operation_controls.sql",
       "utf8",
@@ -92,6 +95,20 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("production shared accounting and stops (isolated SQL)", () => {
+  it("classifies only future usage rows from the database binding without relabelling history", async () => {
+    for (const table of [
+      "consultation_turns",
+      "diagnoses",
+      "analytics_events",
+    ]) {
+      await pg.exec(
+        `truncate ${table}; create or replace function public.payment_is_test() returns boolean language sql as $$ select true $$; insert into ${table} default values; create or replace function public.payment_is_test() returns boolean language sql as $$ select false $$; insert into ${table} default values;`,
+      );
+      expect(
+        (await pg.query(`select is_test from ${table} order by is_test`)).rows,
+      ).toEqual([{ is_test: false }, { is_test: true }]);
+    }
+  });
   it("has no seeded production approval and rejects missing/mismatched control", async () => {
     await pg.exec("truncate production_controls;");
     await expect(withProductionBudget(request(), vi.fn())).rejects.toThrow(

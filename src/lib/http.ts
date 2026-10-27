@@ -1,4 +1,7 @@
-import { assertProductionDataTarget } from "@/lib/production/config";
+import {
+  assertProductionDataTarget,
+  productionRuntime,
+} from "@/lib/production/config";
 import { safeOperationalLog } from "@/lib/production/log";
 import "server-only";
 import { cookies } from "next/headers";
@@ -122,7 +125,7 @@ export async function event(
             ...metadata,
             ...(diagnosisId ? { diagnosis_id: diagnosisId } : {}),
           },
-          is_test: true,
+          is_test: !productionRuntime(),
         }),
     );
   } catch {
