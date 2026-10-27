@@ -11,6 +11,34 @@ export function createFixture(root) {
       "utf8",
     ),
   );
+  const paragraph =
+    "【合成表示・実利用者の情報ではありません】架空の二人は以前より連絡の間隔が空き、次の予定についてまだ話せていない設定です。返信が来た事実と、理由が分からない部分を分けて表示します。相手の気持ちや今後の結果は、この表示例からは判断できません。これは文章量・改行・読みやすさを確認するための固定データであり、実際の助言ではありません。";
+  report.relationship_analysis = paragraph + "\n\n" + paragraph;
+  report.behavior_patterns = paragraph;
+  report.distance_reasons = [
+    paragraph,
+    "【合成】生活や予定の変化については確認されていません。",
+  ];
+  report.positive_signals = [
+    { signal: "【合成】会話が続いている", reason: paragraph },
+  ];
+  report.attention_signals = [
+    { signal: "【合成】予定が未確定", reason: paragraph },
+  ];
+  report.contact_advice = paragraph;
+  report.overall_advice = paragraph;
+  report.seven_day_plan = [
+    {
+      period: "1〜2日目（合成）",
+      action:
+        "【合成表示】最近のやり取りを、確認できる出来事と未確認のことに分けてメモするという架空の例です。実際の行動を指示するものではありません。",
+    },
+    { period: "3〜7日目（合成）", action: paragraph },
+  ];
+  report.thirty_day_plan = [
+    { period: "2週目（合成）", action: paragraph },
+    { period: "3〜4週目（合成）", action: paragraph },
+  ];
   report.messages = {
     natural:
       "補足：相手の都合を尊重する表示例です。\n「またゆっくり話せたらうれしい。都合のよいときに教えてね。」\n返事を急がせない想定です。",
@@ -54,7 +82,8 @@ export function createFixture(root) {
   const subjects = [
     {
       id: "sample-person",
-      nickname: "サンプルAさん",
+      nickname:
+        "サンプルAさん（以前から同じ趣味について話している架空の知人・長い名前の表示確認）",
       memory: [
         {
           kind: "concern",
@@ -94,31 +123,31 @@ export function createFixture(root) {
   }
   seedTurns();
   const home = () => ({
-    subjects,
-    threads,
+    subjects: mode === "empty" ? [] : subjects,
+    threads: mode === "empty" ? [] : threads,
     links: [],
     usage: {
-      plan: mode === "plus" ? "plus" : "free",
-      limit: mode === "plus" ? 30 : 3,
+      plan: ["plus", "scheduled"].includes(mode) ? "plus" : "free",
+      limit: ["plus", "scheduled"].includes(mode) ? 30 : 3,
       used: 1,
       reserved: 0,
-      remaining: mode === "plus" ? 29 : 2,
+      remaining: ["plus", "scheduled"].includes(mode) ? 29 : 2,
       period_start: now,
       period_end: end,
     },
-    subscription: ["plus", "canceled"].includes(mode)
+    subscription: ["plus", "scheduled", "canceled"].includes(mode)
       ? {
           id: "sample-contract",
           amount: 980,
-          status: mode === "plus" ? "active" : "canceled",
+          status: ["plus", "scheduled"].includes(mode) ? "active" : "canceled",
           period_end: end,
           ended_at: mode === "canceled" ? now : null,
-          paid_through: mode === "plus" ? end : null,
-          cancel_at_period_end: false,
+          paid_through: ["plus", "scheduled"].includes(mode) ? end : null,
+          cancel_at_period_end: mode === "scheduled",
           cancel_at: null,
         }
       : null,
-    hasBilling: ["plus", "canceled"].includes(mode),
+    hasBilling: ["plus", "scheduled", "canceled"].includes(mode),
   });
   const diagnosis = (id) => ({
     id,
@@ -142,7 +171,16 @@ export function createFixture(root) {
       return mode;
     },
     reset(value) {
-      if (!["free", "plus", "canceled", "anonymous"].includes(value))
+      if (
+        ![
+          "free",
+          "plus",
+          "scheduled",
+          "canceled",
+          "anonymous",
+          "empty",
+        ].includes(value)
+      )
         return false;
       mode = value;
       answers = [];
@@ -171,9 +209,20 @@ export function createFixture(root) {
       if (p === "/api/diagnoses")
         return method === "GET"
           ? ok(
-              mode === "anonymous"
+              ["anonymous", "empty"].includes(mode)
                 ? []
-                : [{ id: "sample-result", status: "ready", created_at: now }],
+                : [
+                    {
+                      id: "sample-result",
+                      status: "report_ready",
+                      created_at: now,
+                    },
+                    {
+                      id: "sample-draft",
+                      status: "answering",
+                      created_at: now,
+                    },
+                  ],
             )
           : method === "POST"
             ? ((answers = []), (finished = false), ok({ id: "sample-draft" }))
@@ -271,7 +320,7 @@ export function createFixture(root) {
         if (
           method === "POST" &&
           b.action === "portal" &&
-          ["plus", "canceled"].includes(mode)
+          ["plus", "scheduled", "canceled"].includes(mode)
         )
           return ok({ url: "/__review/portal" });
         return denied;

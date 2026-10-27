@@ -12,19 +12,45 @@ export const metadata = {
 };
 export default function Page() {
   return (
-    <main id="main" className="wrap section">
+    <main id="main" className="wrap section reading-index">
       <p className="eyebrow">答えを急ぐ前に、ひとつずつ。</p>
       <h1>今の悩みに近い読みもの</h1>
       <p>
         相手の気持ちを決めつけず、分かっている出来事とあなたの希望から考えてみましょう。
       </p>
-      <div className="guide-grid">
-        {guides.map((g) => (
-          <article className="guide-card" key={g.slug}>
-            <h2>
-              <Link href={"/guides/" + g.slug}>{g.title}</Link>
-            </h2>
-            <p>{g.description}</p>
+      <div className="reading-list">
+        {guides.map((g, index) => (
+          <article className="reading-entry" key={g.slug}>
+            <span className="reading-number" aria-hidden="true">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <div>
+              <p className="eyebrow">
+                {
+                  [
+                    "返信・LINE",
+                    "連絡の距離感",
+                    "会う時間",
+                    "相手の反応",
+                    "別れ・復縁",
+                    "新しい出会い",
+                    "恋人との関係",
+                    "関係を話し合う",
+                  ][index]
+                }
+              </p>
+              <h2>
+                <Link href={"/guides/" + g.slug}>{g.title}</Link>
+              </h2>
+              <p>{g.description}</p>
+              <Link
+                className="reading-open"
+                href={"/guides/" + g.slug}
+                aria-label={g.title + "を読む"}
+              >
+                記事を読む →
+              </Link>
+            </div>
           </article>
         ))}
       </div>

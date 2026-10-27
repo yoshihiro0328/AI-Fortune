@@ -108,7 +108,7 @@ export default function Account({
     }
   }
   return (
-    <main id="main" className="flow">
+    <main id="main" className="flow account-page">
       <p className="eyebrow">マイページ · 相談と契約の確認</p>
       <h1>{user ? "前の話の、その続きから。" : labels[mode]}</h1>
       {!user && <p>無料診断は登録なしで使えます。</p>}
@@ -127,28 +127,25 @@ export default function Account({
             </p>
           )}
           {user && mode !== "update" ? (
-            <div className="panel">
-              <p>{user.email} でログイン中</p>
-              <p>
-                このブラウザで行った、まだアカウントに保存していない診断を保存します。
-              </p>
-              <div className="actions">
+            <>
+              {!verificationOnly && <ConsultationSummary />}
+              <aside
+                className="notice account-save"
+                aria-label="未保存診断の保存"
+              >
+                <h2>このブラウザの診断を保存する</h2>
+                <p>
+                  まだアカウントに保存していない診断がある場合は、ここから保存できます。保存前にCookieを削除したり、別の端末へ移ると、購入済みレポートも開けなくなることがあります。
+                </p>
                 <button
-                  className="button"
+                  className="button secondary"
                   disabled={busy}
                   onClick={() => act("claim")}
                 >
                   このブラウザの診断を保存
                 </button>
-                <button
-                  className="button secondary"
-                  disabled={busy}
-                  onClick={() => act("logout")}
-                >
-                  ログアウト
-                </button>
-              </div>
-            </div>
+              </aside>
+            </>
           ) : (
             <div className="panel">
               {testEmailOnly && mode !== "login" && mode !== "update" && (
@@ -284,53 +281,97 @@ export default function Account({
               購入済みレポートの閲覧確認中です。契約管理・新規相談はこの検証では使用しません。
             </p>
           )}
-          {user && mode !== "update" && !verificationOnly && (
-            <ConsultationSummary />
-          )}
-          <h2>{user ? "保存した診断" : "このブラウザの診断"}</h2>
-          {rows.length === 0 ? (
-            <p>まだ診断はありません。</p>
-          ) : (
-            rows.map((r) => (
-              <div className="history-row" key={r.id}>
-                <Link
-                  href={
-                    r.status === "answering" || r.status === "followup"
-                      ? "/diagnosis/partner-mind?resume=" + r.id
-                      : "/result/" + r.id
-                  }
-                >
-                  {new Date(r.created_at).toLocaleDateString("ja-JP")}の診断
-                  {["answering", "followup"].includes(r.status)
-                    ? "を続ける"
-                    : "を見る"}
-                </Link>
-                {user && (
-                  <Link href={"/consult?diagnosis=" + r.id}>
-                    この診断から相談する
-                  </Link>
-                )}
-                {["paid", "report_generating", "report_ready"].includes(
-                  r.status,
-                ) && <Link href={"/report/" + r.id}>詳細レポート</Link>}
-              </div>
-            ))
-          )}
-          {more && (
-            <button
-              className="button secondary"
-              disabled={busy}
-              onClick={nextPage}
-            >
-              さらに表示
-            </button>
-          )}
-          <p>
-            <Link href="/diagnosis/partner-mind?new=1">新しく無料診断する</Link>
-          </p>
-          <p>
-            <Link href="/contact">診断データの削除・退会を依頼する</Link>
-          </p>
+          <section
+            className="account-diagnoses"
+            aria-labelledby="diagnosis-history"
+          >
+            <h2 id="diagnosis-history">
+              {user ? "保存した診断・購入済みレポート" : "このブラウザの診断"}
+            </h2>
+            {rows.length === 0 ? (
+              <p>まだ診断はありません。</p>
+            ) : (
+              rows.map((r) => (
+                <article className="diagnosis-history-row" key={r.id}>
+                  <div>
+                    <time dateTime={r.created_at}>
+                      {new Date(r.created_at).toLocaleDateString("ja-JP", {
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric",
+                        timeZone: "Asia/Tokyo",
+                      })}
+                    </time>
+                    <p className="fine">
+                      {["answering", "followup"].includes(r.status)
+                        ? "回答の途中"
+                        : [
+                              "paid",
+                              "report_generating",
+                              "report_ready",
+                            ].includes(r.status)
+                          ? "詳細レポート購入済み"
+                          : "診断結果"}
+                    </p>
+                  </div>
+                  <div className="history-actions">
+                    <Link
+                      href={
+                        r.status === "answering" || r.status === "followup"
+                          ? "/diagnosis/partner-mind?resume=" + r.id
+                          : "/result/" + r.id
+                      }
+                    >
+                      {["answering", "followup"].includes(r.status)
+                        ? "診断を続ける"
+                        : "診断結果を見る"}
+                    </Link>
+                    {user && (
+                      <Link href={"/consult?diagnosis=" + r.id}>
+                        この診断から相談する
+                      </Link>
+                    )}
+                    {["paid", "report_generating", "report_ready"].includes(
+                      r.status,
+                    ) && <Link href={"/report/" + r.id}>詳細レポート</Link>}
+                  </div>
+                </article>
+              ))
+            )}
+            {more && (
+              <button
+                className="button secondary"
+                disabled={busy}
+                onClick={nextPage}
+              >
+                さらに表示
+              </button>
+            )}
+            <p>
+              <Link href="/diagnosis/partner-mind?new=1">
+                新しく無料診断する
+              </Link>
+            </p>
+          </section>
+          <section
+            className="account-settings"
+            aria-labelledby="account-settings-title"
+          >
+            <h2 id="account-settings-title">アカウント設定</h2>
+            {user && <p className="account-email">{user.email} でログイン中</p>}
+            {user && mode !== "update" && (
+              <button
+                className="text-button"
+                disabled={busy}
+                onClick={() => act("logout")}
+              >
+                ログアウト
+              </button>
+            )}
+            <p>
+              <Link href="/contact">診断データの削除・退会を依頼する</Link>
+            </p>
+          </section>
         </>
       )}
     </main>

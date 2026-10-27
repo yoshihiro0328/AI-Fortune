@@ -35,7 +35,7 @@ export default function Result({ id }: { id: string }) {
   }
   const r = d?.free_report;
   return (
-    <main id="main" className="flow report">
+    <main id="main" className="flow report result-page">
       <div className="eyebrow">無料診断の結果</div>
       {error && (
         <p className="error" role="alert">
@@ -87,6 +87,10 @@ export default function Result({ id }: { id: string }) {
             <h2>現在の状況</h2>
             <p>{r.summary}</p>
           </section>
+          <section className="result-action">
+            <h2>まず、できること</h2>
+            <p>{r.advice}</p>
+          </section>
           <section className="panel">
             <h2 id="result-evidence">良い兆候</h2>
             {r.positive_signals.length ? (
@@ -99,7 +103,10 @@ export default function Result({ id }: { id: string }) {
             ) : (
               <p>現時点で判断できる情報は十分ではありません。</p>
             )}
+          </section>
+          <section className="panel result-attention">
             <h2>気に留めたいこと</h2>
+            {!r.attention_signals.length && <p>この項目の記載はありません。</p>}
             {r.attention_signals.map((s) => (
               <div key={s.signal}>
                 <h3>{s.signal}</h3>
@@ -107,7 +114,16 @@ export default function Result({ id }: { id: string }) {
               </div>
             ))}
           </section>
-          <section className="panel">
+          <section className="panel result-unknown">
+            <h2>まだ分からないこと</h2>
+            <ul>
+              {r.uncertainties.map((x) => (
+                <li key={x}>{x}</li>
+              ))}
+            </ul>
+            {!r.uncertainties.length && <p>この項目の記載はありません。</p>}
+          </section>
+          <section className="result-indicators">
             <h2>回答から整理した3つの指標</h2>
             <div className="scores">
               {[
@@ -131,52 +147,54 @@ export default function Result({ id }: { id: string }) {
               <a href="#result-evidence">良い兆候・気に留めたいこと</a>
               の理由と、まだ分からないことを合わせてお読みください。入力にない事情は判断できません。
             </p>
-            <h3>まだ分からないこと</h3>
-            <ul>
-              {r.uncertainties.map((x) => (
-                <li key={x}>{x}</li>
-              ))}
-            </ul>
-          </section>
-          <section className="panel">
-            <h2>まず、できること</h2>
-            <p>{r.advice}</p>
           </section>
           <section className="notice">
-            <h2>もう少し、具体的に整理したい方へ。</h2>
-            <ul>
-              {[
-                "ふたりの関係や、相手の行動について考えられる理由",
-                "連絡のタイミングと、送るLINE文面3案",
-                "避けたい行動と、次に会うときのヒント",
-                "7日・30日の行動プラン",
-              ].map((x) => (
-                <li key={x}>{x}</li>
-              ))}
-            </ul>
-            <div className="price">
-              {pricing.report.toLocaleString("ja-JP")}
-              <span>円（税込）</span>
-            </div>
-            <p className="fine">
-              1回のお支払いで、自動更新はありません。{payment.notice}
-            </p>
-            <SaveResultNote />
             {d.payment_status === "paid" ? (
-              <Link className="button" href={"/report/" + id}>
-                購入したレポートを見る
-              </Link>
+              <>
+                <h2>購入済みの詳細レポート</h2>
+                <p>
+                  この診断の詳しい整理と行動プランを確認できます。再購入は必要ありません。
+                </p>
+                <Link className="button" href={"/report/" + id}>
+                  購入したレポートを見る
+                </Link>
+                <SaveResultNote />
+              </>
             ) : d.payment_status === "refunded" ? (
-              <p>この診断の購入は返金済みです。</p>
+              <>
+                <h2>詳細レポート</h2>
+                <p>この診断の購入は返金済みです。</p>
+              </>
             ) : (
-              <button className="button" onClick={checkout} disabled={busy}>
-                {busy ? "決済画面を準備中…" : "詳しい分析を見る"}
-              </button>
+              <>
+                <h2>もう少し、具体的に整理したい方へ。</h2>
+                <ul>
+                  {[
+                    "ふたりの関係や、相手の行動について考えられる理由",
+                    "連絡のタイミングと、送るLINE文面3案",
+                    "避けたい行動と、次に会うときのヒント",
+                    "7日・30日の行動プラン",
+                  ].map((x) => (
+                    <li key={x}>{x}</li>
+                  ))}
+                </ul>
+                <div className="price">
+                  {pricing.report.toLocaleString("ja-JP")}
+                  <span>円（税込）</span>
+                </div>
+                <p className="fine">
+                  1回のお支払いで、自動更新はありません。{payment.notice}
+                </p>
+                <SaveResultNote />
+                <button className="button" onClick={checkout} disabled={busy}>
+                  {busy ? "決済画面を準備中…" : "詳細レポートの購入へ進む"}
+                </button>
+                <p className="fine">
+                  購入は任意です。<Link href="/legal/refund">返金条件</Link>
+                  をご確認ください。
+                </p>
+              </>
             )}
-            <p className="fine">
-              購入は任意です。<Link href="/legal/refund">返金条件</Link>
-              をご確認ください。
-            </p>
           </section>
           <p>
             <Link href="/account">診断をアカウントに保存する</Link>

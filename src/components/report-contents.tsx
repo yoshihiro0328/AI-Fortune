@@ -1,0 +1,133 @@
+import type { PaidReport } from "@/lib/ai/schemas";
+import MessageDrafts from "./message-drafts";
+
+const titles = [
+  "今のふたりの関係",
+  "相手の行動パターン",
+  "距離が変わった理由として考えられること",
+  "良い兆候",
+  "気に留めたいこと",
+  "あなたが見直せること",
+  "やらない方がいいこと",
+  "今、連絡するか迷ったら",
+  "次に送るメッセージ案",
+  "次に会ったときのヒント",
+  "今後7日間",
+  "今後30日間",
+  "総合アドバイス",
+];
+const chapters = [
+  { title: "関係の整理", indices: [0, 1, 2, 3, 4] },
+  { title: "連絡・メッセージ", indices: [7, 8] },
+  { title: "これからの行動", indices: [5, 6, 9, 10, 11, 12] },
+];
+function Text({ value }: { value: string }) {
+  return (
+    <p className="report-prose">{value || "この項目の記載はありません。"}</p>
+  );
+}
+function Items({ items }: { items: string[] }) {
+  return items.length ? (
+    <ul>
+      {items.map((x, i) => (
+        <li key={i}>{x}</li>
+      ))}
+    </ul>
+  ) : (
+    <p className="fine">この項目の記載はありません。</p>
+  );
+}
+function Plan({ items }: { items: PaidReport["seven_day_plan"] }) {
+  return items.length ? (
+    <ol className="action-timeline">
+      {items.map((item, i) => (
+        <li key={i}>
+          <h4>{item.period}</h4>
+          <p>{item.action}</p>
+        </li>
+      ))}
+    </ol>
+  ) : (
+    <p className="fine">この項目の記載はありません。</p>
+  );
+}
+export default function ReportContents({ report }: { report: PaidReport }) {
+  const content = [
+    <Text key="relation" value={report.relationship_analysis} />,
+    <Text key="behavior" value={report.behavior_patterns} />,
+    <Items key="distance" items={report.distance_reasons} />,
+    <Items
+      key="positive"
+      items={report.positive_signals.map((s) => s.signal + "：" + s.reason)}
+    />,
+    <Items
+      key="attention"
+      items={report.attention_signals.map((s) => s.signal + "：" + s.reason)}
+    />,
+    <Items key="improvement" items={report.improvement_points} />,
+    <Items key="avoid" items={report.avoid_actions} />,
+    <Text key="contact" value={report.contact_advice} />,
+    <MessageDrafts key="messages" messages={report.messages} />,
+    <Text key="meeting" value={report.next_meeting} />,
+    <Plan key="seven" items={report.seven_day_plan} />,
+    <Plan key="thirty" items={report.thirty_day_plan} />,
+    <Text key="overall" value={report.overall_advice} />,
+  ];
+  return (
+    <>
+      <nav
+        id="report-toc"
+        className="report-toc"
+        aria-label="詳細レポートの目次"
+      >
+        <h2>読みたいところから</h2>
+        <p className="fine">
+          3つの章・13項目。番号は元のレポートの項目番号です。
+        </p>
+        <div className="report-toc-groups">
+          {chapters.map((chapter) => (
+            <div key={chapter.title}>
+              <h3>{chapter.title}</h3>
+              <ul>
+                {chapter.indices.map((i) => (
+                  <li key={i}>
+                    <a href={`#report-item-${i + 1}`}>
+                      {i + 1}. {titles[i]}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </nav>
+      {chapters.map((chapter, index) => (
+        <section
+          className="report-chapter"
+          key={chapter.title}
+          aria-labelledby={`chapter-${index}`}
+        >
+          <header>
+            <p className="eyebrow">CHAPTER {index + 1}</p>
+            <h2 id={`chapter-${index}`}>{chapter.title}</h2>
+          </header>
+          {chapter.indices.map((i) => (
+            <section
+              className="report-section"
+              key={i}
+              aria-labelledby={`report-item-${i + 1}`}
+            >
+              <h3 id={`report-item-${i + 1}`} tabIndex={-1}>
+                {i + 1}. {titles[i]}
+              </h3>
+              {content[i]}
+            </section>
+          ))}
+          <a className="back-to-toc" href="#report-toc">
+            目次に戻る
+          </a>
+        </section>
+      ))}
+    </>
+  );
+}

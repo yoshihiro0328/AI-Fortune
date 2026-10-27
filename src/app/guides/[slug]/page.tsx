@@ -44,12 +44,12 @@ export default async function Page({
   const g = guides.find((g) => g.slug === slug);
   if (!g) notFound();
   return (
-    <main id="main" className="legal">
+    <main id="main" className="legal reading-article">
       <Link href="/guides">恋愛相談の読みもの</Link>
       <h1>{g.title}</h1>
       <p className="lead">{g.description}</p>
       {g.sections.map(([title, text]) => (
-        <section key={title}>
+        <section className="reading-section" key={title}>
           <h2>{title}</h2>
           <p>{text}</p>
         </section>
@@ -62,6 +62,9 @@ export default async function Page({
         <Link className="button" href="/diagnosis/partner-mind?source=guide">
           無料診断をはじめる
         </Link>
+        <p>
+          <Link href="/chat">自由な文章で相談をはじめる</Link>
+        </p>
         <p className="fine">
           初回診断無料・登録不要。既に相談している方は、
           <Link href="/consult">前回の続きから</Link>話せます。

@@ -812,3 +812,390 @@ body:has(.yorisoi-home-shell) > .site-footer {
     gap: 12px;
   }
 }
+
+/* Reading surfaces: typography and hierarchy, independent of the home hero. */
+.flow.paid-report,
+.flow.result-page {
+  max-width: 900px;
+}
+.report-prose,
+.report-section p,
+.report-section li {
+  white-space: pre-wrap;
+  line-height: 1.95;
+}
+.report-section,
+.report-chapter,
+.report-toc {
+  overflow-wrap: anywhere;
+}
+.report-toc {
+  margin: 36px 0 54px;
+  padding: 24px;
+  background: #eef1e9;
+  border-radius: 12px;
+}
+.report-toc-groups {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 32px;
+}
+.report-toc-groups > div:last-child {
+  grid-column: 1 / -1;
+}
+.report-toc h3 {
+  font-size: 18px;
+  margin: 12px 0;
+}
+.report-toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.report-toc a {
+  display: inline-block;
+  padding: 7px 0;
+  text-underline-offset: 5px;
+}
+.report-chapter {
+  margin: 52px 0;
+}
+.report-chapter > header {
+  border-bottom: 2px solid var(--green);
+  padding-bottom: 12px;
+}
+.report-chapter h2 {
+  font-size: 28px;
+  margin: 4px 0;
+}
+.report-section {
+  padding: 30px 0;
+  border-bottom: 1px solid var(--line);
+}
+.report-section > h3 {
+  font-family: var(--heading-font);
+  font-size: 23px;
+  line-height: 1.65;
+  margin: 0 0 20px;
+  scroll-margin-top: 24px;
+}
+.report-section > h3:target {
+  outline: 2px solid var(--green);
+  outline-offset: 8px;
+}
+.back-to-toc {
+  display: inline-block;
+  padding: 14px 0;
+}
+.action-timeline {
+  list-style: decimal;
+  padding-left: 28px;
+}
+.action-timeline > li {
+  padding: 8px 0 20px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.action-timeline h4 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.action-timeline p {
+  margin: 0;
+}
+.message-drafts {
+  display: grid;
+  gap: 22px;
+}
+.message-draft {
+  padding: 22px;
+  background: #f7f5ef;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-width: 0;
+}
+.message-draft h3 {
+  margin-top: 0;
+  font-size: 20px;
+}
+.message-draft .message {
+  padding: 18px;
+  background: white;
+  border-left: 3px solid var(--green);
+  font-size: 18px;
+}
+.message-draft .message-note {
+  padding: 0;
+}
+.message-draft [role="status"]:empty {
+  margin: 0;
+}
+.save-note {
+  margin: 20px 0;
+  padding: 16px 20px;
+}
+.save-note p {
+  margin: 0 0 8px;
+}
+.save-note .fine {
+  font-size: 14px;
+  line-height: 1.75;
+}
+.result-action {
+  padding: 24px;
+  border-left: 4px solid var(--green);
+  background: #eef1e9;
+  margin: 24px 0 40px;
+}
+.result-page .panel,
+.result-indicators {
+  padding: 24px;
+}
+.result-indicators {
+  margin: 36px 0;
+  border-block: 1px solid var(--line);
+}
+.result-indicators .score strong {
+  font-size: 20px;
+  font-weight: 500;
+}
+.result-indicators .scores {
+  gap: 24px;
+  margin: 24px 0;
+}
+.result-page h3 {
+  font-size: 18px;
+}
+.flow.account-page {
+  max-width: 920px;
+}
+.account-continue {
+  background: #eef1e9;
+  padding: 28px;
+  border-radius: 12px;
+}
+.account-continue h2 {
+  margin-top: 4px;
+}
+.account-plan,
+.account-recent,
+.account-diagnoses,
+.account-settings {
+  margin: 40px 0;
+}
+.account-plan {
+  padding: 24px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.account-plan > h2 {
+  margin-top: 0;
+}
+.account-save h2 {
+  font-size: 21px;
+  margin-top: 0;
+}
+.account-save p {
+  font-size: 15px;
+}
+.account-email {
+  overflow-wrap: anywhere;
+}
+.account-settings {
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
+}
+.diagnosis-history-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--line);
+}
+.diagnosis-history-row p {
+  margin: 6px 0 0;
+}
+.history-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+.history-actions a,
+.account-recent a {
+  padding-block: 6px;
+  overflow-wrap: anywhere;
+}
+.account-recent .history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 24px;
+}
+.account-recent time {
+  font-size: 14px;
+}
+.account-recent .history-row span {
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+.reading-index {
+  max-width: 1080px;
+}
+.reading-index > h1 {
+  max-width: 750px;
+}
+.reading-list {
+  margin: 48px 0;
+}
+.reading-entry {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr);
+  gap: 24px;
+  border-top: 1px solid var(--line);
+  padding: 32px 0;
+}
+.reading-entry > div {
+  max-width: 760px;
+}
+.reading-number {
+  font-family: var(--heading-font);
+  font-size: 32px;
+  color: #657a6e;
+  padding-top: 8px;
+}
+.reading-entry .eyebrow {
+  margin: 0 0 10px;
+}
+.reading-entry h2 {
+  font-size: 25px;
+  margin: 0;
+  line-height: 1.6;
+}
+.reading-entry h2 a {
+  text-decoration: none;
+}
+.reading-entry p {
+  line-height: 1.8;
+}
+.reading-open {
+  display: inline-block;
+  padding: 10px 0;
+}
+.reading-article {
+  max-width: 800px;
+  line-height: 1.95;
+}
+.reading-article h1 {
+  font-size: 34px;
+  line-height: 1.6;
+}
+.reading-section {
+  margin: 46px 0;
+}
+.reading-section h2 {
+  font-size: 24px;
+  line-height: 1.6;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 12px;
+}
+.reading-article li {
+  margin-block: 12px;
+}
+@media (max-width: 600px) {
+  .report-toc-groups {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .report-toc {
+    padding: 20px;
+  }
+  .report-chapter h2 {
+    font-size: 25px;
+  }
+  .report-section > h3 {
+    font-size: 21px;
+  }
+  .message-draft {
+    padding: 16px;
+  }
+  .message-draft .message {
+    padding: 14px;
+    font-size: 17px;
+  }
+  .message-draft .button {
+    width: 100%;
+  }
+  .account-continue,
+  .account-plan,
+  .result-action,
+  .result-page .panel,
+  .result-indicators {
+    padding: 20px;
+  }
+  .diagnosis-history-row,
+  .account-recent .history-row {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .result-indicators .scores {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .result-indicators .score {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .reading-entry {
+    grid-template-columns: 32px minmax(0, 1fr);
+    gap: 14px;
+    padding: 24px 0;
+  }
+  .reading-number {
+    font-size: 23px;
+  }
+  .reading-entry h2,
+  .reading-section h2 {
+    font-size: 22px;
+  }
+  .reading-article h1 {
+    font-size: 28px;
+  }
+}
+
+.report-chapter > header {
+  display: block;
+  padding: 0 0 12px;
+  margin: 0;
+}
+.report-chapter h2,
+.report-toc h2,
+.account-page h1,
+.account-page h2,
+.result-page h1,
+.result-page h2,
+.reading-index h1,
+.reading-index h2,
+.reading-article h1,
+.reading-article h2 {
+  font-family: var(--heading-font);
+}
+@media (min-width: 900px) {
+  .paid-report .message-drafts {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .paid-report .message-draft {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .paid-report .message-draft .button {
+    margin-top: auto;
+    padding-inline: 12px;
+  }
+  .paid-report .message-draft .message {
+    padding: 12px;
+  }
+}

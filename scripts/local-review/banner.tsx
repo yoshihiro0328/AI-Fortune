@@ -57,6 +57,7 @@ export default function LocalReviewBanner() {
             ["/consult", "相談・履歴"],
             ["/plans", "料金"],
             ["/account", "マイページ"],
+            ["/guides", "読みもの"],
             ["/contact", "問い合わせ"],
           ].map(([href, title]) => (
             <a key={href} href={href}>
@@ -85,6 +86,8 @@ export default function LocalReviewBanner() {
           >
             <option value="free">無料会員</option>
             <option value="plus">Plus</option>
+            <option value="scheduled">解約予約・Plus</option>
+            <option value="empty">履歴なし・無料</option>
             <option value="canceled">解約後・Free</option>
             <option value="anonymous">未ログイン</option>
           </select>

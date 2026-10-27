@@ -94,3 +94,21 @@ test("trial input stays local and response explicitly synthetic", () => {
   assert.equal(r.data.turn.input.text, "合成の入力例");
   assert(r.data.turn.answer.includes("AI未使用"));
 });
+
+test("presentation scenarios retain scheduled entitlement and distinguish empty history", () => {
+  const f = createFixture(process.cwd());
+  assert(f.reset("scheduled"));
+  const scheduled = f.handle("GET", url("/api/consultations")).data;
+  assert.equal(scheduled.usage.plan, "plus");
+  assert.equal(scheduled.subscription.status, "active");
+  assert.equal(scheduled.subscription.cancel_at_period_end, true);
+  assert(f.reset("empty"));
+  const empty = f.handle("GET", url("/api/consultations")).data;
+  assert.deepEqual(empty.subjects, []);
+  assert.deepEqual(empty.threads, []);
+  assert.deepEqual(f.handle("GET", url("/api/diagnoses")).data, []);
+  const report = f.handle("GET", url("/api/diagnoses/sample-result/report"))
+    .data.report;
+  assert(report.relationship_analysis.length > 300);
+  assert(report.messages.natural.includes("補足"));
+});

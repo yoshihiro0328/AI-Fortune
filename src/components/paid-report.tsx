@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import PaidFollowup from "./paid-followup";
-import MessageDrafts from "./message-drafts";
+import ReportContents from "./report-contents";
 import type { Question } from "@/lib/client";
 import SaveResultNote from "./save-result-note";
 import { request, track } from "@/lib/client";
@@ -86,15 +86,8 @@ export default function Report({
       setBusy(false);
     }
   }
-  const list = (items: string[]) => (
-    <ul>
-      {items.map((x, i) => (
-        <li key={i}>{x}</li>
-      ))}
-    </ul>
-  );
   return (
-    <main id="main" className="flow report">
+    <main id="main" className="flow report paid-report">
       <div className="eyebrow">あなたのための詳細レポート</div>
       <h1>
         あなたのペースで、
@@ -153,64 +146,7 @@ export default function Report({
             回答に基づく可能性の整理です。相手の気持ちや未来を保証するものではありません。
           </p>
           {!verificationOnly && <SaveResultNote />}
-          {[
-            [
-              "1. 今のふたりの関係",
-              <p key="a">{report.relationship_analysis}</p>,
-            ],
-            [
-              "2. 相手の行動パターン",
-              <p key="b">{report.behavior_patterns}</p>,
-            ],
-            [
-              "3. 距離が変わった理由として考えられること",
-              list(report.distance_reasons),
-            ],
-            [
-              "4. 良い兆候",
-              list(
-                report.positive_signals.map((s) => s.signal + "：" + s.reason),
-              ),
-            ],
-            [
-              "5. 気に留めたいこと",
-              list(
-                report.attention_signals.map((s) => s.signal + "：" + s.reason),
-              ),
-            ],
-            ["6. あなたが見直せること", list(report.improvement_points)],
-            ["7. やらない方がいいこと", list(report.avoid_actions)],
-            [
-              "8. 今、連絡するか迷ったら",
-              <p key="c">{report.contact_advice}</p>,
-            ],
-            [
-              "9. 次に送るメッセージ案",
-              <MessageDrafts key="d" messages={report.messages} />,
-            ],
-            [
-              "10. 次に会ったときのヒント",
-              <p key="e">{report.next_meeting}</p>,
-            ],
-            [
-              "11. 今後7日間",
-              list(
-                report.seven_day_plan.map((p) => p.period + "：" + p.action),
-              ),
-            ],
-            [
-              "12. 今後30日間",
-              list(
-                report.thirty_day_plan.map((p) => p.period + "：" + p.action),
-              ),
-            ],
-            ["13. 総合アドバイス", <p key="f">{report.overall_advice}</p>],
-          ].map(([title, content], i) => (
-            <section className="panel" key={i}>
-              <h2>{title}</h2>
-              {content}
-            </section>
-          ))}
+          <ReportContents report={report} />
           <Link href="/account" className="button">
             アカウントに保存する
           </Link>

@@ -49,7 +49,7 @@ export default function MessageDrafts({
   messages: PaidReport["messages"];
 }) {
   return (
-    <div>
+    <div className="message-drafts">
       {(
         [
           ["自然に", messages.natural],
