@@ -1,9 +1,11 @@
+import { assertProductionDataTarget } from "@/lib/production/config";
 import { createClient } from "@supabase/supabase-js";
 import { api } from "@/lib/http";
 import { required } from "@/lib/config";
 import { checked, db } from "@/lib/supabase/admin";
 export async function GET(req: Request) {
   return api(async () => {
+    assertProductionDataTarget();
     const client = createClient(
       required("NEXT_PUBLIC_SUPABASE_URL"),
       required("NEXT_PUBLIC_SUPABASE_ANON_KEY"),

@@ -7,20 +7,33 @@ export class ProductionStop extends Error {
     this.name = "ProductionStop";
   }
 }
-// Only fixed issue codes leave this validator. Never return configuration values.
-export function productionIssues(
-  env: NodeJS.ProcessEnv = process.env,
-): string[] {
+function dataTargetIssues(env: NodeJS.ProcessEnv): string[] {
   const issues: string[] = [];
   if (env.VERCEL_ENV !== "production") issues.push("RUNTIME_TARGET");
-  if (!/^[a-zA-Z0-9_-]{1,80}$/.test(env.PRODUCTION_ENVIRONMENT_ID ?? ""))
-    issues.push("ENVIRONMENT_BINDING");
   const ref = env.PRODUCTION_SUPABASE_REF;
   if (
     !/^[a-z]{20}$/.test(ref ?? "") ||
     env.NEXT_PUBLIC_SUPABASE_URL !== `https://${ref}.supabase.co`
   )
     issues.push("DATABASE_BINDING");
+  return issues;
+}
+// Keep reads/cancellation available when only AI or sales are disabled, but never
+// construct a data/auth client for a mismatched production database target.
+export function assertProductionDataTarget(
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  if (productionRuntime(env) && dataTargetIssues(env).length)
+    throw new ProductionStop();
+}
+// Only fixed issue codes leave this validator. Never return configuration values.
+export function productionIssues(
+  env: NodeJS.ProcessEnv = process.env,
+): string[] {
+  const issues: string[] = [];
+  issues.push(...dataTargetIssues(env));
+  if (!/^[a-zA-Z0-9_-]{1,80}$/.test(env.PRODUCTION_ENVIRONMENT_ID ?? ""))
+    issues.push("ENVIRONMENT_BINDING");
   try {
     const u = new URL(env.NEXT_PUBLIC_APP_URL ?? "");
     if (

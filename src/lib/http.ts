@@ -1,3 +1,4 @@
+import { assertProductionDataTarget } from "@/lib/production/config";
 import { safeOperationalLog } from "@/lib/production/log";
 import "server-only";
 import { cookies } from "next/headers";
@@ -39,6 +40,7 @@ export async function identity(create = false) {
   };
 }
 export async function authClient() {
+  assertProductionDataTarget();
   const jar = await cookies();
   return createServerClient(
     required("NEXT_PUBLIC_SUPABASE_URL"),

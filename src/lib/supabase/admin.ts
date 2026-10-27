@@ -1,7 +1,9 @@
+import { assertProductionDataTarget } from "@/lib/production/config";
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
 import { required } from "../config";
 export function db() {
+  assertProductionDataTarget();
   return createClient(
     required("NEXT_PUBLIC_SUPABASE_URL"),
     required("SUPABASE_SERVICE_ROLE_KEY"),
