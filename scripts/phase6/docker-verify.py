@@ -34,7 +34,7 @@ sql(f"insert into public.billing_customers(user_id,stripe_customer_id) values('{
 sql(f"insert into public.subscriptions(id,user_id,stripe_customer_id,price_version,amount,status,period_start,period_end,paid_through,is_test,created_at) values('sub_synthetic','{plus_user}','cus_synthetic','plus-2026-10-980',980,'active',now()-interval '1 day',now()+interval '29 days',now()+interval '29 days',true,now());")
 assert runrpc('consultation_entitlement',[u])['remaining']==3
 assert runrpc('consultation_entitlement',[plus_user])['remaining']==30
-snapshot="select jsonb_build_object('subscriptions',(select md5(string_agg(to_jsonb(s)::text,'|' order by id)) from public.subscriptions s),'payments',(select md5(string_agg(to_jsonb(p)::text,'|' order by id)) from public.payments p),'settings',(select to_jsonb(s) from public.service_settings s),'policies',(select md5(string_agg(to_jsonb(p)::text,'|' order by tablename,policyname)) from pg_policies p where schemaname='public'));"
+snapshot="select jsonb_build_object('subscriptions',(select md5(string_agg(to_jsonb(s)::text,'|' order by id)) from public.subscriptions s),'payments',(select md5(string_agg(to_jsonb(p)::text,'|' order by id)) from public.payments p),'settings',(select to_jsonb(s) from public.service_settings s),'policies',(select md5(string_agg(to_jsonb(p)::text,'|' order by tablename,policyname)) from pg_policies p where schemaname='public' and tablename<>'consultation_events'));"
 before=obj(snapshot)
 migrations=[f for f in files if f.name>='20261014151638_trial_foundation.sql']
 auth_snapshot="select jsonb_build_object('rls',(select relrowsecurity from pg_class where oid='auth.users'::regclass),'acl',(select relacl::text from pg_class where oid='auth.users'::regclass),'policies',(select count(*) from pg_policies where schemaname='auth'));"
@@ -71,7 +71,17 @@ assert denied.returncode!=0 and 'permission denied' in denied.stderr
 denied=subprocess.run(base,input="update payment_environment set stripe_account_id='acct_forbidden';",text=True,capture_output=True)
 assert denied.returncode!=0 and 'only an empty project' in denied.stderr
 
+# Preserve every pre-existing policy; check the newly introduced table separately.
 assert obj(snapshot)==before
+assert sql("select count(*) from pg_policies where schemaname='public' and tablename='consultation_events' and policyname='consultation_events_owner' and cmd='SELECT' and roles=array['authenticated']::name[];")=='1'
+assert sql("select relrowsecurity from pg_class where oid='public.consultation_events'::regclass;")=='t'
+assert sql("select has_table_privilege('anon','public.consultation_events','SELECT');")=='f'
+assert sql("select has_table_privilege('authenticated','public.consultation_events','SELECT');")=='t'
+for privilege in ['INSERT','UPDATE','DELETE']:
+ assert sql("select has_table_privilege('authenticated','public.consultation_events','"+privilege+"');")=='f'
+for role in ['anon','authenticated','public_probe']:
+ assert sql("select has_function_privilege('"+role+"','public.manage_consultation_event(uuid,text,uuid,uuid,date,text,integer)','EXECUTE');")=='f'
+assert sql("select has_function_privilege('service_role','public.manage_consultation_event(uuid,text,uuid,uuid,date,text,integer)','EXECUTE');")=='t'
 assert runrpc('consultation_entitlement',[u])['remaining']==3
 assert runrpc('consultation_entitlement',[plus_user])['remaining']==30
 # Fresh price validity is synthetic; the checked-in release price remains time-limited.

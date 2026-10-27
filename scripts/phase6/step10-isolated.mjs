@@ -339,18 +339,24 @@ export async function step10Isolated({
     sql(
       `insert into public.diagnosis_answers(id,diagnosis_id,question_key,question_text,answer_text) values('${extra}','${p.rows.diagnoses[0]}','unexpected','local-only','local-only');`,
     );
-    assert.throws(() => sql(cleanupSQL(p)), /Unexpected dependent fixture row/);
+    assert.throws(() => sql(cleanupSQL(p, { manualEvents: true })), /Unexpected dependent fixture row/);
     assert.deepEqual(Object.values(count()), [2, 2, 2, 2, 2, 2]);
     sql(`delete from public.diagnosis_answers where id='${extra}';`);
+    sql(`insert into public.consultation_events(id,user_id,subject_id,event_date,text) values('${extra}','${p.users[0]}','${p.rows.consultation_subjects[0]}','2026-10-01','synthetic retained event');`);
+    assert.throws(() => sql(cleanupSQL(p, { manualEvents: true })), /Unexpected dependent fixture row/);
+    assert.equal(object("select jsonb_build_object('count',count(*)) from public.consultation_events").count, 1);
+    assert.deepEqual(Object.values(count()), [2, 2, 2, 2, 2, 2]);
+    sql(`delete from public.consultation_events where id='${extra}';`);
+
     sql(
       "create table public.step10_unexpected_dependency(id uuid primary key, diagnosis_id uuid references public.diagnoses(id) on delete cascade);",
     );
-    assert.throws(() => sql(cleanupSQL(p)), /Fixture FK schema drift/);
+    assert.throws(() => sql(cleanupSQL(p, { manualEvents: true })), /Fixture FK schema drift/);
     assert.deepEqual(Object.values(count()), [2, 2, 2, 2, 2, 2]);
     sql("drop table public.step10_unexpected_dependency;");
   });
   await test("17 UUID-only cleanup leaves profiles/Auth/quotas unchanged", async () => {
-    sql(cleanupSQL(p));
+    sql(cleanupSQL(p, { manualEvents: true }));
     assert.deepEqual(Object.values(count()), [0, 0, 0, 0, 0, 0]);
     assert.deepEqual(object(baselineQuery), baseline);
   });

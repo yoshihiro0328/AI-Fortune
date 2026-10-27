@@ -79,7 +79,7 @@ export function insertSQL(plan) {
   return "begin;\n" + statements.join("\n") + "\ncommit;";
 }
 /** All known FK references must belong to the manifest. Fail rather than cascade unknown rows. */
-export function cleanupSQL(plan) {
+export function cleanupSQL(plan, { manualEvents = false } = {}) {
   const p = validatePlan(plan),
     ids = (t) => p.rows[t].map(q).join(","),
     checks = [];
@@ -106,6 +106,8 @@ export function cleanupSQL(plan) {
     ["affiliate_recommendations", "diagnosis_id", "diagnoses"],
     ["affiliate_clicks", "diagnosis_id", "diagnoses"],
   ];
+  if (manualEvents)
+    extraRelations.push(["consultation_events", "subject_id", "consultation_subjects"]);
   for (const [table, column, parent] of extraRelations)
     checks.push(
       `if exists(select 1 from public.${table} where ${column} in (${ids(parent)})) then raise exception 'Unexpected dependent fixture row'; end if;`,
@@ -148,7 +150,7 @@ export function cleanupSQL(plan) {
   const expectedRelations = relations
     .map(([child, column, parent]) => `('${child}','${column}','${parent}')`)
     .join(",");
-  checks.unshift(`if (select count(*) from pg_constraint where contype='f' and confrelid in (${tables.map((t) => `'public.${t}'::regclass`).join(",")}))<>15 or exists (
+  checks.unshift(`if (select count(*) from pg_constraint where contype='f' and confrelid in (${tables.map((t) => `'public.${t}'::regclass`).join(",")}))<>${relations.length} or exists (
     select 1 from pg_constraint c where c.contype='f' and c.confrelid in (${tables.map((t) => `'public.${t}'::regclass`).join(",")}) and not exists (
       select 1 from (values ${expectedRelations}) expected(child,column_name,parent)
       join pg_attribute a on a.attrelid=c.conrelid and a.attname=expected.column_name
