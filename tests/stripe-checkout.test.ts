@@ -264,6 +264,22 @@ it("Live checkout remains disabled even in Production until explicitly enabled (
     STRIPE_WEBHOOK_SECRET: "synthetic",
   }))
     vi.stubEnv(key, value);
+  // Complete the same approval gate required by production, using synthetic facts.
+  // Missing owner approval must still stop before creating a Checkout.
+  expect((await buyPlus()).status).toBe(503);
+  expect(m.created).not.toHaveBeenCalled();
+  for (const [key, value] of Object.entries({
+    PUBLIC_POLICIES_APPROVED: "true",
+    OPERATOR_NAME: "synthetic operator",
+    OPERATOR_REPRESENTATIVE: "synthetic representative",
+    OPERATOR_ADDRESS: "synthetic address",
+    OPERATOR_PHONE: "synthetic phone",
+    OPERATOR_EMAIL: "synthetic@example.org",
+    DATA_RETENTION_POLICY: "synthetic retention",
+    REFUND_REQUEST_PERIOD: "synthetic refund",
+    SUPPORT_RESPONSE_TIME: "synthetic response",
+  }))
+    vi.stubEnv(key, value);
   expect((await buyPlus()).status).toBe(503);
   expect(m.created).not.toHaveBeenCalled();
   m.productionSales = true;
