@@ -14,7 +14,7 @@ await fs.mkdir(out, { recursive: true });
 const b = await chromium.launch({ channel: "chrome", headless: true });
 const results = [];
 try {
-  for (const width of [1440, 390]) {
+  for (const width of [1440, 390, 320]) {
     const c = await b.newContext({ viewport: { width, height: 960 } });
     c.setDefaultTimeout(15000);
     let external = 0;

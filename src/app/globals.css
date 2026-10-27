@@ -1240,3 +1240,8 @@ main .reading-open:hover,
   align-items: center;
   min-height: 44px;
 }
+
+.home-reading.home-return-cards {
+  grid-auto-rows: 1fr;
+  align-items: stretch;
+}
