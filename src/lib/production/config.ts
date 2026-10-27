@@ -57,9 +57,18 @@ export function productionIssues(
     !env.OPENAI_API_KEY ||
     !env.SUPABASE_SERVICE_ROLE_KEY ||
     !env.SESSION_SECRET ||
+    !env.CRON_SECRET ||
     !env.STRIPE_WEBHOOK_SECRET
   )
     issues.push("REQUIRED_SECRET");
+  if (
+    env.MAIL_ENABLED === "true" &&
+    (!env.RESEND_API_KEY ||
+      ["EMAIL_FROM", "EMAIL_REPLY_TO", "CONTACT_NOTIFY_TO"].some(
+        (k) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env[k] ?? ""),
+      ))
+  )
+    issues.push("MAIL_CONFIGURATION");
   if (
     [
       "PAYMENT_INTEGRATION_LOCAL",

@@ -56,6 +56,7 @@ beforeEach(() => {
     OPENAI_API_KEY: "synthetic",
     SUPABASE_SERVICE_ROLE_KEY: "synthetic",
     SESSION_SECRET: "synthetic",
+    CRON_SECRET: "synthetic",
     STRIPE_WEBHOOK_SECRET: "synthetic",
   };
   for (const [k, v] of Object.entries(env)) vi.stubEnv(k, v);

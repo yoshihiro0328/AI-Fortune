@@ -35,6 +35,7 @@ const env = {
   SUPABASE_SERVICE_ROLE_KEY: "synthetic",
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "synthetic",
   SESSION_SECRET: "synthetic",
+  CRON_SECRET: "synthetic",
   STRIPE_WEBHOOK_SECRET: "synthetic",
 };
 const request = () => ({
@@ -324,6 +325,15 @@ describe("production shared accounting and stops (isolated SQL)", () => {
     expect(
       (await pg.query("select * from production_ai_reservations")).rows,
     ).toHaveLength(0);
+  });
+  it("rejects missing cron protection or an incomplete enabled mail route without printing values", () => {
+    vi.stubEnv("CRON_SECRET", "");
+    vi.stubEnv("MAIL_ENABLED", "true");
+    vi.stubEnv("EMAIL_FROM", "synthetic-private-value");
+    const issues = productionIssues();
+    expect(issues).toContain("REQUIRED_SECRET");
+    expect(issues).toContain("MAIL_CONFIGURATION");
+    expect(JSON.stringify(issues)).not.toContain("synthetic-private-value");
   });
   it("logs only a fixed event without exception content", () => {
     const log = vi.spyOn(console, "error").mockImplementation(() => {});

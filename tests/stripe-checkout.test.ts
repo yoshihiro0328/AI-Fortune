@@ -257,6 +257,7 @@ it("Live checkout remains disabled even in Production until explicitly enabled (
     SUPABASE_SERVICE_ROLE_KEY: "synthetic",
     NEXT_PUBLIC_SUPABASE_ANON_KEY: "synthetic",
     SESSION_SECRET: "synthetic",
+    CRON_SECRET: "synthetic",
     STRIPE_WEBHOOK_SECRET: "synthetic",
   }))
     vi.stubEnv(key, value);
