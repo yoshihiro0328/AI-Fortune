@@ -1199,3 +1199,9 @@ body:has(.yorisoi-home-shell) > .site-footer {
     padding: 12px;
   }
 }
+.report-toc a,
+.report-section > h3,
+.reading-entry h2,
+.reading-article h1 {
+  text-wrap: balance;
+}
