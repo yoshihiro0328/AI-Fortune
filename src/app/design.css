@@ -257,78 +257,100 @@ summary:focus-visible {
 body:has(.yorisoi-home-shell) > .site-footer {
   margin-inline: auto;
 }
-/* Homepage: illustration and editable copy have separate responsive layouts. */
+/* The approved composition is vertical: a full garden above the copy. */
+.yorisoi-home-shell {
+  position: relative;
+  max-width: 1000px;
+  margin-inline: auto;
+}
 .home-header {
-  max-width: 1180px;
-  padding: 24px var(--gutter);
+  position: absolute;
+  top: 0;
+  inset-inline: 0;
+  z-index: 1;
+  padding: 30px 6%;
   border: 0;
+  align-items: flex-start;
+}
+.home-header .p6-brand {
+  font-size: clamp(28px, 5.8vw, 48px);
+  font-weight: 600;
+  line-height: 1.25;
+}
+.home-header .p6-brand small {
+  font-size: clamp(10px, 1.5vw, 15px);
+  letter-spacing: 0.28em;
+  margin-top: 10px;
 }
 .home-header nav {
   display: flex;
   align-items: center;
-  gap: 28px;
 }
 .home-header nav a {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
-  font-size: 15px;
+  font-size: clamp(15px, 2.3vw, 22px);
   text-decoration: underline;
+  text-underline-offset: 10px;
+}
+.home-header nav .home-header-extra {
+  display: none;
 }
 .yorisoi-home {
-  max-width: 1180px;
   margin: auto;
-  padding-inline: var(--gutter);
 }
 .home-hero {
-  display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
-  align-items: center;
-  padding-block: 28px 60px;
-  gap: 28px;
-}
-.home-art {
-  grid-column: 2;
-  grid-row: 1;
+  padding-bottom: 40px;
 }
 .home-art img {
   display: block;
   width: 100%;
   height: auto;
-  border-radius: 44% 8% 30% 10% / 12% 20% 12% 20%;
 }
 .home-introduction {
-  grid-column: 1;
-  grid-row: 1;
+  padding: 0 6%;
+  margin-top: -6px;
+  position: relative;
 }
 .p6 .home-kicker,
 .home-kicker {
   color: var(--muted);
-  font-size: 15px;
-  letter-spacing: 0.055em;
-  margin: 0 0 16px;
+  font-size: clamp(14px, 2.5vw, 23px);
+  letter-spacing: 0.05em;
+  margin: 0 0 20px;
+}
+.home-introduction .home-kicker::after {
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  width: 2.5em;
+  height: 1px;
+  margin-left: 1em;
+  background: var(--muted);
 }
 .p6 .home-introduction h1 {
-  font-size: clamp(36px, 4.1vw, 56px);
-  line-height: 1.6;
-  letter-spacing: 0.035em;
-  margin: 0 0 24px;
+  font-size: clamp(38px, 8vw, 82px);
+  line-height: 1.45;
+  letter-spacing: 0.025em;
+  margin: 0 0 20px;
   font-weight: 600;
 }
 .p6 .home-description {
-  font-size: 18px;
-  line-height: 2;
+  font-family: var(--heading-font);
+  font-size: clamp(19px, 3.8vw, 34px);
+  line-height: 1.7;
   margin-bottom: 28px;
 }
 .home-mobile-break {
-  display: none;
+  display: block;
 }
 .home-primary {
   display: flex;
-  max-width: 380px;
-  min-height: 60px;
   width: 100%;
-  font-size: 18px;
+  min-height: 72px;
+  font-size: clamp(18px, 3.6vw, 26px);
+  border-radius: 48px;
 }
 .home-primary svg:last-child {
   margin-left: auto;
@@ -349,20 +371,30 @@ body:has(.yorisoi-home-shell) > .site-footer {
 .home-introduction .home-secondary {
   margin-top: 12px;
 }
+.home-answer,
+.home-offers,
+.home-reading {
+  margin-inline: 6%;
+}
 .home-answer {
   display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
-  gap: 50px;
-  padding: 48px 0 60px;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 32px;
+  padding: 40px 0;
   border-top: 1px solid var(--line);
 }
 .p6 .home-section-intro h2,
 .p6 .home-reading h2 {
-  font-size: clamp(25px, 2.6vw, 32px);
+  font-size: clamp(25px, 3.6vw, 32px);
   margin-bottom: 16px;
 }
 .home-section-intro > p:last-child {
   color: var(--muted);
+}
+.home-answer .home-kicker,
+.home-offers .home-kicker,
+.home-reading .home-kicker {
+  font-size: 14px;
 }
 .home-example {
   margin-bottom: 16px;
@@ -371,11 +403,11 @@ body:has(.yorisoi-home-shell) > .site-footer {
 }
 .home-question {
   background: #f9eade;
-  margin-right: 36px;
+  margin-right: 28px;
 }
 .home-ai {
   background: #e9ede3;
-  margin-left: 36px;
+  margin-left: 28px;
 }
 .home-speaker {
   display: flex;
@@ -394,7 +426,7 @@ body:has(.yorisoi-home-shell) > .site-footer {
   margin: 20px 0 0;
 }
 .home-offers {
-  padding-block: 44px;
+  padding-block: 40px;
   border-top: 1px solid var(--line);
 }
 .home-price-list {
@@ -449,7 +481,7 @@ body:has(.yorisoi-home-shell) > .site-footer {
   text-decoration: underline;
 }
 .p6 .home-disclaimer {
-  margin: 28px 0 0;
+  margin: 28px 6% 0;
 }
 @media (max-width: 900px) {
   .plan-card + .plan-card {
@@ -458,46 +490,8 @@ body:has(.yorisoi-home-shell) > .site-footer {
   .plan-card {
     padding-inline: 0;
   }
-  .home-header nav .home-header-extra {
-    display: none;
-  }
-  .home-hero {
-    grid-template-columns: 1fr;
-    gap: 20px;
-    padding-block: 0 32px;
-  }
-  .home-art {
-    grid-column: 1;
-    grid-row: 1;
-    margin-inline: calc(-1 * var(--gutter));
-  }
-  .home-art img {
-    width: 100%;
-    height: clamp(190px, 52vw, 330px);
-    object-fit: cover;
-    object-position: 50% 55%;
-    border-radius: 0;
-  }
-  .home-introduction {
-    grid-column: 1;
-    grid-row: 2;
-  }
-  .p6 .home-introduction h1 {
-    font-size: clamp(32px, 7.8vw, 48px);
-    margin-bottom: 12px;
-  }
-  .p6 .home-description {
-    font-size: 16px;
-    margin-bottom: 18px;
-  }
-  .home-primary {
-    max-width: 420px;
-    min-height: 54px;
-    font-size: 17px;
-  }
-  .p6 .home-kicker {
-    font-size: 14px;
-    margin-bottom: 10px;
+  .home-header {
+    padding-block: 16px;
   }
   .home-answer {
     grid-template-columns: 1fr;
@@ -513,26 +507,30 @@ body:has(.yorisoi-home-shell) > .site-footer {
   }
 }
 @media (max-width: 500px) {
-  .home-header {
-    padding-block: 16px;
+  .home-header .p6-brand small {
+    margin-top: 6px;
   }
-  .home-header .p6-brand {
-    font-size: 26px;
+  .home-introduction .home-kicker {
+    font-size: 13px;
+    letter-spacing: 0.02em;
+    margin-bottom: 14px;
   }
-  .home-header nav a {
-    font-size: 14px;
+  .home-introduction .home-kicker::after {
+    width: 1.5em;
+    margin-left: 0.6em;
   }
-  .home-hero {
-    gap: 16px;
-  }
-  .home-art img {
-    height: 200px;
+  .p6 .home-introduction h1 {
+    font-size: clamp(33px, 9.9vw, 49px);
+    line-height: 1.45;
+    margin-bottom: 14px;
   }
   .p6 .home-description {
-    line-height: 1.9;
+    font-size: clamp(18px, 5.1vw, 24px);
+    margin-bottom: 20px;
   }
-  .home-mobile-break {
-    display: block;
+  .home-primary {
+    min-height: 56px;
+    font-size: 18px;
   }
   .home-example {
     padding: 16px 18px;

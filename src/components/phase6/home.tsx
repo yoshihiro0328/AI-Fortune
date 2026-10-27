@@ -19,7 +19,7 @@ export default function Home({
           <Image
             src="/images/yorisoi-garden.webp"
             width={853}
-            height={580}
+            height={700}
             alt="木漏れ日の庭で、距離を取りながら向き合う二人の水彩画"
             preload
             unoptimized

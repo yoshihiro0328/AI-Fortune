@@ -46,7 +46,7 @@ export default function Phase6Shell({
             <Link className="home-header-extra" href="/plans">
               料金・プラン
             </Link>
-            <Link href="/account">マイページ・ログイン</Link>
+            <Link href="/account">ログイン</Link>
           </nav>
         </header>
         {children}
