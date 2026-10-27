@@ -113,6 +113,9 @@ it.each(["diagnosis", "consultation"])(
       maxRetries: 0,
     });
     expect(m.insert.mock.calls[0][0]).toMatchObject({ is_test: false });
+    expect(m.rpc.mock.calls[0][1].p_id).toBe(
+      path === "diagnosis" ? m.insert.mock.calls[0][0].id : "fixture-call",
+    );
   },
 );
 it("production never repeats an unknown provider call even when a caller requests three attempts", async () => {

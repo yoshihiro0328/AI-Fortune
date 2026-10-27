@@ -99,8 +99,10 @@ export async function runAI<T>(
         max_output_tokens:
           options.maxTokens ?? (stage === "paid_report" ? 6500 : 2500),
       } satisfies OpenAI.Responses.ResponseCreateParamsNonStreaming;
-      const r = await withProductionBudget(request, (params) =>
-        client.responses.parse(params),
+      const r = await withProductionBudget(
+        request,
+        (params) => client.responses.parse(params),
+        callId,
       );
       const data = schema.parse(r.output_parsed);
       const it = r.usage?.input_tokens ?? 0,

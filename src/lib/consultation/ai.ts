@@ -62,8 +62,10 @@ async function invoke<T>(
       text: { format: zodTextFormat(schema, stage) },
       max_output_tokens: 2400,
     } satisfies OpenAI.Responses.ResponseCreateParamsNonStreaming;
-    const r = await withProductionBudget(request, (params) =>
-      client.responses.parse(params),
+    const r = await withProductionBudget(
+      request,
+      (params) => client.responses.parse(params),
+      call.id,
     );
     usage = r.usage;
     const parsed = schema.parse(r.output_parsed);

@@ -33,7 +33,11 @@ type AIResponse = {
 export async function withProductionBudget<
   R extends AIRequest,
   T extends AIResponse,
->(request: R, send: (request: R) => Promise<T>): Promise<T> {
+>(
+  request: R,
+  send: (request: R) => Promise<T>,
+  reservationId?: string,
+): Promise<T> {
   if (!productionRuntime()) return send(request);
   const environment = productionEnvironment();
   const limit = request.max_output_tokens;
@@ -70,7 +74,8 @@ export async function withProductionBudget<
     )
   )
     throw new ProductionStop();
-  const id = randomUUID();
+  // Existing access-controlled call ID links accounting to its saved stage, never logs.
+  const id = reservationId ?? randomUUID();
   const rpc = async (name: string, args: Record<string, unknown>) => {
     const r = await db().rpc(name, {
       p_id: id,
