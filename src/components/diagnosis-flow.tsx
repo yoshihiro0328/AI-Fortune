@@ -1,5 +1,5 @@
 "use client";
-import { phaseLabels } from "@/lib/questions/labels";
+import DiagnosisProgress from "./diagnosis-progress";
 import ProgressNote from "./progress-note";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -241,7 +241,7 @@ export default function DiagnosisFlow() {
         <div className="panel">
           <h1>ふたりのことを、聞かせてください。</h1>
           <p>
-            ふたりの状況に合わせて、必要なことだけ聞いていきます。目安は12〜18問ほどです。分からないことは、そのまま教えてください。
+            ふたりの状況に合わせて、必要なことだけ聞いていきます。質問の数は回答内容によって変わります。分からないことは、そのまま教えてください。
           </p>
           <p className="fine">
             AIが回答を作るため、入力内容をOpenAIに送信します。氏名・住所・電話番号・メールアドレスなど、個人を特定できる情報は入力しないでください。ブラウザの保存情報（Cookie）を削除すると、アカウントに保存していない診断は開けなくなります。
@@ -266,30 +266,25 @@ export default function DiagnosisFlow() {
         </div>
       ) : q ? (
         <>
-          <div className="meta">
-            {v2
-              ? phaseLabels[q.phase ?? "common"]
-              : follow
-                ? "最終確認"
-                : "基本情報"}
-          </div>
-          <progress
-            className="progress"
-            max={4}
-            value={
-              v2
-                ? ["common", "relationship", "concern", "ai_followup"].indexOf(
-                    q.phase ?? "common",
-                  ) + 1
-                : follow
-                  ? 4
-                  : 1
-            }
-            aria-label="診断の進捗"
+          <DiagnosisProgress
+            index={index}
+            count={questions.length}
+            phase={q.phase}
+            dynamic={v2}
+            followup={follow}
           />
           <div className="panel">
             <h1 ref={heading} tabIndex={-1} id="question-title">
-              {q.question_text}
+              {/[?？]$/.test(q.question_text) && q.question_text.length > 6 ? (
+                <>
+                  {Array.from(q.question_text).slice(0, -6).join("")}
+                  <span className="question-ending">
+                    {Array.from(q.question_text).slice(-6).join("")}
+                  </span>
+                </>
+              ) : (
+                q.question_text
+              )}
             </h1>
             <fieldset
               disabled={!!busy}

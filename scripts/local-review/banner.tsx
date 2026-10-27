@@ -27,7 +27,7 @@ export default function LocalReviewBanner() {
         color: "#183f36",
         padding: "10px 20px",
         borderBottom: "1px solid #9fbfb1",
-        position: "sticky",
+        position: "relative",
         top: 0,
         zIndex: 100,
       }}
@@ -54,7 +54,7 @@ export default function LocalReviewBanner() {
             ["/diagnosis/partner-mind?new=1", "診断"],
             ["/result/sample-result", "診断結果"],
             ["/report/sample-result", "詳細レポート"],
-            ["/consult", "継続相談"],
+            ["/consult", "相談・履歴"],
             ["/plans", "料金"],
             ["/account", "マイページ"],
             ["/contact", "問い合わせ"],

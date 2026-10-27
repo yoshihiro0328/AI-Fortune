@@ -13,7 +13,7 @@ export default function DemoBanner() {
         <Link href="/report/demo-example">詳細レポート例</Link>
         <Link href="/plans">料金比較</Link>
         <Link href="/account">アカウント例</Link>
-        <Link href="/consult">相手別ホーム</Link>
+        <Link href="/consult">相談・履歴</Link>
       </nav>
     </aside>
   );

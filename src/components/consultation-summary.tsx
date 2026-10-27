@@ -136,7 +136,7 @@ export default function ConsultationSummary() {
         </p>
       )}
       <p className="fine">
-        {payment.notice}Plusには単発の詳細診断は含まれません。
+        {payment.notice}Plusには単発の詳細レポートは含まれません。
       </p>
     </section>
   );

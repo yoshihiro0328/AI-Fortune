@@ -51,6 +51,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             よりそい<span>YORISOI</span>
           </Link>
           <nav className="header-links" aria-label="メインメニュー">
+            <Link className="nav-link" href="/consult">
+              相談・履歴
+            </Link>
             <Link className="nav-link" href="/account">
               マイページ
             </Link>

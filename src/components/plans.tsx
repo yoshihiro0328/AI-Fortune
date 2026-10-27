@@ -4,7 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import { request } from "@/lib/client";
 import BillingTerms from "./billing-terms";
-import { exchangeExplanation } from "@/lib/display-copy";
 import { pricing, yen } from "@/lib/pricing";
 export default function Plans({ free, plus }: { free: number; plus: number }) {
   const payment = usePaymentDisplay();
@@ -27,7 +26,6 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
   }
   return (
     <>
-      <p>{exchangeExplanation}</p>
       <div className="plan-grid">
         <section className="plan-card">
           <p className="eyebrow">まずは、気軽に</p>
@@ -42,7 +40,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             <li>診断・相談履歴の閲覧</li>
           </ul>
           <Link className="button secondary" href="/diagnosis/partner-mind">
-            無料で相談してみる
+            無料診断をはじめる
           </Link>
         </section>
         <section className="plan-card">
@@ -61,7 +59,10 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             <li>状況の変化・次の行動の相談</li>
           </ul>
           <p className="fine">
-            詳細診断は含まれません。別途{yen(pricing.report)}（税込）です。
+            詳細レポートは含まれません。別途{yen(pricing.report)}（税込）です。
+          </p>
+          <p className="fine">
+            解約手続き後も支払い済みの期間は利用でき、次回からの自動更新を停止します。
           </p>
           <label className="choice">
             <input
@@ -87,7 +88,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
         </section>
         <section className="plan-card">
           <p className="eyebrow">今回のことを、詳しく</p>
-          <h2>単発の詳細診断</h2>
+          <h2>詳細レポート</h2>
           <p className="price">
             {yen(pricing.report)}
             <span> / 回（税込）</span>
@@ -101,7 +102,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             <li>7日・30日の行動プラン</li>
           </ul>
           <Link className="button secondary" href="/account">
-            診断結果から詳しく見る
+            マイページで診断履歴を見る
           </Link>
           <p className="fine">
             自動更新なし。既に購入したレポートはそのまま読めます。
@@ -114,7 +115,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
         </p>
       )}
       <section className="panel">
-        <BillingTerms free={free} plus={plus} />
+        <BillingTerms free={free} plus={plus} compact />
         <p>{payment.notice}</p>
         <Link href="/legal/refund">返金・キャンセルの方針</Link>
       </section>

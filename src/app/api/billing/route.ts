@@ -226,7 +226,7 @@ export async function POST(req: Request) {
           automatic_tax: { enabled: false },
           custom_text: {
             submit: {
-              message: `AIとのやり取りは契約期間ごとに${limits.plus_limit}往復まで。${exchangeExplanation}詳細診断は別料金です。${environment.isTest ? "現在はテスト決済のみで実請求は発生しません。" : ""}`,
+              message: `AIとのやり取りは契約期間ごとに${limits.plus_limit}往復まで。${exchangeExplanation}詳細レポートは別料金です。${environment.isTest ? "現在はテスト決済のみで実請求は発生しません。" : ""}`,
             },
           },
           customer: customer.stripe_customer_id,

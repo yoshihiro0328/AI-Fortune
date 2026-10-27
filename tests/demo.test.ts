@@ -249,7 +249,7 @@ describe("synthetic screen content", () => {
     const thread = renderToStaticMarkup(
       createElement(DemoScreen, { path: "/consult", thread: "real-id" }),
     );
-    expect(thread).toContain("相手別ホーム");
+    expect(thread).toContain("相談・履歴");
     expect(thread).not.toContain("real-id");
   });
   it("requires a valid answer for each of the 12 steps, including after going back", () => {

@@ -268,7 +268,7 @@ export default function TrialChat({
         </div>
         <Link href="/consult">
           <ClockCounterClockwise size={21} />
-          履歴
+          相談・履歴
         </Link>
       </div>
       <div className="p6-chat-meta">
@@ -410,7 +410,7 @@ export default function TrialChat({
             <h2>この相談は引き継ぎ済みです。</h2>
             <p>保存したアカウントでログインして、履歴から続きを話せます。</p>
             <Link className="p6-button" href="/consult">
-              相談履歴へ
+              相談・履歴へ
             </Link>
           </div>
         )}

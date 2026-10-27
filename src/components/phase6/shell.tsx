@@ -6,16 +6,14 @@ import {
   ChatCircleDots,
   Users,
   ClipboardText,
-  ClockCounterClockwise,
   CreditCard,
   UserCircle,
 } from "@phosphor-icons/react";
 const links = [
   ["/", "ホーム", House],
   ["/chat", "すぐ相談", ChatCircleDots],
-  ["/consult", "相手別ホーム", Users],
+  ["/consult", "相談・履歴", Users],
   ["/diagnosis/partner-mind", "無料診断", ClipboardText],
-  ["/consult", "継続相談", ClockCounterClockwise],
   ["/plans", "料金・プラン", CreditCard],
   ["/account", "マイページ", UserCircle],
 ] as const;
@@ -41,7 +39,7 @@ export default function Phase6Shell({
           </Link>
           <nav aria-label="メインメニュー">
             <Link className="home-header-extra" href="/consult">
-              相談履歴
+              相談・履歴
             </Link>
             <Link className="home-header-extra" href="/plans">
               料金・プラン
@@ -97,7 +95,7 @@ export default function Phase6Shell({
       </div>
       {!chat && (
         <nav className="p6-bottom" aria-label="モバイルナビゲーション">
-          {[links[0], links[1], links[2], links[6]].map(
+          {[links[0], links[1], links[2], links[5]].map(
             ([href, title, Icon]) => (
               <Link
                 key={title}
@@ -105,13 +103,7 @@ export default function Phase6Shell({
                 aria-current={path === href ? "page" : undefined}
               >
                 <Icon size={23} aria-hidden />
-                <span>
-                  {title === "相手別ホーム"
-                    ? "相手別"
-                    : title === "すぐ相談"
-                      ? "相談"
-                      : title}
-                </span>
+                <span>{title}</span>
               </Link>
             ),
           )}

@@ -222,7 +222,7 @@ function Account() {
           診断結果例を開く
         </Link>
       </section>
-      <Link href="/consult">相手別ホームを見る</Link>
+      <Link href="/consult">相談・履歴を見る</Link>
     </Frame>
   );
 }
@@ -231,7 +231,7 @@ function Conversation({ person }: { person: (typeof demoPeople)[number] }) {
   const [messages, setMessages] = useState<string[]>([]);
   return (
     <Frame title={`${person.name}との継続相談デモ`}>
-      <Link href="/consult">← 相手別ホームへ</Link>
+      <Link href="/consult">← 相談・履歴へ</Link>
       <p className="demo-notice">
         履歴・記憶・AI回答は合成データです。入力はこの画面内だけで扱い、送信・保存・解析しません。実在する人の情報を入力しないでください。
       </p>
@@ -300,7 +300,7 @@ function People({ thread }: { thread: string }) {
   const person = demoPeople.find((p) => p.id === thread);
   if (person) return <Conversation key={person.id} person={person} />;
   return (
-    <Frame title="相手別ホームの表示例">
+    <Frame title="相談・履歴の表示例">
       <p>
         架空の相手・相談履歴・記憶です。実際の相談やユーザーデータには接続していません。
       </p>

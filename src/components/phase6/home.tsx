@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, ChatCircleDots } from "@phosphor-icons/react/dist/ssr";
 import { pricing, yen } from "@/lib/pricing";
+import { homeSample } from "@/lib/home-sample";
 
 export default function Home({
   trialEnabled = false,
@@ -44,7 +45,7 @@ export default function Home({
         </div>
       </section>
       <section className="home-answer" aria-labelledby="answer-heading">
-        <h2 id="answer-heading">回答のイメージ</h2>
+        <h2 id="answer-heading">回答イメージ</h2>
         <div className="home-dialogue" aria-label="AIの回答例・サンプル">
           <div className="home-dialogue-row">
             <Image
@@ -57,7 +58,7 @@ export default function Home({
             />
             <div className="home-example home-question">
               <span className="sr-only">相談例：</span>
-              <p>なんて返信したらいい？</p>
+              <p>{homeSample.input}</p>
             </div>
           </div>
           <div className="home-dialogue-row">
@@ -71,18 +72,16 @@ export default function Home({
             />
             <div className="home-example home-ai">
               <span className="sr-only">AIの回答例：</span>
-              <p>
-                まずは、あなたが伝えたい
-                <br className="home-answer-break" />
-                気持ちから整理してみましょう。
-              </p>
+              <p>{homeSample.answer}</p>
+              <p className="home-sample-next">{homeSample.nextStep}</p>
             </div>
           </div>
           <p className="fine home-sample-note">
-            AIの回答例・サンプルです。人間の相談員による回答ではありません。
+            合成ケースの回答イメージ（抜粋）です。実利用者の相談や、人間の相談員による回答ではありません。
           </p>
         </div>
         <div className="home-diagnosis-intro">
+          <p>相談は自由な文章で、診断は質問に答えながら状況を整理します。</p>
           <Link className="home-secondary" href="/diagnosis/partner-mind">
             じっくり診断する
             <ArrowRight size={24} aria-hidden />
