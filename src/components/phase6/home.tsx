@@ -1,10 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  ChatCircleDots,
-  Leaf,
-} from "@phosphor-icons/react/dist/ssr";
+import { ArrowRight, ChatCircleDots } from "@phosphor-icons/react/dist/ssr";
 import { pricing, yen } from "@/lib/pricing";
 
 export default function Home({
@@ -45,38 +41,65 @@ export default function Home({
             相談をはじめる
             <ArrowRight size={21} aria-hidden />
           </Link>
-          <Link className="home-secondary" href="/diagnosis/partner-mind">
-            じっくり診断する
-            <ArrowRight size={20} aria-hidden />
-          </Link>
         </div>
       </section>
       <section className="home-answer" aria-labelledby="answer-heading">
-        <div className="home-section-intro">
-          <p className="home-kicker">AIの回答例・サンプル</p>
-          <h2 id="answer-heading">回答のイメージ</h2>
+        <h2 id="answer-heading">回答のイメージ</h2>
+        <div className="home-dialogue" aria-label="AIの回答例・サンプル">
+          <div className="home-dialogue-row">
+            <Image
+              className="home-avatar"
+              src="/images/yorisoi-question.webp"
+              width={100}
+              height={100}
+              alt=""
+              unoptimized
+            />
+            <div className="home-example home-question">
+              <span className="sr-only">相談例：</span>
+              <p>なんて返信したらいい？</p>
+            </div>
+          </div>
+          <div className="home-dialogue-row">
+            <Image
+              className="home-avatar"
+              src="/images/yorisoi-answer.webp"
+              width={100}
+              height={100}
+              alt=""
+              unoptimized
+            />
+            <div className="home-example home-ai">
+              <span className="sr-only">AIの回答例：</span>
+              <p>
+                まずは、あなたが伝えたい
+                <br className="home-answer-break" />
+                気持ちから整理してみましょう。
+              </p>
+            </div>
+          </div>
+          <p className="fine home-sample-note">
+            AIの回答例・サンプルです。人間の相談員による回答ではありません。
+          </p>
+        </div>
+        <div className="home-diagnosis-intro">
+          <Link className="home-secondary" href="/diagnosis/partner-mind">
+            じっくり診断する
+            <ArrowRight size={24} aria-hidden />
+          </Link>
           <p>
-            相手の本心を決めつけず、
-            <br />
-            あなたの気持ちから考えます。
+            詳細レポート{yen(pricing.report)}（1回）・Plus月額
+            {yen(pricing.plus)}
           </p>
         </div>
-        <div className="home-dialogue">
-          <div className="home-example home-question">
-            <span className="home-speaker">相談例</span>
-            <p>なんて返信したらいい？</p>
-          </div>
-          <div className="home-example home-ai">
-            <span className="home-speaker">
-              <Leaf size={20} aria-hidden />
-              AIの回答例
-            </span>
-            <p>まずは、あなたが伝えたい気持ちから整理してみましょう。</p>
-          </div>
-          <p className="fine">
-            サービスの説明用サンプルです。人間の相談員による回答ではありません。
-          </p>
-        </div>
+        <Image
+          className="home-flowers"
+          src="/images/yorisoi-flowers.webp"
+          width={273}
+          height={194}
+          alt=""
+          unoptimized
+        />
       </section>
       <section className="home-offers" aria-labelledby="offer-heading">
         <div className="home-section-intro">
