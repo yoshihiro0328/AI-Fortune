@@ -1,4 +1,7 @@
 -- Local preparation only. No production binding, budget or enablement is seeded.
+begin;
+set local lock_timeout = '5s';
+set local statement_timeout = '60s';
 create table public.production_controls (
   singleton boolean primary key default true check (singleton),
   environment_id text not null check (environment_id ~ '^[a-zA-Z0-9_-]{1,80}$'),
@@ -102,3 +105,5 @@ begin
 end $$;
 revoke all on function public.production_sales_allowed(text),public.reserve_production_ai(uuid,text,integer),public.dispatch_production_ai(uuid,text),public.finish_production_ai(uuid,text,integer,integer),public.stop_unknown_production_ai(uuid,text) from public,anon,authenticated;
 grant execute on function public.production_sales_allowed(text),public.reserve_production_ai(uuid,text,integer),public.dispatch_production_ai(uuid,text),public.finish_production_ai(uuid,text,integer,integer),public.stop_unknown_production_ai(uuid,text) to service_role;
+
+commit;
