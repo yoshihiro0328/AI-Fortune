@@ -20,23 +20,21 @@ afterEach(() => {
   state.runtime = false;
 });
 describe("public trial offer uses effective availability", () => {
-  it("OFF renders diagnosis CTA, preparation notice and no free-answer claim without a DB call", async () => {
+  it("OFF routes to authenticated consultation and offers no trial without a DB call", async () => {
     const html = renderToStaticMarkup(await Page());
     expect(html).not.toContain("登録なし・1回答無料");
-    expect(html).toContain("登録なし相談は現在準備中");
-    expect(html).toMatch(/p6-hero-button[^>]*href="\/diagnosis\/partner-mind"/);
+    expect(html).not.toContain('href="/chat"');
+    expect(html).toMatch(/home-primary[^>]*href="\/consult"/);
     expect(state.rpc).not.toHaveBeenCalled();
   });
-  it("ON renders consultation CTA and four topic links only after DB approval", async () => {
+  it("ON routes to the trial only after DB approval", async () => {
     state.runtime = true;
     state.rpc.mockResolvedValue({
       data: { enabled: true, maxLength: 800, retentionHours: 24 },
     });
     const html = renderToStaticMarkup(await Page());
-    expect(html).toContain("登録なし・1回答無料");
-    expect(html).toMatch(/p6-hero-button[^>]*href="\/chat"/);
-    for (const topic of ["reply", "crush", "distance", "reunion"])
-      expect(html).toContain("/chat?topic=" + topic);
+    expect(html).not.toContain("登録なし・1回答無料");
+    expect(html).toMatch(/home-primary[^>]*href="\/chat"/);
     expect(state.rpc).toHaveBeenCalledWith("trial_availability");
   });
   it.each(["paused", "missing", "error"])(
@@ -51,7 +49,8 @@ describe("public trial offer uses effective availability", () => {
       const html = renderToStaticMarkup(await Page());
       expect(html).not.toContain("登録なし・1回答無料");
       expect(html).not.toContain("private SQL detail");
-      expect(html).toContain("準備中");
+      expect(html).not.toContain('href="/chat"');
+      expect(html).toMatch(/home-primary[^>]*href="\/consult"/);
     },
   );
   it("retention notice separates access expiry, database purge and external retention", () => {

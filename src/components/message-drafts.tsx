@@ -16,10 +16,10 @@ function Draft({ title, source }: { title: string; source: string }) {
     }
   }
   return (
-    <section aria-label={title}>
+    <section className="message-draft" aria-label={title}>
       <h3>{title}</h3>
       {note && (
-        <div className="fine" style={{ whiteSpace: "pre-wrap" }}>
+        <div className="fine message-note" style={{ whiteSpace: "pre-wrap" }}>
           <strong>送る前に確認</strong>
           <p>{note}</p>
         </div>

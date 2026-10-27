@@ -88,7 +88,7 @@ export default function Result({ id }: { id: string }) {
             <p>{r.summary}</p>
           </section>
           <section className="panel">
-            <h2>良い兆候</h2>
+            <h2 id="result-evidence">良い兆候</h2>
             {r.positive_signals.length ? (
               r.positive_signals.map((s) => (
                 <div key={s.signal}>
@@ -108,6 +108,7 @@ export default function Result({ id }: { id: string }) {
             ))}
           </section>
           <section className="panel">
+            <h2>回答から整理した3つの指標</h2>
             <div className="scores">
               {[
                 ["relationship_stability", "関係の安定"],
@@ -124,7 +125,11 @@ export default function Result({ id }: { id: string }) {
               ))}
             </div>
             <p className="fine">
-              回答内容を整理するための目安です。実際の相手の気持ちや未来を保証するものではありません。
+              各指標は100点満点（0〜100）の整理用の目安です。入力された出来事をもとにAIが評価したもので、相手の好意や恋愛が成功する確率、客観的な精度を示すものではありません。
+            </p>
+            <p className="fine">
+              <a href="#result-evidence">良い兆候・気に留めたいこと</a>
+              の理由と、まだ分からないことを合わせてお読みください。入力にない事情は判断できません。
             </p>
             <h3>まだ分からないこと</h3>
             <ul>

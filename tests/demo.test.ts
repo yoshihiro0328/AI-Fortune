@@ -192,8 +192,9 @@ describe("synthetic screen content", () => {
         searchParams: Promise.resolve({}),
       }),
     );
-    expect(html).toContain("メインナビゲーション");
-    expect(html).toContain("登録なし相談は現在準備中");
+    expect(html).toContain("メインメニュー");
+    expect(html).toContain("yorisoi-home-shell");
+    expect(html).not.toContain('href="/chat"');
   });
   it("labels the environment and never represents a successful login", () => {
     expect(renderToStaticMarkup(createElement(DemoBanner))).toContain(

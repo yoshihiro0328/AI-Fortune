@@ -32,6 +32,26 @@ export default function Phase6Shell({
   const chat = path === "/chat";
   const modern = path === "/" || chat;
   if (!modern) return children;
+  if (path === "/")
+    return (
+      <div className="p6 yorisoi-home-shell">
+        <header className="home-header">
+          <Link className="p6-brand" href="/">
+            よりそい<small>YORISOI</small>
+          </Link>
+          <nav aria-label="メインメニュー">
+            <Link className="home-header-extra" href="/consult">
+              相談履歴
+            </Link>
+            <Link className="home-header-extra" href="/plans">
+              料金・プラン
+            </Link>
+            <Link href="/account">マイページ・ログイン</Link>
+          </nav>
+        </header>
+        {children}
+      </div>
+    );
   return (
     <div className={`p6 ${chat ? "p6-chat-shell" : ""}`}>
       <aside className="p6-sidebar">

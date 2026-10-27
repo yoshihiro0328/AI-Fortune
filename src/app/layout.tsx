@@ -6,6 +6,7 @@ import Visit from "@/components/visit";
 import "./globals.css";
 import "./phase6.css";
 import "./demo.css";
+import "./design.css";
 import { demoEnabled } from "@/lib/demo/config";
 import DemoBanner from "@/components/demo/banner";
 import Phase6Shell from "@/components/phase6/shell";
@@ -18,22 +19,22 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ja_JP",
     siteName: "よりそい",
-    title: "よりそい | ふたりの今を整理する",
+    title: "よりそい | その気持ち、ここで話そう。",
     description:
-      "返信や距離感に迷ったら。ふたりの今と次の一歩を整理する、登録不要の恋愛相談。",
+      "恋愛や人間関係を、AIと整理する。言葉にしながら、次の一歩を一緒に考える。",
     images: ["/opengraph-image"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "よりそい | ふたりの今を整理する",
+    title: "よりそい | その気持ち、ここで話そう。",
     images: ["/opengraph-image"],
   },
   title: {
-    default: "よりそい | ふたりの今を整理する",
+    default: "よりそい | その気持ち、ここで話そう。",
     template: "%s | よりそい",
   },
   description:
-    "相手の気持ちが分からない。ふたりの今と次の一歩を整理してみませんか。あなたのペースで話せる、登録不要の恋愛相談。",
+    "恋愛や人間関係を、AIと整理する。言葉にしながら、次の一歩を一緒に考える。",
   robots: { index: false, follow: false },
 };
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -73,29 +74,40 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <PaymentDisplayProvider mode={paymentDisplayMode(process.env)}>
           {demo ? children : <Phase6Shell>{children}</Phase6Shell>}
         </PaymentDisplayProvider>
-        <footer>
+        <footer className="site-footer">
           <div className="brand">
             よりそい<span>あなたのペースで、一歩ずつ。</span>
           </div>
-          <nav aria-label="ご利用案内">
-            {[
-              ["terms", "利用規約"],
-              ["privacy", "プライバシー"],
-              ["commerce", "特定商取引法"],
-              ["refund", "返金・キャンセル"],
-              ["ai", "AI利用について"],
-              ["disclaimer", "免責事項"],
-              ["advertising", "広告について"],
-            ].map(([s, t]) => (
-              <Link key={s} href={"/legal/" + s}>
-                {t}
-              </Link>
-            ))}
-            <Link href="/contact">お問い合わせ</Link>
-            <Link href="/guides">恋愛相談の読みもの</Link>
-            <Link href="/plans">料金・プラン</Link>
-            <Link href="/safety">危険やつらさを感じるとき</Link>
-          </nav>
+          <div className="site-footer-groups">
+            <nav aria-labelledby="footer-user-heading">
+              <h2 id="footer-user-heading">利用者向け</h2>
+              <ul>
+                <li>
+                  <Link href="/plans">料金・プラン</Link>
+                </li>
+                <li>
+                  <Link href="/help">ヘルプ・お問い合わせ</Link>
+                </li>
+                <li>
+                  <Link href="/safety">危険やつらさを感じるとき</Link>
+                </li>
+              </ul>
+            </nav>
+            <nav aria-labelledby="footer-legal-heading">
+              <h2 id="footer-legal-heading">規約・運営情報</h2>
+              <ul>
+                <li>
+                  <Link href="/legal/terms">利用規約</Link>
+                </li>
+                <li>
+                  <Link href="/legal/privacy">プライバシー</Link>
+                </li>
+                <li>
+                  <Link href="/legal/commerce">特定商取引法に基づく表記</Link>
+                </li>
+              </ul>
+            </nav>
+          </div>
           <small>医療・心理療法の診断ではありません。</small>
         </footer>
       </body>

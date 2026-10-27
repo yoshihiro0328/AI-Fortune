@@ -276,12 +276,58 @@ footer {
   border-top: 1px solid var(--line);
   padding: 32px var(--gutter);
 }
-footer nav {
+.site-footer-groups {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 32px;
+  margin: 28px 0;
+}
+.site-footer h2 {
+  margin: 0 0 12px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 600;
+}
+.site-footer ul,
+.help-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+.site-footer li,
+.help-links li {
+  margin: 0;
+}
+.site-footer a,
+.help-links a,
+.home-guides-link {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin: 20px 0;
-  font-size: 14px;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  padding: 8px 0;
+  font-size: 16px;
+  line-height: 1.75;
+}
+.site-footer a:focus-visible,
+.help-links a:focus-visible,
+.home-guides-link:focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+@media (min-width: 768px) {
+  .site-footer-groups {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 40px;
+  }
+}
+@media (max-width: 1023px) {
+  body:has(.p6-bottom) > .site-footer {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
 }
 .skip {
   position: absolute;

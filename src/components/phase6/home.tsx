@@ -1,108 +1,133 @@
+import Image from "next/image";
 import Link from "next/link";
 import {
-  ChatCircleDots,
-  Heart,
-  Users,
-  ArrowsClockwise,
-  ClipboardText,
-  ClockCounterClockwise,
   ArrowRight,
-  CaretRight,
+  ChatCircleDots,
+  Leaf,
 } from "@phosphor-icons/react/dist/ssr";
-import { topics } from "@/lib/trial/topics";
-const worries = [
-  ["reply", "返信が遅い、続かないなど", ChatCircleDots],
-  ["crush", "気持ちを伝えるか迷っている", Heart],
-  ["distance", "最近、少しすれ違っている", Users],
-  ["reunion", "これからの向き合い方を考えたい", ArrowsClockwise],
-] as const;
+import { pricing, yen } from "@/lib/pricing";
+
 export default function Home({
   trialEnabled = false,
 }: {
   trialEnabled?: boolean;
 }) {
   return (
-    <main id="main" className="p6-main">
-      <div className="p6-home-grid">
-        <section className="p6-hero">
-          <p className="p6-eyebrow">あなたのペースで、一歩ずつ。</p>
-          <h1>
-            いまの気持ちから、
+    <main id="main" className="yorisoi-home">
+      <section className="home-hero" aria-labelledby="home-heading">
+        <div className="home-art">
+          <Image
+            src="/images/yorisoi-garden.webp"
+            width={853}
+            height={580}
+            alt="木漏れ日の庭で、距離を取りながら向き合う二人の水彩画"
+            preload
+            unoptimized
+          />
+        </div>
+        <div className="home-introduction">
+          <p className="home-kicker">恋愛や人間関係を、AIと整理する</p>
+          <h1 id="home-heading">
+            その気持ち、
             <br />
-            話してみませんか。
+            ここで話そう。
           </h1>
-          <p>うまくまとまっていなくても、大丈夫。</p>
+          <p className="home-description">
+            言葉にしながら、
+            <br className="home-mobile-break" />
+            次の一歩を一緒に考える。
+          </p>
           <Link
-            className="p6-button p6-hero-button"
-            href={trialEnabled ? "/chat" : "/diagnosis/partner-mind"}
+            className="button home-primary"
+            href={trialEnabled ? "/chat" : "/consult"}
           >
-            <ChatCircleDots size={28} aria-hidden />
-            {trialEnabled ? "すぐ相談する" : "じっくり無料診断する"}
+            <ChatCircleDots size={26} aria-hidden />
+            相談をはじめる
+            <ArrowRight size={21} aria-hidden />
+          </Link>
+          <Link className="home-secondary" href="/diagnosis/partner-mind">
+            じっくり診断する
             <ArrowRight size={20} aria-hidden />
           </Link>
-          <p className="p6-small p6-center">
-            {trialEnabled
-              ? "登録なし・1回答無料。診断は不要です。"
-              : "登録なし相談は現在準備中です。無料診断をご利用いただけます。"}
-          </p>
-          <div className="p6-reassurance p6-desktop">
-            <h2>
-              相手の気持ちを決めつけず、
-              <br />
-              あなたが次の一歩を選ぶために。
-            </h2>
-            <p className="p6-small">まずは一言から。話しながら整理できます。</p>
-          </div>
-        </section>
-        <section>
-          <h2 className="p6-section-title">悩みから選ぶ</h2>
-          <div className="p6-worries">
-            {worries.map(([id, sub, Icon]) => (
-              <Link href={"/chat?topic=" + id} className="p6-row" key={id}>
-                <Icon size={26} aria-hidden />
-                <span>
-                  <strong>{topics[id].name}</strong>
-                  <small>
-                    {trialEnabled ? sub : "相談は準備中・テーマを見る"}
-                  </small>
-                </span>
-                <CaretRight size={18} aria-hidden />
-              </Link>
-            ))}
-          </div>
-          <div className="p6-secondary">
-            <Link className="p6-row p6-soft" href="/diagnosis/partner-mind">
-              <ClipboardText size={26} aria-hidden />
-              <span>
-                <strong>じっくり無料診断</strong>
-                <small>12〜18問・登録不要</small>
-              </span>
-              <CaretRight size={18} aria-hidden />
-            </Link>
-            <Link className="p6-row p6-soft" href="/consult">
-              <ClockCounterClockwise size={26} aria-hidden />
-              <span>
-                <strong>前回の続きから</strong>
-                <small>ログインして履歴を見る</small>
-              </span>
-              <CaretRight size={18} aria-hidden />
-            </Link>
-          </div>
-        </section>
-      </div>
-      <section className="p6-home-footer">
-        <div>
-          <h2>必要なときに、必要な分だけ。</h2>
-          <p className="p6-small">
-            無料で始める · 単発レポート980円 · Plus月額980円
+        </div>
+      </section>
+      <section className="home-answer" aria-labelledby="answer-heading">
+        <div className="home-section-intro">
+          <p className="home-kicker">AIの回答例・サンプル</p>
+          <h2 id="answer-heading">回答のイメージ</h2>
+          <p>
+            相手の本心を決めつけず、
+            <br />
+            あなたの気持ちから考えます。
           </p>
         </div>
-        <Link href="/plans">
-          料金の違いを見る <ArrowRight size={18} aria-hidden />
+        <div className="home-dialogue">
+          <div className="home-example home-question">
+            <span className="home-speaker">相談例</span>
+            <p>なんて返信したらいい？</p>
+          </div>
+          <div className="home-example home-ai">
+            <span className="home-speaker">
+              <Leaf size={20} aria-hidden />
+              AIの回答例
+            </span>
+            <p>まずは、あなたが伝えたい気持ちから整理してみましょう。</p>
+          </div>
+          <p className="fine">
+            サービスの説明用サンプルです。人間の相談員による回答ではありません。
+          </p>
+        </div>
+      </section>
+      <section className="home-offers" aria-labelledby="offer-heading">
+        <div className="home-section-intro">
+          <p className="home-kicker">必要なときに、必要な分だけ</p>
+          <h2 id="offer-heading">相談の続け方を、選べます。</h2>
+        </div>
+        <dl className="home-price-list">
+          <div>
+            <dt>
+              詳細レポート <span>1回のお支払い</span>
+            </dt>
+            <dd>
+              <strong>{yen(pricing.report)}</strong>
+              <span>（税込）</span>
+              <p>
+                今回の診断を、具体的な文面や行動プランまで整理。自動更新はありません。
+              </p>
+            </dd>
+          </div>
+          <div>
+            <dt>
+              Plus <span>月額プラン</span>
+            </dt>
+            <dd>
+              <strong>月額{yen(pricing.plus)}</strong>
+              <span>（税込）</span>
+              <p>履歴を踏まえて相談を続けるプラン。詳細レポートは別売です。</p>
+            </dd>
+          </div>
+        </dl>
+        <Link className="home-secondary" href="/plans">
+          料金・利用条件を見る
+          <ArrowRight size={20} aria-hidden />
         </Link>
       </section>
-      <p className="p6-small">
-        AIは相手の本心を断定しません。気持ちを整理するためのサポートです。
+      <nav className="home-reading" aria-label="読みものと相談履歴">
+        <div>
+          <p className="home-kicker">ひと息つきながら</p>
+          <h2>言葉にする前に、読む。</h2>
+          <Link className="home-guides-link" href="/guides">
+            恋愛相談の読みもの
+            <ArrowRight size={20} aria-hidden />
+          </Link>
+        </div>
+        <Link className="home-secondary" href="/consult">
+          前回の相談を続ける
+          <ArrowRight size={20} aria-hidden />
+        </Link>
+      </nav>
+      <p className="home-disclaimer fine">
+        AIは相手の本心や将来を断定しません。あなたが次の一歩を選ぶためのサポートです。
       </p>
     </main>
   );
