@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 const m = vi.hoisted(() => ({ create: vi.fn(() => ({})) }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: m.create }));
-import { db } from "@/lib/supabase/admin";
+import { db, checked } from "@/lib/supabase/admin";
 import { assertProductionDataTarget } from "@/lib/production/config";
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -36,4 +36,19 @@ it("does not permit a production-labelled runtime on a preview deployment", () =
       NEXT_PUBLIC_SUPABASE_URL: "https://abcdefghijklmnopqrst.supabase.co",
     }),
   ).toThrow("Production operation unavailable");
+});
+
+it("never attaches private database details to an exception reaching server rendering", () => {
+  try {
+    checked({
+      data: null,
+      error: { message: "synthetic-private-value", details: "private row" },
+    });
+  } catch (error) {
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toBe("Database operation failed");
+    expect((error as Error).cause).toBeUndefined();
+    return;
+  }
+  throw Error("expected fixed database error");
 });

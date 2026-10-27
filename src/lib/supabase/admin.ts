@@ -11,7 +11,7 @@ export function db() {
   );
 }
 export function checked<T>(r: { data: T; error: unknown }): T {
-  if (r.error) throw new Error("Database operation failed", { cause: r.error });
+  if (r.error) throw new Error("Database operation failed");
   return r.data;
 }
 

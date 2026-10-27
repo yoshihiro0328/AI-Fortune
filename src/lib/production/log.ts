@@ -7,7 +7,8 @@ export type SafeEvent =
   | "webhook_processing_failed"
   | "subscription_reconciliation_failed"
   | "retry_report_failed"
-  | "production_ai_stopped";
+  | "production_ai_stopped"
+  | "production_ai_stop_unconfirmed";
 export function safeOperationalLog(event: SafeEvent) {
   console.error(event);
 }

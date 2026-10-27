@@ -253,6 +253,31 @@ describe("production shared accounting and stops (isolated SQL)", () => {
       expect(rows.rows[0]).toEqual({ state: "unknown", settled_nusd: null });
     },
   );
+  it("reports an unconfirmed stop honestly while retaining the full dispatched reservation", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    mock.rpc.mockImplementation((name, args) =>
+      name === "stop_unknown_production_ai"
+        ? Promise.resolve({
+            data: null,
+            error: { message: "synthetic-private-value" },
+          })
+        : rpc(name, args),
+    );
+    await expect(
+      withProductionBudget(request(), async () => {
+        throw Error("synthetic failure");
+      }),
+    ).rejects.toThrow("Production operation unavailable");
+    expect(log).toHaveBeenCalledWith("production_ai_stop_unconfirmed");
+    expect(log).not.toHaveBeenCalledWith("production_ai_stopped");
+    expect(
+      (
+        await pg.query(
+          "select state,settled_nusd from production_ai_reservations",
+        )
+      ).rows[0],
+    ).toEqual({ state: "dispatched", settled_nusd: null });
+  });
   it("does not reopen spending if settlement succeeded but acknowledgement was lost", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     mock.rpc.mockImplementation(async (name, args) => {

@@ -112,15 +112,21 @@ export async function withProductionBudget<
     });
     return response;
   } catch {
+    let stopConfirmed = false;
     try {
-      await db().rpc("stop_unknown_production_ai", {
+      const stopped = await db().rpc("stop_unknown_production_ai", {
         p_id: id,
         p_environment: environment,
       });
+      stopConfirmed = !stopped.error;
     } catch {
       /* Hold stays charged even if stop write fails. */
     }
-    safeOperationalLog("production_ai_stopped");
+    safeOperationalLog(
+      stopConfirmed
+        ? "production_ai_stopped"
+        : "production_ai_stop_unconfirmed",
+    );
     throw new ProductionStop();
   }
 }
