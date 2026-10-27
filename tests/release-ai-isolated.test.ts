@@ -89,11 +89,24 @@ it("actual consultation path stores synthetic call records in PGlite only", asyn
     {
       memory: [],
       recent: [],
-      message: "次に会う日を聞きたい。",
+      message:
+        "相談の目的：自分で書いた文を見てほしい\n\n今回は難しいです、と断りたい。",
+      purpose: "review",
       today: "2026-10-26",
     },
   );
   expect(r.safety).toBe(false);
+  const call = m.parse.mock.calls.find(
+    ([p]) => p.text.format.name === "chat",
+  )![0];
+  expect(call.input[0].content).toContain("必要最小限の修正文");
+  expect(call.input[0].content).toContain("【送信用文面】");
+  expect(JSON.parse(call.input[1].content).untrusted_data.purpose).toBe(
+    "review",
+  );
+  expect(
+    m.parse.mock.calls.filter(([p]) => p.text.format.name === "chat"),
+  ).toHaveLength(1);
   expect(
     (await local.pg.query("select success from consultation_ai_calls")).rows,
   ).toEqual([{ success: true }]);

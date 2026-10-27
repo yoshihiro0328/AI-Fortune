@@ -3,8 +3,15 @@ import { useState } from "react";
 import { messageDraft } from "../lib/message-draft";
 import type { PaidReport } from "../lib/ai/schemas";
 
-function Draft({ title, source }: { title: string; source: string }) {
-  const { message, note } = messageDraft(source);
+export function MessageDraftCard({
+  title,
+  message,
+  note,
+}: {
+  title: string;
+  message: string | null;
+  note?: string;
+}) {
   const [notice, setNotice] = useState("");
   async function copy() {
     if (!message) return;
@@ -57,7 +64,11 @@ export default function MessageDrafts({
           ["距離を保ちながら", messages.respectful_distance],
         ] as const
       ).map(([title, source]) => (
-        <Draft key={title + source} title={title} source={source} />
+        <MessageDraftCard
+          key={title + source}
+          title={title}
+          {...messageDraft(source)}
+        />
       ))}
     </div>
   );

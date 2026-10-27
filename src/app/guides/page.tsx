@@ -55,7 +55,10 @@ export default function Page() {
         ))}
       </div>
       <p>
-        <Link href="/diagnosis/partner-mind?source=guide">
+        <Link
+          className="button secondary"
+          href="/diagnosis/partner-mind?source=guide"
+        >
           自分の状況を無料で整理する
         </Link>
       </p>

@@ -53,7 +53,9 @@ export default function Result({ id }: { id: string }) {
             <Link className="button" href="/diagnosis/partner-mind?new=1">
               新しく診断を始める
             </Link>
-            <Link href="/account">ログインして確認する</Link>
+            <Link className="button secondary" href="/account">
+              ログインして確認する
+            </Link>
           </div>
         </section>
       )}
@@ -88,12 +90,11 @@ export default function Result({ id }: { id: string }) {
             <h2>現在の状況</h2>
             <p>{r.summary}</p>
           </section>
-          <section className="result-action">
-            <h2>まず、できること</h2>
-            <p>{r.advice}</p>
-          </section>
           <section className="panel">
             <h2 id="result-evidence">良い兆候</h2>
+            <p className="fine">
+              根拠になった発言・出来事と、その解釈を合わせて確認します。
+            </p>
             {r.positive_signals.length ? (
               r.positive_signals.map((s) => (
                 <div key={s.signal}>
@@ -117,12 +118,19 @@ export default function Result({ id }: { id: string }) {
           </section>
           <section className="panel result-unknown">
             <h2>まだ分からないこと</h2>
+            <p className="fine">
+              情報がないことだけで、悪い兆候とは判断しません。
+            </p>
             <ul>
               {r.uncertainties.map((x) => (
                 <li key={x}>{x}</li>
               ))}
             </ul>
             {!r.uncertainties.length && <p>この項目の記載はありません。</p>}
+          </section>
+          <section className="result-action">
+            <h2>まず、できること</h2>
+            <p>{r.advice}</p>
           </section>
           <section className="result-indicators">
             <h2>回答から整理した3つの指標</h2>
@@ -229,6 +237,7 @@ export default function Result({ id }: { id: string }) {
       )}
       <p>
         <Link
+          className="button secondary"
           href="/"
           onClick={() => localStorage.removeItem("yorisoi_diagnosis")}
         >

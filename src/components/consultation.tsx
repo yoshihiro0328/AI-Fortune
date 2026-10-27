@@ -10,6 +10,14 @@ import { accountReturnLink } from "@/lib/auth-return";
 import { topics, topicIds } from "@/lib/trial/topics";
 import ConsultationEvents from "./consultation-events";
 import ConsultationAnswer from "./consultation-answer";
+import dynamic from "next/dynamic";
+const ScreenshotImport = dynamic(() => import("./screenshot-import"));
+import ConsultationPurpose from "./consultation-purpose";
+import {
+  appendChange,
+  submissionText,
+  type Purpose,
+} from "@/lib/consultation/purpose";
 import { RequestError, request as apiRequest } from "@/lib/client";
 import {
   memoryLabels,
@@ -27,8 +35,10 @@ const date = (s: string) =>
   });
 export default function Consultation({
   eventsEnabled = false,
+  screenshotPrototype = false,
 }: {
   eventsEnabled?: boolean;
+  screenshotPrototype?: boolean;
 }) {
   const [home, setHome] = useState<ConsultationHome | null>(null),
     [subjectId, setSubjectId] = useState(""),
@@ -53,6 +63,7 @@ export default function Consultation({
     [searchResults, setSearchResults] = useState<Thread[] | null>(null),
     [topic, setTopic] = useState(""),
     [returnPath, setReturnPath] = useState("/consult");
+  const [purpose, setPurpose] = useState<Purpose | "">("");
   const pending = useRef<PendingConsultation | null>(null);
   const drafts = useRef(new ConversationDrafts());
   const activeKey = useRef("");
@@ -69,6 +80,7 @@ export default function Consultation({
     activeKey.current = key;
     const draft = drafts.current.get(key);
     setText(draft.text);
+    setPurpose(draft.purpose ?? "");
     pending.current = draft.pending;
     setHasPending(!!draft.pending);
     setExpanded(false);
@@ -80,6 +92,7 @@ export default function Consultation({
     setHome(null);
     setTurns([]);
     setText("");
+    setPurpose("");
     setThreadId("");
     setSubjectId("");
     setHasPending(false);
@@ -302,7 +315,12 @@ export default function Consultation({
           throw new Error(
             "前の送信結果を確認するため、同じ内容の再送をご利用ください。",
           );
-        pending.current = { requestId: crypto.randomUUID(), text: text.trim() };
+        const submitted = submissionText(text.trim(), purpose);
+        if (submitted.length > 4000)
+          throw new Error(
+            "目的の表示を含めて4000文字以内にしてください。下書きは保持しています。",
+          );
+        pending.current = { requestId: crypto.randomUUID(), text: submitted };
       }
       setHasPending(true);
       if (!pending.current?.text)
@@ -314,6 +332,7 @@ export default function Consultation({
       drafts.current.remove(id);
       pending.current = null;
       setText("");
+      setPurpose("");
       setHasPending(false);
       await load();
       await open(id);
@@ -330,7 +349,9 @@ export default function Consultation({
           <p className="eyebrow">いつでも、前の話の続きから。</p>
           <h1>ふたりのことを相談する</h1>
         </div>
-        <Link href="/account">マイページ</Link>
+        <Link className="button secondary" href="/account">
+          マイページ
+        </Link>
       </div>
       {boot ? (
         <p role="status">相談履歴を読み込んでいます…</p>
@@ -341,7 +362,9 @@ export default function Consultation({
             ログイン・無料登録
           </Link>
           <p>初回診断は登録なしで利用できます。</p>
-          <Link href="/diagnosis/partner-mind">無料診断を始める</Link>
+          <Link className="button secondary" href="/diagnosis/partner-mind">
+            無料診断を始める
+          </Link>
         </div>
       ) : (
         <>
@@ -732,6 +755,19 @@ export default function Consultation({
                   </p>
                 )}
               </div>
+              {screenshotPrototype && subject && (
+                <ScreenshotImport
+                  key={home.ownerId + ":" + subjectId + ":" + threadId}
+                  disabled={busy || hasPending}
+                  onConfirm={(quote) => {
+                    const next = appendChange(text, quote, 3900);
+                    if (next === null) return false;
+                    setText(next);
+                    drafts.current.update(activeKey.current, { text: next });
+                    return true;
+                  }}
+                />
+              )}
               <form
                 className="chat-composer"
                 onSubmit={(e) => {
@@ -743,6 +779,59 @@ export default function Consultation({
                   <p className="fine">
                     相談のテーマ：{topics[topic as keyof typeof topics].name}
                   </p>
+                )}
+                <ConsultationPurpose
+                  value={purpose}
+                  disabled={busy || hasPending || !subject}
+                  onChange={(value) => {
+                    setPurpose(value);
+                    drafts.current.update(activeKey.current, {
+                      purpose: value,
+                    });
+                  }}
+                />
+                {turns.length > 0 && (
+                  <fieldset
+                    className="change-entry"
+                    disabled={busy || hasPending || !subject}
+                  >
+                    <legend>前回から、何か変化はありましたか？（任意）</legend>
+                    <div className="actions">
+                      {[
+                        "返信が来た",
+                        "会って話した",
+                        "まだ何もしていない",
+                        "自分で入力する",
+                      ].map((label) => (
+                        <button
+                          type="button"
+                          className="button secondary"
+                          key={label}
+                          onClick={() => {
+                            if (label !== "自分で入力する") {
+                              const next = appendChange(text, label + "。");
+                              if (next === null) {
+                                setError(
+                                  "入力が長いため追加できません。今の下書きは保持しています。",
+                                );
+                                return;
+                              }
+                              setText(next);
+                              drafts.current.update(activeKey.current, {
+                                text: next,
+                              });
+                            }
+                            document.getElementById("chat-text")?.focus();
+                          }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="fine">
+                      本文へ追加するだけです。確認して送信するまで、出来事や履歴には保存しません。
+                    </p>
+                  </fieldset>
                 )}
                 <label htmlFor="chat-text">相談したいこと</label>
                 <button
@@ -760,7 +849,7 @@ export default function Consultation({
                 </button>
                 <textarea
                   id="chat-text"
-                  maxLength={4000}
+                  maxLength={4000 - submissionText("", purpose).length}
                   required
                   rows={expanded ? 12 : 4}
                   className={expanded ? "composer-expanded" : ""}

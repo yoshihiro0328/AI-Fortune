@@ -1,6 +1,11 @@
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, ChatCircleDots } from "@phosphor-icons/react/dist/ssr";
+import {
+  ArrowRight,
+  ChatCircleDots,
+  BookOpen,
+  ClockCounterClockwise,
+} from "@phosphor-icons/react/dist/ssr";
 import { pricing, yen } from "@/lib/pricing";
 import { topics } from "@/lib/trial/topics";
 import { homeSample } from "@/lib/home-sample";
@@ -163,25 +168,36 @@ export default function Home({
           </div>
         </dl>
         <p>
-          <Link href="/report-sample">購入前に詳細レポートの見本を見る</Link>
+          <Link className="button secondary" href="/report-sample">
+            購入前に詳細レポートの見本を見る
+          </Link>
         </p>
         <Link className="home-secondary" href="/plans">
           料金・利用条件を見る
           <ArrowRight size={20} aria-hidden />
         </Link>
       </section>
-      <nav className="home-reading" aria-label="読みものと相談履歴">
-        <div>
-          <p className="home-kicker">ひと息つきながら</p>
-          <h2>言葉にする前に、読む。</h2>
-          <Link className="home-guides-link" href="/guides">
-            恋愛相談の読みもの
-            <ArrowRight size={20} aria-hidden />
-          </Link>
-        </div>
-        <Link className="home-secondary" href="/consult">
-          前回の相談を続ける
-          <ArrowRight size={20} aria-hidden />
+      <nav
+        className="home-reading home-return-cards"
+        aria-label="読みものと相談履歴"
+      >
+        <Link className="entry-card" href="/guides">
+          <BookOpen size={28} aria-hidden />
+          <h2>読みもの</h2>
+          <span className="entry-kicker">言葉にする前に、読む。</span>
+          <p>気持ちを整理するヒントを読む</p>
+          <span className="entry-action">
+            読みものを見る <ArrowRight size={20} aria-hidden />
+          </span>
+        </Link>
+        <Link className="entry-card" href="/consult">
+          <ClockCounterClockwise size={28} aria-hidden />
+          <h2>前回の相談を続ける</h2>
+          <span className="entry-kicker">あなたのペースで、続きから。</span>
+          <p>これまでの話を振り返り、続きから相談</p>
+          <span className="entry-action">
+            相談履歴を開く <ArrowRight size={20} aria-hidden />
+          </span>
         </Link>
       </nav>
       <p className="home-disclaimer fine">

@@ -1011,3 +1011,232 @@ button:disabled {
 .home-entry-links a {
   text-decoration: underline;
 }
+
+/* Shared interaction vocabulary: links read as links, entries have a boundary. */
+:root {
+  --content-width: 1160px;
+}
+a:not(.button):not(.p6-button):not(.brand):not(.p6-brand):not(.entry-card) {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+}
+a:hover {
+  text-decoration-thickness: 2px;
+}
+a:active,
+button:not(:disabled):active {
+  filter: brightness(0.91);
+}
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+select:focus-visible {
+  outline: 3px solid var(--green);
+  outline-offset: 4px;
+}
+.button:hover,
+.p6-button:hover {
+  box-shadow: 0 0 0 2px var(--green);
+}
+nav a,
+.site-footer a {
+  border-radius: 6px;
+}
+nav a[aria-current="page"],
+.site-footer a[aria-current="page"] {
+  background: var(--accent);
+  text-decoration-thickness: 2px;
+  font-weight: 700;
+}
+.header-links a {
+  padding-inline: 8px;
+}
+.home-return-cards {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  max-width: 1160px;
+  margin-inline: auto;
+}
+.entry-card {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto;
+  gap: 12px;
+  border: 1px solid #ccd5cb;
+  border-radius: 18px;
+  background: #f1f3eb;
+  padding: 28px;
+  text-decoration: none;
+  min-width: 0;
+}
+.entry-card:hover {
+  background: #e8eee3;
+  border-color: var(--green);
+}
+.entry-card h2,
+.entry-card p {
+  margin: 0;
+}
+.entry-card h2 {
+  font-size: 24px;
+}
+.entry-kicker {
+  color: #52645a;
+  font-size: 14px;
+}
+.entry-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 700;
+  margin-top: 12px;
+}
+.purpose-picker {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+  margin: 12px 0;
+}
+.purpose-picker select {
+  width: 100%;
+  max-width: 480px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.change-entry {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.change-entry legend {
+  font-size: 15px;
+  padding: 0 6px;
+}
+.change-entry .button {
+  font-size: 14px;
+  padding: 8px 12px;
+  min-height: 44px;
+}
+.reply-note {
+  border-left: 3px solid var(--line);
+  padding-left: 16px;
+  margin: 16px 0;
+}
+.reply-note p {
+  white-space: pre-wrap;
+}
+.consult-answer-text .message-draft {
+  margin: 18px 0;
+}
+.report-unknown {
+  margin-block: 24px;
+}
+.report-chapter > header {
+  max-width: none;
+  padding-inline: 0;
+}
+@media (max-width: 700px) {
+  .home-return-cards {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .entry-card {
+    padding: 22px;
+  }
+  .entry-card h2 {
+    font-size: 22px;
+  }
+  .change-entry {
+    padding: 12px;
+  }
+}
+.p6 p.home-disclaimer {
+  width: calc(100% - 2 * var(--gutter));
+  max-width: 1160px;
+  margin: 24px auto;
+  padding: 0;
+}
+.p6 a.home-secondary {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 16px;
+}
+.screenshot-import {
+  margin: 24px 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+}
+.screenshot-import fieldset {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.screenshot-import canvas {
+  max-width: 100%;
+  height: auto;
+  max-height: 480px;
+  object-fit: contain;
+  display: block;
+  border: 1px solid var(--line);
+  margin: 12px 0;
+}
+.crop-fields {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.crop-fields input {
+  width: 100%;
+  min-width: 0;
+}
+.quote-row {
+  border-top: 1px solid var(--line);
+  padding: 16px 0;
+}
+.quote-row label {
+  display: block;
+}
+.quote-row textarea {
+  min-height: 80px;
+}
+.screenshot-import input[type="checkbox"] {
+  width: auto;
+}
+@media (max-width: 600px) {
+  .crop-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .screenshot-import {
+    padding: 12px;
+  }
+}
+
+/* Standalone destinations remain distinct from references inside prose. */
+.history-actions a,
+main .reading-open,
+.help-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: var(--paper);
+  text-decoration: none;
+}
+.history-actions a:hover,
+main .reading-open:hover,
+.help-links a:hover {
+  border-color: var(--green);
+  background: var(--accent);
+}
+.header-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}

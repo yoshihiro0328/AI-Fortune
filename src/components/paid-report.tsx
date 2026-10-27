@@ -28,6 +28,24 @@ export default function Report({
     [attempts, setAttempts] = useState(0),
     [saveState, setSaveState] =
       useState<import("@/lib/save-state").SaveState>();
+  const [uncertainties, setUncertainties] = useState<{
+    id: string;
+    items: string[] | undefined;
+  }>();
+  const ready = !!report;
+  useEffect(() => {
+    if (!ready) return;
+    let alive = true;
+    void request<import("@/lib/client").Diagnosis>("/api/diagnoses/" + id)
+      .then((d) => {
+        if (alive)
+          setUncertainties({ id, items: d.free_report?.uncertainties });
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [id, ready]);
   const tracked = useRef(false);
   const load = useCallback(async () => {
     try {
@@ -158,12 +176,19 @@ export default function Report({
               returnTo={"/report/" + id}
             />
           )}
-          <ReportContents report={report} />
+          <ReportContents
+            report={report}
+            uncertainties={
+              uncertainties?.id === id ? uncertainties.items : undefined
+            }
+          />
           <ContinueDiagnosis id={id} state={saveState} />
         </>
       )}
       <p>
-        <Link href={"/result/" + id}>無料診断結果に戻る</Link>
+        <Link className="button secondary" href={"/result/" + id}>
+          無料診断結果に戻る
+        </Link>
       </p>
     </main>
   );

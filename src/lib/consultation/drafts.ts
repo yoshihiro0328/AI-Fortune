@@ -1,10 +1,15 @@
+import type { Purpose } from "./purpose";
 export type PendingConsultation = {
   requestId: string;
   text: string;
   regenerate?: boolean;
   regenerationId?: string;
 };
-export type Draft = { text: string; pending: PendingConsultation | null };
+export type Draft = {
+  purpose?: Purpose | "";
+  text: string;
+  pending: PendingConsultation | null;
+};
 /** Component-lifetime memory only; never browser storage or a module singleton. */
 export class ConversationDrafts {
   private values = new Map<string, Draft>();

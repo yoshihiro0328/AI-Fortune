@@ -1,7 +1,7 @@
 import { PaymentDisplayProvider } from "@/components/payment-display-provider";
 import { paymentDisplayMode } from "@/lib/payment-display";
 import type { Metadata } from "next";
-import Link from "next/link";
+import Link from "@/components/active-link";
 import Visit from "@/components/visit";
 import "./globals.css";
 import "./phase6.css";

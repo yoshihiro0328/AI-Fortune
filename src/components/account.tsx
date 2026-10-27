@@ -380,7 +380,10 @@ export default function Account({
               </button>
             )}
             <p>
-              <Link href="/diagnosis/partner-mind?new=1">
+              <Link
+                className="button secondary"
+                href="/diagnosis/partner-mind?new=1"
+              >
                 新しく無料診断する
               </Link>
             </p>

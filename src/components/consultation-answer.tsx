@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { replyParts } from "@/lib/consultation/reply-parts";
+import { MessageDraftCard } from "./message-drafts";
 export default function ConsultationAnswer({
   text,
   safety,
@@ -8,6 +10,25 @@ export default function ConsultationAnswer({
   safety: boolean;
 }) {
   const [full, setFull] = useState(false);
+  const parts = safety ? null : replyParts(text);
+  if (parts)
+    return (
+      <div className="consult-answer-text">
+        {parts.map((part, i) =>
+          part.kind === "message" ? (
+            <MessageDraftCard key={i} title="返信文の案" message={part.text} />
+          ) : (
+            <div key={i} className="reply-note">
+              <span className="fine">理由・注意・使用条件</span>
+              <p>{part.text}</p>
+            </div>
+          ),
+        )}
+        <p className="fine">
+          コピーしても、送信・実行済みにはなりません。使用条件を確かめてください。
+        </p>
+      </div>
+    );
   const paragraphs = text.split(/\n\s*\n/);
   const opening = paragraphs[0];
   const stop = text.indexOf("。");

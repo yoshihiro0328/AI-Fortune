@@ -108,7 +108,9 @@ try {
     );
     assert.equal(await p.locator(".price").count(), 0);
     const order = await p.locator("main h2").allTextContents();
-    assert.ok(order.indexOf("まず、できること") < order.indexOf("良い兆候"));
+    assert.ok(
+      order.indexOf("まだ分からないこと") < order.indexOf("まず、できること"),
+    );
     assert.ok(
       order.indexOf("まだ分からないこと") <
         order.indexOf("回答から整理した3つの指標"),

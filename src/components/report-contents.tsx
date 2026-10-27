@@ -17,7 +17,7 @@ const titles = [
   "総合アドバイス",
 ];
 const chapters = [
-  { title: "関係の整理", indices: [0, 1, 2, 3, 4] },
+  { title: "関係の整理", indices: [0, 3, 4, 1, 2] },
   { title: "連絡・メッセージ", indices: [7, 8] },
   { title: "これからの行動", indices: [5, 6, 9, 10, 11, 12] },
 ];
@@ -51,7 +51,13 @@ function Plan({ items }: { items: PaidReport["seven_day_plan"] }) {
     <p className="fine">この項目の記載はありません。</p>
   );
 }
-export default function ReportContents({ report }: { report: PaidReport }) {
+export default function ReportContents({
+  report,
+  uncertainties,
+}: {
+  report: PaidReport;
+  uncertainties?: string[];
+}) {
   const content = [
     <Text key="relation" value={report.relationship_analysis} />,
     <Text key="behavior" value={report.behavior_patterns} />,
@@ -121,6 +127,21 @@ export default function ReportContents({ report }: { report: PaidReport }) {
               {content[i]}
             </section>
           ))}
+          {index === 0 && (
+            <aside className="notice report-unknown">
+              <h3>まだ分からないこと</h3>
+              <p className="fine">
+                情報不足だけで悪い兆候とは判断しません。ここでは新しい分析を加えていません。
+              </p>
+              {uncertainties ? (
+                <Items items={uncertainties} />
+              ) : (
+                <p>
+                  このレポートには独立した不明点の項目がありません。本文中の条件・不確実性と、無料診断の結果を併せて確認してください。
+                </p>
+              )}
+            </aside>
+          )}
           <a className="back-to-toc" href="#report-toc">
             目次に戻る
           </a>

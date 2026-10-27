@@ -417,7 +417,7 @@ export function createFixture(root) {
           thread_id: p.split("/")[3],
           user_text: b.text,
           assistant_text:
-            "【合成の固定回答・AI未使用】画面操作を確認できました。実機能では、この位置に相談内容に沿った回答が表示されます。",
+            "【合成の固定回答・AI未使用】これは返信文の表示・コピー確認用の固定例です。相手と話したい場合の例として確認してください。\n【送信用文面】\n少し話せる時間はある？ 難しければ断って大丈夫だよ。\n【文面ここまで】\n返事を急かすための文面ではありません。",
           status: "ready",
           safety: false,
           generation: 1,
@@ -459,7 +459,7 @@ export function createFixture(root) {
               typeof b.text === "string" ? b.text.slice(0, 800) : "合成の相談",
           },
           answer:
-            "【合成の固定回答・AI未使用】相手の気持ちは断定できません。分かっている出来事から、次の一歩を一緒に整理する表示例です。",
+            "【合成の固定回答・AI未使用】これは表示確認用の固定例です。\n【送信用文面】\n元気だよ。そちらは最近どう？\n【文面ここまで】\n実際に元気だと伝えたい場合の例です。",
           safety: false,
         };
         return ok({

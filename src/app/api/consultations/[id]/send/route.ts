@@ -1,3 +1,4 @@
+import { submissionPurpose } from "@/lib/consultation/purpose";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { api, body, csrf, HttpError, rate } from "@/lib/http";
@@ -148,6 +149,7 @@ export async function POST(
           answer_text: a.answer_text.slice(0, 400),
         })),
         message: input.text,
+        purpose: submissionPurpose(input.text),
         today: new Date().toISOString(),
         regenerate: input.regenerate,
       };

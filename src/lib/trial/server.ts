@@ -1,3 +1,4 @@
+import { submissionText } from "../consultation/purpose";
 import "server-only";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
@@ -277,6 +278,7 @@ export async function sendTurn(req: Request) {
   const plaintext = JSON.stringify({
     topicId: input.topicId,
     topicVersion: input.topicVersion,
+    ...(input.purpose ? { purpose: input.purpose } : {}),
     text: input.text,
     fields: Object.fromEntries(Object.entries(input.fields).sort()),
   });
@@ -378,7 +380,9 @@ export async function claimSession(req: Request) {
     p_hash: h,
     p_user: user.id,
     p_turn: t.id,
-    p_text: [input.text, notes].filter(Boolean).join("\n\n"),
+    p_text: [submissionText(input.text, input.purpose), notes]
+      .filter(Boolean)
+      .join("\n\n"),
     p_answer: answer,
     p_topic: input.topicId,
     p_fields: input.fields,

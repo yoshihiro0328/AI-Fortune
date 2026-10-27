@@ -1,3 +1,4 @@
+import { purposeIds } from "../consultation/purpose";
 import { z } from "zod";
 export type TopicField = {
   key: string;
@@ -158,6 +159,7 @@ export function intakeSchema(max = 800) {
       requestId: z.uuid(),
       topicId: z.enum(topicIds),
       topicVersion: z.literal(1),
+      purpose: z.enum(purposeIds).optional(),
       text: z.string().trim().min(1).max(max),
       fields: z.record(z.string(), z.string().max(160)),
     })

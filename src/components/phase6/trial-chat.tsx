@@ -3,13 +3,15 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Script from "next/script";
+import ConsultationAnswer from "../consultation-answer";
+import ConsultationPurpose from "../consultation-purpose";
+import type { Purpose } from "@/lib/consultation/purpose";
 import TrialRetention from "./trial-retention";
 import {
   ArrowLeft,
   ArrowUp,
   ChatCircleDots,
   ClockCounterClockwise,
-  Copy,
   CheckCircle,
 } from "@phosphor-icons/react";
 import {
@@ -64,6 +66,7 @@ export default function TrialChat({
   siteKey: string | null;
 }) {
   const router = useRouter();
+  const [purpose, setPurpose] = useState<Purpose | "">("");
   const [memberEmail, setMemberEmail] = useState<string | null>(null);
   const [topic, setTopic] = useState(initialTopic),
     [text, setText] = useState(""),
@@ -94,6 +97,7 @@ export default function TrialChat({
       setTopic(data.turn.input.topicId);
       setFields(data.turn.input.fields);
       setText(data.turn.input.text);
+      setPurpose(data.turn.input.purpose ?? "");
     }
     return data;
   }, []);
@@ -107,6 +111,7 @@ export default function TrialChat({
           setTopic(data.turn.input.topicId);
           setFields(data.turn.input.fields);
           setText(data.turn.input.text);
+          setPurpose(data.turn.input.purpose ?? "");
         }
       })
       .catch(() => {
@@ -172,7 +177,7 @@ export default function TrialChat({
     if (busy || !text.trim() || !consent || used || !session?.enabled) return;
     setBusy(true);
     setError("");
-    const fingerprint = JSON.stringify({ topic, text, fields });
+    const fingerprint = JSON.stringify({ topic, text, fields, purpose });
     if (requestRef.current?.fingerprint !== fingerprint)
       requestRef.current = { fingerprint, id: crypto.randomUUID() };
     try {
@@ -187,6 +192,7 @@ export default function TrialChat({
         requestId: requestRef.current.id,
         topicId: topic,
         topicVersion: 1,
+        ...(purpose ? { purpose } : {}),
         text,
         fields,
       });
@@ -359,23 +365,10 @@ export default function TrialChat({
             </div>
             <div className="p6-message">
               <span className="p6-small">よりそい</span>
-              <p>{answer}</p>
-              <button
-                className="p6-text-button"
-                onClick={() =>
-                  void navigator.clipboard
-                    .writeText(answer)
-                    .then(() => setNotice("回答をコピーしました。"))
-                    .catch(() =>
-                      setNotice(
-                        "コピーできませんでした。本文を選択してコピーしてください。",
-                      ),
-                    )
-                }
-              >
-                <Copy size={18} />
-                回答をコピー
-              </button>
+              <ConsultationAnswer
+                text={answer}
+                safety={session?.turn?.safety ?? false}
+              />
             </div>
             <section className="p6-trial-complete">
               <CheckCircle size={26} />
@@ -456,6 +449,11 @@ export default function TrialChat({
           }}
         >
           <div className="p6-composer">
+            <ConsultationPurpose
+              value={purpose}
+              onChange={setPurpose}
+              disabled={busy}
+            />
             <label htmlFor="trial-text">{config.label}</label>
             <textarea
               id="trial-text"
