@@ -13,7 +13,7 @@ describe("presentation preserves purchase conditions and honest progress", () =>
   it("matches plan action labels to existing destinations and keeps checkout consent", () => {
     const html = render(createElement(Plans, { free: 5, plus: 50 }));
     expect(html).toMatch(
-      /href="\/diagnosis\/partner-mind"[^>]*>無料診断をはじめる/,
+      /href="\/diagnosis\/partner-mind"[^>]*>質問に答えて整理する/,
     );
     expect(html).toMatch(
       /href="\/account#diagnosis-history"[^>]*>マイページで診断履歴を見る/,

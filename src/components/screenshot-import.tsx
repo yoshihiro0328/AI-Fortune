@@ -265,8 +265,40 @@ export default function ScreenshotImport({
     setConfirmed(false);
   }
   return (
-    <details id="screenshot-import" className="screenshot-import">
-      <summary>スクショ取り込みのローカル試作（本体は無効）</summary>
+    <details
+      id="screenshot-import"
+      className="screenshot-import"
+      onKeyDown={(event) => {
+        // Editing OCR/crop fields must never implicitly submit the surrounding chat form.
+        if (
+          event.key === "Enter" &&
+          event.target instanceof HTMLInputElement &&
+          !["checkbox", "file"].includes(event.target.type)
+        )
+          event.preventDefault();
+      }}
+    >
+      <summary>
+        <svg
+          aria-hidden="true"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.7"
+        >
+          <rect x="3" y="3" width="18" height="18" rx="3" />
+          <circle cx="8" cy="8" r="1.5" />
+          <path d="m3 17 5-5 4 4 4-6 5 7" />
+        </svg>
+        スクショから入力
+      </summary>
+      <p className="fine">
+        ローカル確認用・公開機能は無効です。画像選択 → 端末内読み取り →
+        発言者・順序・内容の確認と修正 →
+        下書きへ追加。画像をAIへ添付せず、確認したテキストだけを追加します。自動送信はしません。
+      </p>
       {busy && (
         <button
           type="button"

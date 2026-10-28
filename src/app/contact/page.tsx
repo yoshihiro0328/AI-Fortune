@@ -1,5 +1,5 @@
 import Contact from "@/components/contact";
-import { operator } from "@/lib/operator";
+import { privacyPresentation } from "@/lib/privacy-presentation";
 export const metadata = {
   title: "お問い合わせ",
   robots: {
@@ -9,5 +9,7 @@ export const metadata = {
   alternates: { canonical: "/contact" },
 };
 export default function Page() {
-  return <Contact responseTime={operator.responseTime} />;
+  return (
+    <Contact responseTime={privacyPresentation(process.env).responseTime} />
+  );
 }

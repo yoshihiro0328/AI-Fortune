@@ -1588,3 +1588,257 @@ body:has(.app-layout) > .site-footer {
   text-decoration: none;
   margin-top: 12px;
 }
+
+/* Field rhythm: related controls stay together, distinct operations have space. */
+:root {
+  --field-label-gap: 8px;
+  --action-gap: 12px;
+  --field-action-gap: 16px;
+  --field-group-gap: 24px;
+  --management-gap: 32px;
+}
+.actions,
+.history-actions,
+.composer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--action-gap);
+}
+:is(.actions, .history-actions, .composer-actions) > * {
+  min-width: 0;
+}
+:is(.actions, .history-actions) > :is(button, a) {
+  margin: 0;
+}
+:is(.account-page, .consult-wrap, .p6-chat) :is(button, .button, .p6-button) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  height: auto;
+}
+:is(.account-page, .consult-wrap, .p6-chat) :is(input, textarea, select) {
+  max-width: 100%;
+}
+:is(.subject-picker, .organize, .memory-panel) label {
+  margin: 0 0 var(--field-label-gap);
+}
+:is(.subject-picker, .organize, .memory-panel)
+  :is(input:not([type="checkbox"]), textarea, select) {
+  margin: 0 0 var(--field-action-gap);
+}
+:is(.subject-picker, .organize, .memory-panel) form {
+  margin: 0;
+}
+:is(.subject-picker, .organize, .memory-panel)
+  :is(form, .field-group)
+  + :is(form, .field-group, .subject-tabs, section) {
+  margin-top: var(--field-group-gap);
+}
+.field-group {
+  margin-top: var(--field-group-gap);
+}
+.field-group > label {
+  margin-bottom: var(--field-label-gap);
+}
+.field-group > form + .field-group {
+  margin-top: var(--field-group-gap);
+}
+.subject-tabs {
+  margin-block: var(--field-group-gap);
+  gap: var(--action-gap);
+}
+.subject-tab,
+.thread-list button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.subject-picker,
+.consult-sidebar,
+.consult-main,
+.history-row > * {
+  min-width: 0;
+}
+.subject-picker button:not(.subject-tab),
+.organize button:not(.button),
+.memory-panel button:not(.button) {
+  background: #f0f3eb;
+  color: var(--green);
+  border: 1px solid #b9c5b8;
+  border-radius: 12px;
+  padding: 10px 16px;
+  min-height: 44px;
+  font: inherit;
+}
+.input-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--action-gap);
+  margin-bottom: var(--field-label-gap);
+}
+.input-heading label {
+  margin: 0;
+}
+.chat-composer > textarea,
+.p6-composer textarea {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #91a492;
+  border-radius: 10px;
+  min-height: 120px;
+  max-height: none;
+  background: #fffefb;
+  line-height: 1.8;
+}
+.p6-composer > label {
+  display: block;
+  margin-bottom: var(--field-label-gap);
+}
+.composer-actions {
+  justify-content: flex-end;
+  margin-top: var(--field-action-gap);
+  margin-bottom: var(--field-group-gap);
+}
+.composer-actions > span {
+  margin-right: auto;
+  font-size: 14px;
+}
+.chat-composer > .fine {
+  margin-block: 12px;
+}
+.chat-composer > .safety-action {
+  margin: var(--field-group-gap) 0 0;
+}
+.p6-composer-dock {
+  max-height: none;
+  overflow: visible;
+  padding-top: var(--field-group-gap);
+}
+.p6-composer {
+  padding: 16px;
+}
+.p6-composer-actions .p6-button {
+  font-size: 16px;
+  min-height: 48px;
+}
+.screenshot-import {
+  margin-block: 16px 24px;
+}
+.screenshot-import > summary {
+  width: fit-content;
+  max-width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #b9c5b8;
+  border-radius: 12px;
+  background: #f0f3eb;
+  color: var(--green);
+  cursor: pointer;
+  min-height: 48px;
+}
+.screenshot-import > summary svg {
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+.screenshot-import > summary:hover {
+  background: #e4eadd;
+}
+.screenshot-import > summary:active {
+  background: #d9e2d1;
+}
+.screenshot-import > fieldset > :is(button, label, section, div) {
+  margin-block: 16px;
+}
+.screenshot-import .quote-row {
+  margin-block: 24px;
+}
+.screenshot-import .quote-row label {
+  margin-top: 16px;
+}
+.screenshot-import input[type="checkbox"] {
+  width: auto;
+}
+.destructive-actions {
+  border-top: 1px solid var(--line);
+  padding-top: var(--management-gap);
+  margin-top: var(--management-gap);
+}
+.destructive-actions > p {
+  margin: 0 0 16px;
+}
+.destructive-actions > h3 {
+  margin: 0 0 12px;
+}
+.destructive-actions button,
+.destructive-actions a {
+  color: #71473d;
+}
+.account-page :is(.account-recent, .account-diagnoses, .account-settings) {
+  padding-block: 32px;
+}
+.account-page section > p:has(> .button),
+.consultation-summary > p:has(> .button) {
+  margin-block: 24px 0;
+}
+.account-settings > button {
+  margin-top: 16px;
+}
+.account-page .history-actions {
+  margin-top: 16px;
+}
+.privacy-summary {
+  padding: 24px;
+  background: var(--accent);
+  border-radius: 14px;
+  margin-block: 24px 32px;
+}
+.privacy-summary dl {
+  display: grid;
+  gap: 20px;
+}
+.privacy-summary dt {
+  font-weight: 600;
+}
+.privacy-summary dd {
+  margin: 8px 0 0;
+}
+@media (max-width: 600px) {
+  .composer-actions > button {
+    flex: 1 1 100%;
+  }
+  .input-heading {
+    align-items: flex-start;
+  }
+  .history-actions > a {
+    width: 100%;
+  }
+  .privacy-summary {
+    padding: 20px;
+  }
+}
+
+.history-actions {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  min-width: 0;
+}
+.history-actions > .button:not(.secondary) {
+  background: var(--green);
+  color: white;
+  border-color: var(--green);
+}
+.diagnosis-history-row {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.app-content .p6-safety-link.button {
+  text-decoration: none;
+}
+@media (max-width: 700px) {
+  .diagnosis-history-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

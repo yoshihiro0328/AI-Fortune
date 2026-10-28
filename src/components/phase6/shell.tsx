@@ -17,9 +17,9 @@ import {
 
 const links = [
   ["/", "ホーム", House],
-  ["/chat", "すぐ相談", ChatCircleDots],
+  ["/chat", "チャットで相談", ChatCircleDots],
   ["/consult", "相談・履歴", Users],
-  ["/diagnosis/partner-mind", "無料診断", ClipboardText],
+  ["/diagnosis/partner-mind", "質問に答えて整理", ClipboardText],
   ["/account", "マイページ", UserCircle],
   ["/plans", "料金・プラン", CreditCard],
   ["/guides", "読みもの", BookOpen],
@@ -187,7 +187,7 @@ export default function Phase6Shell({
     ? "診断結果"
     : path.startsWith("/report/")
       ? "詳細レポート"
-      : (links.find(([href]) => href === path)?.[1] ?? "無料診断");
+      : (links.find(([href]) => href === path)?.[1] ?? "質問に答えて整理");
   return (
     <div className={`app-layout${path === "/chat" ? " app-chat-layout" : ""}`}>
       <aside className="app-sidebar" aria-label="サイト全体の移動">

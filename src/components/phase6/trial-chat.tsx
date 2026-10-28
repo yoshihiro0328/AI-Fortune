@@ -1,6 +1,10 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
+const ScreenshotImport = dynamic(() => import("../screenshot-import"), {
+  ssr: false,
+});
 import { useRouter } from "next/navigation";
 import Script from "next/script";
 import ConsultationAnswer from "../consultation-answer";
@@ -55,9 +59,11 @@ async function request<T>(
 export default function TrialChat({
   initialTopic,
   siteKey,
+  screenshotPrototype = false,
 }: {
   initialTopic: TopicId;
   siteKey: string | null;
+  screenshotPrototype?: boolean;
 }) {
   const router = useRouter();
   const [purpose, setPurpose] = useState<Purpose | "">("");
@@ -260,7 +266,10 @@ export default function TrialChat({
       )}
       <div className="p6-chat-heading">
         <div>
-          <h1>すぐ相談</h1>
+          <h1>チャットで相談</h1>
+          <p>
+            自由に書いて、今の悩みや返信について相談できます。先に診断を受ける必要はありません。
+          </p>
           <span className="p6-small">相手はあとで整理できます</span>
         </div>
       </div>
@@ -280,7 +289,7 @@ export default function TrialChat({
             登録なし相談は現在準備中です。入力内容をAIへ送信することはありません。
           </p>
           <Link className="button secondary" href="/diagnosis/partner-mind">
-            じっくり無料診断する
+            質問に答えて整理する
           </Link>
         </div>
       )}
@@ -415,15 +424,6 @@ export default function TrialChat({
             （この端末の時刻）
           </p>
         )}
-        {session?.active && !session.deleted && !session.claimed && (
-          <button
-            className="p6-text-button"
-            disabled={busy}
-            onClick={() => void erase()}
-          >
-            サービス上の本文・回答を削除する
-          </button>
-        )}
         <Link className="p6-safety-link button secondary" href="/safety">
           危険や強いつらさを感じるとき
         </Link>
@@ -443,6 +443,18 @@ export default function TrialChat({
               onChange={setPurpose}
               disabled={busy}
             />
+            {screenshotPrototype && session?.enabled && (
+              <ScreenshotImport
+                key={`${topic}:${memberEmail ?? "anonymous"}:${session.expiresAt ?? "new"}`}
+                disabled={busy}
+                onConfirm={(quote) => {
+                  const next = text.trim() ? text + "\n\n" + quote : quote;
+                  if (next.length > (session?.maxLength ?? 800)) return false;
+                  setText(next);
+                  return true;
+                }}
+              />
+            )}
             <label htmlFor="trial-text">{config.label}</label>
             <textarea
               id="trial-text"
@@ -463,24 +475,24 @@ export default function TrialChat({
                 }
               }}
             />
-            <div className="p6-composer-actions">
-              <span>
-                {text.length}/{session?.maxLength ?? 800}文字
-              </span>
-              <button
-                className="p6-button"
-                disabled={
-                  busy ||
-                  !text.trim() ||
-                  !consent ||
-                  !session?.enabled ||
-                  (!session.active && !challenge)
-                }
-              >
-                {busy ? "回答を準備中…" : "登録なしで試す"}
-                <ArrowUp size={20} />
-              </button>
-            </div>
+          </div>
+          <div className="p6-composer-actions composer-actions">
+            <span>
+              {text.length}/{session?.maxLength ?? 800}文字
+            </span>
+            <button
+              className="p6-button"
+              disabled={
+                busy ||
+                !text.trim() ||
+                !consent ||
+                !session?.enabled ||
+                (!session.active && !challenge)
+              }
+            >
+              {busy ? "回答を準備中…" : "登録なしで試す"}
+              <ArrowUp size={20} />
+            </button>
           </div>
           <label className="p6-check">
             <input
@@ -501,6 +513,23 @@ export default function TrialChat({
           <TrialRetention />
           <div ref={challengeElement} />
         </form>
+      )}
+      {session?.active && !session.deleted && !session.claimed && (
+        <section
+          className="destructive-actions"
+          aria-label="お試し相談のデータ削除"
+        >
+          <p className="p6-small">
+            このお試し相談の本文・回答をサービス上から削除します。利用枠と外部AI提供元の記録は別の扱いです。
+          </p>
+          <button
+            className="p6-text-button"
+            disabled={busy}
+            onClick={() => void erase()}
+          >
+            サービス上の本文・回答を削除する
+          </button>
+        </section>
       )}
     </main>
   );

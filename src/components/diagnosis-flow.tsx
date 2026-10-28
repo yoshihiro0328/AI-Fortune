@@ -212,7 +212,7 @@ export default function DiagnosisFlow() {
   }, [id, started]);
   return (
     <main id="main" className="flow">
-      <div className="eyebrow">無料診断 · ふたりの今を整理する</div>
+      <div className="eyebrow">質問に答えて整理 · ふたりの今と次の行動</div>
       {error && (
         <p role="alert" className="error">
           {error}

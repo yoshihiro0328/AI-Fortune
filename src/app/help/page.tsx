@@ -1,3 +1,4 @@
+import { privacyPresentation } from "@/lib/privacy-presentation";
 import Link from "next/link";
 import { publicContactEmail } from "@/lib/public-contact";
 
@@ -85,6 +86,36 @@ export default function Page() {
             解約・返金の詳しい条件
           </Link>
         </details>
+      </section>
+      <section
+        id="data-deletion"
+        className="help-section"
+        aria-labelledby="data-deletion-title"
+      >
+        <h2 id="data-deletion-title">データの削除・退会を依頼する</h2>
+        <ol>
+          <li>
+            相談画面では「呼び名・相談履歴を整理する」から、相談履歴だけ、または相手の相談データ全体を選んで削除できます。削除は取り消せません。引き継ぐメモも相談画面で確認・修正・削除できます。
+          </li>
+          <li>
+            診断データの削除・退会は、お問い合わせフォームで希望する対象と登録メールアドレスをお知らせください。分かれば診断番号も添えてください。
+          </li>
+          <li>
+            登録なしで利用した場合は、利用したブラウザのCookieを消さずにご連絡ください。診断番号だけでは本人確認になりません。パスワード・カード番号・本人確認書類は送らないでください。
+          </li>
+          <li>
+            本人確認後に対象と影響を確認します。決済処理・法令・調査で必要な記録や、外部サービス・バックアップは扱いが異なるため、理由と期間を個別に確認します。
+          </li>
+        </ol>
+        <p>{privacyPresentation(process.env).responseTime}</p>
+        <div className="actions">
+          <Link className="button secondary" href="/contact">
+            削除・退会について問い合わせる
+          </Link>
+          <Link className="button secondary" href="/legal/privacy">
+            保存・削除の詳しい方針
+          </Link>
+        </div>
       </section>
       <section className="help-section" aria-labelledby="help-contact-heading">
         <h2 id="help-contact-heading">解決しないときは</h2>

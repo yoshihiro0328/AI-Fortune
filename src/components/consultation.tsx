@@ -757,19 +757,6 @@ export default function Consultation({
                   </p>
                 )}
               </div>
-              {screenshotPrototype && subject && (
-                <ScreenshotImport
-                  key={home.ownerId + ":" + subjectId + ":" + threadId}
-                  disabled={busy || hasPending}
-                  onConfirm={(quote) => {
-                    const next = appendChange(text, quote, 3900);
-                    if (next === null) return false;
-                    setText(next);
-                    drafts.current.update(activeKey.current, { text: next });
-                    return true;
-                  }}
-                />
-              )}
               <form
                 className="chat-composer"
                 onSubmit={(e) => {
@@ -835,20 +822,35 @@ export default function Consultation({
                     </p>
                   </fieldset>
                 )}
-                <label htmlFor="chat-text">相談したいこと</label>
-                <button
-                  className="text-button"
-                  type="button"
-                  aria-expanded={expanded}
-                  aria-controls="chat-text"
-                  onClick={() => {
-                    setExpanded(!expanded);
-                    document.getElementById("chat-text")?.focus();
-                  }}
-                >
-                  {" "}
-                  {expanded ? "入力欄を小さくする" : "入力欄を広げる"}
-                </button>
+                {screenshotPrototype && subject && (
+                  <ScreenshotImport
+                    key={home.ownerId + ":" + subjectId + ":" + threadId}
+                    disabled={busy || hasPending}
+                    onConfirm={(quote) => {
+                      const next = appendChange(text, quote, 3900);
+                      if (next === null) return false;
+                      setText(next);
+                      drafts.current.update(activeKey.current, { text: next });
+                      return true;
+                    }}
+                  />
+                )}
+                <div className="input-heading">
+                  <label htmlFor="chat-text">相談したいこと</label>
+                  <button
+                    className="text-button"
+                    type="button"
+                    aria-expanded={expanded}
+                    aria-controls="chat-text"
+                    onClick={() => {
+                      setExpanded(!expanded);
+                      document.getElementById("chat-text")?.focus();
+                    }}
+                  >
+                    {" "}
+                    {expanded ? "入力欄を小さくする" : "入力欄を広げる"}
+                  </button>
+                </div>
                 <textarea
                   id="chat-text"
                   maxLength={4000 - submissionText("", purpose).length}
@@ -883,7 +885,11 @@ export default function Consultation({
                       : "昨日LINEが来たので、返信を一緒に考えたい…"
                   }
                 />
-                <div className="actions">
+                <div className="composer-actions">
+                  <span className="fine">
+                    {text.length}/{4000 - submissionText("", purpose).length}
+                    文字
+                  </span>
                   <button
                     className="button"
                     disabled={busy || !subject || !text.trim() || hasPending}
@@ -911,7 +917,9 @@ export default function Consultation({
                 </p>
                 <p className="fine">
                   AIが回答を作れなかった場合や、同じ送信の再試行・回答の再生成は、追加の回数を使いません。通信が途切れたときは、まず履歴をご確認ください。
-                  <Link href="/plans#consultation-count">回数の数え方</Link>{" "}
+                  <Link href="/plans#consultation-count">回数の数え方</Link>
+                </p>
+                <p className="safety-action">
                   <Link className="button secondary" href="/safety">
                     危険やつらさを感じるとき（回数制限なし）
                   </Link>
@@ -920,23 +928,25 @@ export default function Consultation({
               {subject && (
                 <details className="organize">
                   <summary>呼び名・相談履歴を整理する</summary>
-                  <label htmlFor="rename-subject">相談相手の呼び名</label>
-                  <input
-                    id="rename-subject"
-                    value={rename}
-                    maxLength={40}
-                    onChange={(e) => setRename(e.target.value)}
-                  />
-                  <button
-                    disabled={busy || !rename.trim()}
-                    onClick={() =>
-                      act(() => manage("rename_subject", { value: rename }))
-                    }
-                  >
-                    呼び名を変更
-                  </button>
+                  <div className="field-group">
+                    <label htmlFor="rename-subject">相談相手の呼び名</label>
+                    <input
+                      id="rename-subject"
+                      value={rename}
+                      maxLength={40}
+                      onChange={(e) => setRename(e.target.value)}
+                    />
+                    <button
+                      disabled={busy || !rename.trim()}
+                      onClick={() =>
+                        act(() => manage("rename_subject", { value: rename }))
+                      }
+                    >
+                      呼び名を変更
+                    </button>
+                  </div>
                   {threadId && (
-                    <>
+                    <div className="field-group">
                       <label htmlFor="thread-title">この相談のタイトル</label>
                       <form
                         onSubmit={(e) => {
@@ -963,41 +973,51 @@ export default function Consultation({
                         />
                         <button disabled={busy}>タイトルを保存</button>
                       </form>
-                      <label htmlFor="move-subject">
-                        相談相手を間違えた場合
-                      </label>
-                      <select
-                        id="move-subject"
-                        value={moveTarget}
-                        onChange={(e) => setMoveTarget(e.target.value)}
-                      >
-                        <option value="">移動先を選ぶ</option>
-                        {home.subjects
-                          .filter((s) => s.id !== subjectId)
-                          .map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.nickname}
-                            </option>
-                          ))}
-                      </select>
-                      <p className="fine">
-                        この相談を選んだ相手の履歴へ移します。移動元と移動先の両方で、引き継ぐメモを消去します。その後の回答には、移動先にある相談履歴だけを使います。
-                      </p>
-                      <button
-                        disabled={busy || !moveTarget}
-                        onClick={() =>
-                          act(async () => {
-                            await manage("move_thread", {
-                              id: threadId,
-                              target: moveTarget,
-                            });
-                            await open(threadId);
-                            setMoveTarget("");
-                          })
-                        }
-                      >
-                        この相談を移動
-                      </button>
+                      <div className="field-group">
+                        <label htmlFor="move-subject">
+                          相談相手を間違えた場合
+                        </label>
+                        <select
+                          id="move-subject"
+                          value={moveTarget}
+                          onChange={(e) => setMoveTarget(e.target.value)}
+                        >
+                          <option value="">移動先を選ぶ</option>
+                          {home.subjects
+                            .filter((s) => s.id !== subjectId)
+                            .map((s) => (
+                              <option key={s.id} value={s.id}>
+                                {s.nickname}
+                              </option>
+                            ))}
+                        </select>
+                        <p className="fine">
+                          この相談を選んだ相手の履歴へ移します。移動元と移動先の両方で、引き継ぐメモを消去します。その後の回答には、移動先にある相談履歴だけを使います。
+                        </p>
+                        <button
+                          disabled={busy || !moveTarget}
+                          onClick={() =>
+                            act(async () => {
+                              await manage("move_thread", {
+                                id: threadId,
+                                target: moveTarget,
+                              });
+                              await open(threadId);
+                              setMoveTarget("");
+                            })
+                          }
+                        >
+                          この相談を移動
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="destructive-actions">
+                    <h3>相談データの削除</h3>
+                    <p className="fine">
+                      削除は取り消せません。相談履歴だけの削除と、相手に関する全相談の削除を選び分けてください。利用回数・決済記録・購入済みの診断は残ります。
+                    </p>
+                    {threadId && (
                       <p>
                         <button
                           className="text-button"
@@ -1020,32 +1040,32 @@ export default function Consultation({
                           この相談履歴を削除
                         </button>
                       </p>
-                    </>
-                  )}
-                  <button
-                    className="text-button"
-                    disabled={busy}
-                    onClick={() => {
-                      if (
-                        confirm(
-                          "この相手の会話とメモを削除し、相談に追加した診断を外します。購入済みの診断と支払いの記録は残ります。この操作は取り消せません。",
+                    )}
+                    <button
+                      className="text-button"
+                      disabled={busy}
+                      onClick={() => {
+                        if (
+                          confirm(
+                            "この相手の会話とメモを削除し、相談に追加した診断を外します。購入済みの診断と支払いの記録は残ります。この操作は取り消せません。",
+                          )
                         )
-                      )
-                        void act(async () => {
-                          await manage("delete_subject");
-                          home.threads
-                            .filter((t) => t.subject_id === subjectId)
-                            .forEach((t) => drafts.current.remove(t.id));
-                          drafts.current.remove("new:" + subjectId);
-                          switchDraft("");
-                          setSubjectId("");
-                          setThreadId("");
-                          setTurns([]);
-                        });
-                    }}
-                  >
-                    この相手の相談データを削除
-                  </button>
+                          void act(async () => {
+                            await manage("delete_subject");
+                            home.threads
+                              .filter((t) => t.subject_id === subjectId)
+                              .forEach((t) => drafts.current.remove(t.id));
+                            drafts.current.remove("new:" + subjectId);
+                            switchDraft("");
+                            setSubjectId("");
+                            setThreadId("");
+                            setTurns([]);
+                          });
+                      }}
+                    >
+                      この相手の相談データを削除
+                    </button>
+                  </div>
                 </details>
               )}
             </section>

@@ -1,7 +1,7 @@
 import TrialChat from "@/components/phase6/trial-chat";
 import { topicIds, type TopicId } from "@/lib/trial/topics";
 export const metadata = {
-  title: "登録なしですぐ相談",
+  title: "チャットで相談",
   robots: { index: false, follow: false },
 };
 export default async function Page({
@@ -16,6 +16,10 @@ export default async function Page({
   return (
     <TrialChat
       initialTopic={id}
+      screenshotPrototype={
+        process.env.NODE_ENV === "development" &&
+        process.env.LOCAL_REVIEW_ISOLATED === "true"
+      }
       siteKey={process.env.NEXT_PUBLIC_TRIAL_TURNSTILE_SITE_KEY ?? null}
     />
   );

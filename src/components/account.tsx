@@ -347,6 +347,13 @@ export default function Account({
                     </p>
                   </div>
                   <div className="history-actions">
+                    {["paid", "report_generating", "report_ready"].includes(
+                      r.status,
+                    ) && (
+                      <Link className="button" href={"/report/" + r.id}>
+                        詳細レポートを読む
+                      </Link>
+                    )}
                     <Link
                       className="button secondary"
                       href={
@@ -367,16 +374,6 @@ export default function Account({
                         この診断から相談する
                       </Link>
                     )}
-                    {["paid", "report_generating", "report_ready"].includes(
-                      r.status,
-                    ) && (
-                      <Link
-                        className="button secondary"
-                        href={"/report/" + r.id}
-                      >
-                        詳細レポート
-                      </Link>
-                    )}
                   </div>
                 </article>
               ))
@@ -395,7 +392,7 @@ export default function Account({
                 className="button secondary"
                 href="/diagnosis/partner-mind?new=1"
               >
-                新しく無料診断する
+                新しく質問に答えて整理する
               </Link>
             </p>
           </section>
@@ -414,11 +411,14 @@ export default function Account({
                 ログアウト
               </button>
             )}
-            <p>
+            <div className="destructive-actions">
+              <p>
+                診断データの削除・退会は、本人確認と対象の確認後に対応します。購入・決済記録の扱いは別途確認します。
+              </p>
               <Link className="button secondary" href="/contact">
                 診断データの削除・退会を依頼する
               </Link>
-            </p>
+            </div>
           </section>
         </>
       )}

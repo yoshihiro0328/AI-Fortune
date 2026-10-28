@@ -61,7 +61,7 @@ export default function Page() {
       </section>
       <div className="actions">
         <Link className="button" href="/diagnosis/partner-mind">
-          無料診断をはじめる
+          質問に答えて整理する
         </Link>
         <Link className="button secondary" href="/">
           トップに戻る

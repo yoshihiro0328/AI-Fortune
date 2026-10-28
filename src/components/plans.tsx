@@ -40,7 +40,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             <li>診断・相談履歴の閲覧</li>
           </ul>
           <Link className="button secondary" href="/diagnosis/partner-mind">
-            無料診断をはじめる
+            質問に答えて整理する
           </Link>
         </section>
         <section className="plan-card">

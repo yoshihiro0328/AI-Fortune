@@ -62,7 +62,7 @@ export default function Home({
         </div>
       </section>
       <nav className="home-entry-links" aria-label="相談の入口">
-        <p>自由な文章で相談するなら</p>
+        <p>チャットで相談：自由に書いて、今の悩みや返信を整理</p>
         <ul>
           {(["reply", "crush", "distance", "reunion"] as const).map((id) => (
             <li key={id}>
@@ -76,7 +76,7 @@ export default function Home({
         </ul>
         <div className="home-entry-actions">
           <Link href="/diagnosis/partner-mind">
-            質問に答える無料診断
+            質問に答えて整理
             <ArrowRight size={18} aria-hidden />
           </Link>
           <Link href="/consult">

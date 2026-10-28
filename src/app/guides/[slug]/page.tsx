@@ -62,7 +62,7 @@ export default async function Page({
           一般的な例と、実際のふたりの状況は違うことがあります。最近のやり取りから、次にどうするかを一緒に整理できます。
         </p>
         <Link className="button" href="/diagnosis/partner-mind?source=guide">
-          無料診断をはじめる
+          質問に答えて整理する
         </Link>
         <p>
           <Link className="button secondary" href="/chat">

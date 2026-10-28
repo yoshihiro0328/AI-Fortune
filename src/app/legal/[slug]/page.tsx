@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { operator, operatorInfoComplete } from "@/lib/operator";
 import { serviceSettings } from "@/lib/service-settings";
 import { sentence, responseTimeLabel } from "@/lib/display-copy";
+import { privacyPresentation } from "@/lib/privacy-presentation";
 import BillingTerms from "@/components/billing-terms";
 export const dynamic = "force-dynamic";
 type Section = {
@@ -12,6 +13,7 @@ type Section = {
   items?: string[];
   details?: [string, string][];
 };
+const privacy = privacyPresentation(process.env);
 const pages: Record<string, { title: string; sections: Section[] }> = {
   terms: {
     title: "利用規約",
@@ -87,6 +89,7 @@ const pages: Record<string, { title: string; sections: Section[] }> = {
         paragraphs: [
           "診断や相談への回答を作るため、入力した内容をOpenAIに送信します。",
           "続きから相談するときは、その相手についてのメモ、最近の必要な会話、その相手の相談に追加した診断の回答を使います。毎回すべての会話を送るわけではありません。",
+          "OpenAIのAPIは、明示的なデータ共有への同意がない限り、入力・回答をモデルの学習に使わない方針です。本サービスの本番プロジェクトでの共有設定は、公開前に照合します。",
           "OpenAI側で回答を後から呼び出すための保存機能は使っていません。ただし、処理の高速化のために一時的に保持される場合があります。また、不正利用の監視のため、入力や回答が原則最大30日間保存される場合があります。法令や安全確保のため、これより長く保存される場合もあります。",
         ],
       },
@@ -128,7 +131,12 @@ const pages: Record<string, { title: string; sections: Section[] }> = {
       {
         title: "保存期間と相談画面での削除",
         paragraphs: [
-          sentence(operator.retention),
+          sentence(privacy.retention),
+          ...(privacy.local
+            ? [
+                "ローカル確認用の採用済み方針です。期限前通知・期限に沿う削除・バックアップからの消去は、本番での稼働をまだ確認していません。上記期間内の自動削除が稼働済みとは案内していません。",
+              ]
+            : []),
           "次の相談に引き継ぐメモは、相談画面で確認・修正・削除できます。相談履歴も削除できます。削除した会話やメモは、その後の回答には使いません。",
           "不正利用防止のため、本文を含まない利用回数の記録は利用期間中保持し、期間終了後の定期処理で削除します。決済記録と購入済みの診断は別に管理します。",
           "実在する人を特定できる情報や、健康などの特に配慮が必要な情報を入力しないでください。",
@@ -138,11 +146,6 @@ const pages: Record<string, { title: string; sections: Section[] }> = {
         title: "開示・訂正・削除・退会の依頼",
         paragraphs: [
           "情報の開示・訂正・削除は、お問い合わせフォームでご相談ください。本人確認後に対応します。",
-        ],
-        items: [
-          "診断データの削除や退会をご希望の場合は、その旨と登録メールアドレスをお知らせください。診断番号が分かる場合は、あわせてご記入ください。",
-          "会員登録なしで利用した方は、診断に使ったブラウザの保存情報を消さずにご連絡ください。診断番号だけでは本人確認になりません。",
-          "パスワード・カード番号・本人確認書類をフォームに送らないでください。",
         ],
         details: [
           [
@@ -228,7 +231,7 @@ const pages: Record<string, { title: string; sections: Section[] }> = {
         title: "返金の相談方法",
         paragraphs: [
           "お問い合わせフォームから、診断番号と状況をお知らせください。",
-          sentence(responseTimeLabel(operator.responseTime)),
+          sentence(responseTimeLabel(privacy.responseTime)),
           "返金を受け付けたレポートは閲覧できなくなります。",
         ],
       },
@@ -340,12 +343,56 @@ export default async function Legal({
       <h1>{p.title}</h1>
       {!operatorInfoComplete && (
         <p className="notice">
-          公開準備中の文面です。運営者情報や運用方針に未確定の項目があります。未設定の内容を確定した方針として扱わないでください。
+          公開準備中の文面です。運営者の公開情報と本番での運用確認が完了していません。採用済みの方針と、実際に稼働を確認した仕組みは区別して記載しています。
         </p>
       )}
       <p className="fine legal-test-note">
         {paymentDisplay(paymentDisplayMode(process.env)).notice}
       </p>
+      {slug === "privacy" && (
+        <section
+          className="privacy-summary"
+          aria-labelledby="privacy-summary-title"
+        >
+          <h2 id="privacy-summary-title">まず知っておきたい5つのこと</h2>
+          <dl>
+            <div>
+              <dt>保存する情報</dt>
+              <dd>
+                診断・相談の内容と結果、相手の呼び名やメモ、登録・購入・問い合わせに必要な情報を扱います。カード番号はよりそいで保存しません。
+              </dd>
+            </div>
+            <div>
+              <dt>AIへ送る情報</dt>
+              <dd>
+                入力内容と、回答に必要な同じ相手の会話・メモ・診断をOpenAIへ送ります。実名や連絡先は入力しないでください。
+              </dd>
+            </div>
+            <div>
+              <dt>AI提供元での学習・保持</dt>
+              <dd>
+                APIの入力・回答は、明示的な共有同意がない限り学習に使われません。安全対策の記録は原則最大30日間、法令・安全上の例外でそれ以上保持される場合があります。よりそいでの削除と提供元での削除は別です。詳細と本番設定の確認状況は下に記載します。
+              </dd>
+            </div>
+            <div>
+              <dt>保存期間</dt>
+              <dd>
+                {privacy.retention}
+                {privacy.local &&
+                  " 期限前通知・定期削除の本番稼働は確認待ちです。永続的な閲覧や、期限内の完全削除を約束する表示ではありません。"}
+              </dd>
+            </div>
+            <div>
+              <dt>削除・問い合わせ</dt>
+              <dd>
+                相談履歴・メモは相談画面で管理できます。診断や退会などは、本人確認のうえ対象を確認します。
+                <Link href="/help#data-deletion">削除依頼の手順</Link>
+                をご確認ください。
+              </dd>
+            </div>
+          </dl>
+        </section>
+      )}
       <nav className="legal-toc" aria-label="このページの目次">
         <p>
           <strong>このページの内容</strong>
@@ -394,6 +441,11 @@ export default async function Legal({
           {s.paragraphs?.map((x) => (
             <p key={x}>{x}</p>
           ))}
+          {slug === "privacy" && i === 6 && (
+            <Link className="button secondary" href="/help#data-deletion">
+              削除・退会の手順を見る
+            </Link>
+          )}
           {slug === "privacy" && i === 2 && (
             <p>
               <a href="https://developers.openai.com/api/docs/guides/your-data">
@@ -408,9 +460,9 @@ export default async function Legal({
       )}
       <section>
         <h2>お問い合わせ・関連する方針</h2>
-        <p>{responseTimeLabel(operator.responseTime)}</p>
+        <p>{responseTimeLabel(privacy.responseTime)}</p>
         <p>
-          <Link href="/contact">
+          <Link className="button secondary" href="/contact">
             お問い合わせ・データの取り扱いに関するご相談
           </Link>
         </p>
