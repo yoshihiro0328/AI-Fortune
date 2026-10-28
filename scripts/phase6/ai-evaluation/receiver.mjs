@@ -6,9 +6,21 @@ import { check } from "../subscription-runtime/policy.mjs";
 
 // Only the human opens this page. Never inspect its DOM, screenshots, clipboard,
 // or request bodies. This loopback receiver makes no outbound requests.
-export async function aiKeyReceiver({ directory, onSubmission = () => {} }) {
+export async function aiKeyReceiver({
+  directory,
+  onSubmission = () => {},
+  scope = "legacy",
+}) {
+  check(["legacy", "purpose"].includes(scope), "RECEIVER_SCOPE_DENIED");
   const roles = ["key"];
-  const title = "AI評価B：API資格情報の安全な受渡し";
+  const title =
+    scope === "purpose"
+      ? "相談目的AI評価：API資格情報の安全な受渡し"
+      : "AI評価B：API資格情報の安全な受渡し";
+  const allowance =
+    scope === "purpose"
+      ? "今回最大54要求・20分・税別US$3以内（累積842要求・US$12以内）"
+      : "最大842生成 / 税別US$12以内";
   const st = fs.lstatSync(directory);
   check(
     st.isDirectory() &&
@@ -30,7 +42,7 @@ export async function aiKeyReceiver({ directory, onSubmission = () => {} }) {
 <title>${title}</title>
 <style>body{font:18px sans-serif;max-width:720px;margin:36px auto;padding:20px;line-height:1.7}input,button{display:block;font:inherit;padding:12px;width:100%;box-sizing:border-box;margin:12px 0}</style>
 <h1>${title}</h1>
-<p>gpt-6-luna / Standard / 最大842生成 / 税別US$12以内</p>
+<p>gpt-6-luna / Standard / ${allowance}</p>
 <p>本人だけが入力してください。OpenAI評価用プロジェクトのResponses生成に必要なキーだけを入力してください。Stripeキーは使いません。画面や値をチャットへ送らないでください。</p>
 <form method="post" autocomplete="off"><input type="hidden" name="csrf" value="${csrf}">
 <label>OpenAI APIキー<input type="password" name="key" required autocomplete="off"></label>

@@ -1270,9 +1270,6 @@ main .reading-open:hover,
   min-height: 1.5em;
 }
 
-.button.secondary {
-  background: #f0f3eb;
-}
 .quote-row .actions {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

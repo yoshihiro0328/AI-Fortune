@@ -44,7 +44,7 @@ select {
 }
 .button.secondary,
 .p6-button.p6-outlined {
-  background: transparent;
+  background: #f0f3eb;
   color: var(--green);
 }
 .button:hover,
