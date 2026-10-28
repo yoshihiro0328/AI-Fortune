@@ -211,6 +211,60 @@ export default function ScreenshotImport({
     setNotice("取り込みを取り消しました。もともとの相談文は保持しています。");
   }
   const errors = materialErrors(rows);
+  const imageEditor = !!pictures.length && (
+    <details className="import-image-editor">
+      <summary>元画像を拡大・隠す・切り抜く・並べ替える</summary>
+      <p className="fine">
+        編集後の画像を再読み取りします。既存の訂正を置き換える前に選択できます。
+      </p>
+      {pictures.map((p, i) => (
+        <div key={p.id}>
+          <h4>画像{i + 1}</h4>
+          <PictureEditor
+            picture={p}
+            disabled={disabled || busy}
+            onEdit={(updated) => {
+              const next = pictures.map((v) => (v.id === p.id ? updated : v));
+              p.canvas.width = 0;
+              p.canvas.height = 0;
+              edited(next);
+            }}
+          />
+          <div className="editor-actions">
+            <button
+              type="button"
+              className="button secondary"
+              disabled={i === 0}
+              onClick={() => {
+                const next = [...pictures];
+                [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                edited(next);
+              }}
+            >
+              画像{i + 1}を前へ
+            </button>
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => {
+                dispose(p.id);
+                edited(pictures.filter((v) => v.id !== p.id));
+              }}
+            >
+              画像{i + 1}を削除
+            </button>
+          </div>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="button secondary"
+        onClick={() => void read()}
+      >
+        編集した画像を再読み取り
+      </button>
+    </details>
+  );
   return (
     <section
       id="screenshot-import"
@@ -318,65 +372,18 @@ export default function ScreenshotImport({
                 pictures={stale ? [] : pictures}
                 onChange={onChange}
               />
+              {imageEditor}
+              <button
+                type="button"
+                className="button secondary"
+                onClick={cancel}
+              >
+                取り込みを取り消す
+              </button>
             </details>
           </>
         )}
-        {!!pictures.length && (
-          <details className="import-image-editor">
-            <summary>元画像を拡大・隠す・切り抜く・並べ替える</summary>
-            <p className="fine">
-              編集後の画像を再読み取りします。既存の訂正を置き換える前に選択できます。
-            </p>
-            {pictures.map((p, i) => (
-              <div key={p.id}>
-                <h4>画像{i + 1}</h4>
-                <PictureEditor
-                  picture={p}
-                  disabled={disabled || busy}
-                  onEdit={(updated) => {
-                    const next = pictures.map((v) =>
-                      v.id === p.id ? updated : v,
-                    );
-                    p.canvas.width = 0;
-                    p.canvas.height = 0;
-                    edited(next);
-                  }}
-                />
-                <div className="editor-actions">
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={i === 0}
-                    onClick={() => {
-                      const next = [...pictures];
-                      [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                      edited(next);
-                    }}
-                  >
-                    画像{i + 1}を前へ
-                  </button>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => {
-                      dispose(p.id);
-                      edited(pictures.filter((v) => v.id !== p.id));
-                    }}
-                  >
-                    画像{i + 1}を削除
-                  </button>
-                </div>
-              </div>
-            ))}
-            <button
-              type="button"
-              className="button secondary"
-              onClick={() => void read()}
-            >
-              編集した画像を再読み取り
-            </button>
-          </details>
-        )}
+        {!rows.length && imageEditor}
         {candidate && (
           <div className="notice">
             <p>
@@ -411,7 +418,7 @@ export default function ScreenshotImport({
             画像の変更を取り消し、以前の会話を保持
           </button>
         )}
-        {(rows.length > 0 || pictures.length > 0) && (
+        {!rows.length && pictures.length > 0 && (
           <button type="button" className="button secondary" onClick={cancel}>
             取り込みを取り消す
           </button>

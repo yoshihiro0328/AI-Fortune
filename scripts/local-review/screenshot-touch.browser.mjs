@@ -39,6 +39,7 @@ try {
     await expect(s.locator(".import-count")).toContainText("会話4件", {
       timeout: 125000,
     });
+    await s.locator(".import-conversation>summary").tap();
     await s.locator(".import-image-editor>summary").tap();
     const ed = s.locator(".screenshot-picture"),
       stage = ed.locator(".image-stage");
