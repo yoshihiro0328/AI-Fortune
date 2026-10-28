@@ -3,7 +3,9 @@ import { chromium, expect } from "@playwright/test";
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 const base = "http://127.0.0.1:5318",
-  out = "/private/tmp/yorisoi-screenshot-editor-review";
+  out =
+    process.env.LOCAL_REVIEW_SCREENSHOTS ||
+    "/private/tmp/yorisoi-screenshot-editor-review";
 const b = await chromium.launch({ channel: "chrome", headless: true }),
   results = [];
 try {

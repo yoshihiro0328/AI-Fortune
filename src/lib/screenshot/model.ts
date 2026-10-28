@@ -69,13 +69,26 @@ export type QuoteRow = {
   speaker: "me" | "other" | "unknown";
   text: string;
   uncertain: boolean;
+  image?: number;
+  sourceBox?: { x0: number; y0: number; x1: number; y1: number };
+  issues?: string[];
+  time?: string;
+  date?: string;
+  quote?: string;
+  quotePending?: boolean;
+  duplicateOf?: string;
 };
 export function confirmedTranscript(rows: QuoteRow[]) {
   if (
     !rows.length ||
     rows.length > 24 ||
     rows.some(
-      (r) => r.speaker === "unknown" || !r.text.trim() || r.text.length > 1000,
+      (r) =>
+        r.speaker === "unknown" ||
+        r.quotePending ||
+        !r.text.trim() ||
+        r.text.length > 1000 ||
+        (r.quote?.length ?? 0) > 1000,
     )
   )
     throw Error("発言者と本文を確認してください（最大24発言）。");
@@ -84,7 +97,7 @@ export function confirmedTranscript(rows: QuoteRow[]) {
     rows
       .map(
         (r) =>
-          `${r.speaker === "me" ? "自分" : "相手"}：${r.uncertain ? "[読めない部分あり・補完していません] " : ""}${r.text}`,
+          `${r.speaker === "me" ? "自分" : "相手"}：${r.uncertain ? "[読めない部分あり・補完していません] " : ""}${r.quote ? `[引用・発言者未確定] ${r.quote}\n[新しく書かれた本文] ` : ""}${r.text}`,
       )
       .join("\n")
   );

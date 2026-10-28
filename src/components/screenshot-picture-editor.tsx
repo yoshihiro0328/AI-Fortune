@@ -15,7 +15,11 @@ import {
   type Selection,
   type Corner,
 } from "@/lib/screenshot/selection";
-export type Picture = { id: string; canvas: HTMLCanvasElement };
+export type Picture = {
+  id: string;
+  canvas: HTMLCanvasElement;
+  layoutCropped?: boolean;
+};
 type Edit = { kind: "mask" | "crop"; rect: Selection };
 function copy(source: HTMLCanvasElement) {
   const c = document.createElement("canvas");
@@ -188,7 +192,14 @@ export default function PictureEditor({
       setEdits(next);
       setSelection(null);
       setMode(false);
-      onEdit({ ...picture, canvas: c });
+      onEdit({
+        ...picture,
+        canvas: c,
+        layoutCropped: next.some(
+          (e) =>
+            e.kind === "crop" && (e.rect.x > 0.001 || e.rect.width < 0.999),
+        ),
+      });
       setMessage(
         next.length
           ? "編集済み画像を表示しています。読み取り結果は再確認が必要です。"

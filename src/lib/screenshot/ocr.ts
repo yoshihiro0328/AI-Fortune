@@ -1,5 +1,11 @@
 import type { QuoteRow } from "./model";
-export type OcrLine = { text: string; confidence: number };
+import {
+  detectBubbles,
+  restoreMessages,
+  markOverlap,
+  type PositionedLine,
+} from "./line-layout";
+export type OcrLine = PositionedLine;
 export function reviewRows(lines: OcrLine[], image: number): QuoteRow[] {
   // Never infer authors, join bubbles, remove duplicates, or fill missing text.
   return lines
@@ -65,6 +71,7 @@ export async function recognizeLocally(
   images: HTMLCanvasElement[],
   signal: AbortSignal,
   progress: (image: number, value: number) => void,
+  geometryLost: boolean[] = [],
 ) {
   let worker: Worker | undefined,
     finished = false;
@@ -96,53 +103,162 @@ export async function recognizeLocally(
       throw Error("OCR_ABORT");
     }
     await created.setParameters({
-      tessedit_pageseg_mode: "6",
+      tessedit_pageseg_mode: "11",
       preserve_interword_spaces: "1",
       user_defined_dpi: "150",
     });
     const rows: QuoteRow[] = [];
-    const perImage: { milliseconds: number; lines: number }[] = [];
+    const warnings: string[] = [];
+    let unsupported = false;
+    const perImage: {
+      milliseconds: number;
+      lines: number;
+      positionedLines: number;
+      regions: number;
+    }[] = [];
     for (let i = 0; i < images.length; i++) {
       signal.throwIfAborted();
       current = i;
       const t = performance.now();
-      const { data } = await created.recognize(
+      const sample = document.createElement("canvas");
+      const scale = Math.min(1, 480 / images[i].width);
+      sample.width = Math.round(images[i].width * scale);
+      sample.height = Math.round(images[i].height * scale);
+      const ctx = sample.getContext("2d", { willReadFrequently: true })!;
+      ctx.drawImage(images[i], 0, 0, sample.width, sample.height);
+      const bubbles = detectBubbles(
+        ctx.getImageData(0, 0, sample.width, sample.height).data,
+        sample.width,
+        sample.height,
+      ).map((b) => ({
+        ...b,
+        box: {
+          x0: b.box.x0 / scale,
+          y0: b.box.y0 / scale,
+          x1: b.box.x1 / scale,
+          y1: b.box.y1 / scale,
+        },
+      }));
+      sample.width = 0;
+      sample.height = 0;
+      // Read each detected bubble separately. Padding and contrast normalization
+      // prevent the surrounding background and rounded border becoming OCR text.
+      await created.setParameters({ tessedit_pageseg_mode: "6" });
+      const { data: page } = await created.recognize(
         images[i],
         {},
         { text: true, blocks: true },
       );
-      signal.throwIfAborted();
-      const lines =
-        data.blocks?.flatMap((b) => b.paragraphs.flatMap((p) => p.lines)) ??
-        data.text.split("\n").map((text) => ({ text, confidence: 0 }));
-      if (rows.length + lines.length > 128) throw Error("OCR_TOO_MANY_LINES");
-      const recognized = reviewRows(lines, i);
-      rows.push(
-        ...(recognized.length
-          ? recognized
-          : [
-              {
-                id: `${i}-unreadable`,
-                speaker: "unknown" as const,
-                text: "[この画像は読み取れませんでした]",
-                uncertain: true,
-              },
-            ]),
+      const pageLines =
+        page.blocks?.flatMap((b) => b.paragraphs.flatMap((p) => p.lines)) ?? [];
+      const lines: OcrLine[] = pageLines.filter(
+        (l) =>
+          l.bbox &&
+          !bubbles.some(
+            (b) =>
+              l.bbox!.x0 < b.box.x1 &&
+              l.bbox!.x1 > b.box.x0 &&
+              l.bbox!.y0 < b.box.y1 &&
+              l.bbox!.y1 > b.box.y0,
+          ),
       );
+      for (const bubble of bubbles) {
+        signal.throwIfAborted();
+        if (bubble.nonText) continue;
+        const box = bubble.box,
+          inset = Math.max(3, Math.round(images[i].width / 160));
+        const x = Math.ceil(box.x0 + inset),
+          y = Math.ceil(box.y0 + inset);
+        const w = Math.max(1, Math.floor(box.x1 - inset - x)),
+          h = Math.max(1, Math.floor(box.y1 - inset - y));
+        const c = document.createElement("canvas");
+        const pad = 12;
+        c.width = w + pad * 2;
+        c.height = h + pad * 2;
+        const cx = c.getContext("2d", { willReadFrequently: true })!;
+        cx.fillStyle = "white";
+        cx.fillRect(0, 0, c.width, c.height);
+        cx.drawImage(images[i], x, y, w, h, pad, pad, w, h);
+        const pixels = cx.getImageData(pad, pad, w, h),
+          histogram = new Uint32Array(256);
+        for (let k = 0; k < pixels.data.length; k += 4)
+          histogram[
+            Math.round(
+              (pixels.data[k] + pixels.data[k + 1] + pixels.data[k + 2]) / 3,
+            )
+          ]++;
+        let background = 0;
+        for (let k = 1; k < 256; k++)
+          if (histogram[k] > histogram[background]) background = k;
+        let inkPixels = 0;
+        for (let k = 0; k < pixels.data.length; k += 4) {
+          const light =
+            (pixels.data[k] + pixels.data[k + 1] + pixels.data[k + 2]) / 3;
+          const ink =
+            background > 135
+              ? light < background - 40
+              : light > background + 40;
+          if (ink) inkPixels++;
+          pixels.data[k] =
+            pixels.data[k + 1] =
+            pixels.data[k + 2] =
+              ink ? 0 : 255;
+        }
+        cx.putImageData(pixels, pad, pad);
+        if (inkPixels / (w * h) > 0.28) {
+          // Dense non-text content (photo/sticker/mask): do not turn OCR noise into a message.
+          c.width = 0;
+          c.height = 0;
+          continue;
+        }
+        try {
+          const { data } = await created.recognize(
+            c,
+            {},
+            { text: true, blocks: true },
+          );
+          for (const line of data.blocks?.flatMap((b) =>
+            b.paragraphs.flatMap((p) => p.lines),
+          ) ?? []) {
+            if (line.bbox)
+              lines.push({
+                ...line,
+                bbox: {
+                  x0: line.bbox.x0 + x - pad,
+                  y0: line.bbox.y0 + y - pad,
+                  x1: line.bbox.x1 + x - pad,
+                  y1: line.bbox.y1 + y - pad,
+                },
+              });
+          }
+        } finally {
+          c.width = 0;
+          c.height = 0;
+        }
+      }
+      if (rows.length + lines.length > 128) throw Error("OCR_TOO_MANY_LINES");
+      const restored = restoreMessages(
+        lines,
+        bubbles,
+        i,
+        images[i].width,
+        images[i].height,
+        geometryLost[i],
+      );
+      rows.push(...restored.rows);
+      warnings.push(...restored.warnings.map((w) => `画像${i + 1}：${w}`));
+      unsupported ||= restored.unsupported;
       perImage.push({
         milliseconds: Math.round(performance.now() - t),
         lines: lines.length,
+        positionedLines: lines.filter((l) => Boolean(l.bbox)).length,
+        regions: bubbles.length,
       });
     }
-    if (!rows.length)
-      rows.push({
-        id: "unreadable",
-        speaker: "unknown",
-        text: "[読み取れませんでした]",
-        uncertain: true,
-      });
     return {
-      rows,
+      rows: markOverlap(rows),
+      warnings,
+      unsupported,
       perImage,
       milliseconds: Math.round(performance.now() - started),
     };

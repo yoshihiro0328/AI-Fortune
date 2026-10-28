@@ -8,7 +8,9 @@ import {
   type QuoteRow,
 } from "@/lib/screenshot/model";
 import { recognizeLocally } from "@/lib/screenshot/ocr";
-import ScreenshotSourcePreview from "./screenshot-source-preview";
+import ScreenshotConversation from "./screenshot-conversation";
+import { markOverlap } from "@/lib/screenshot/line-layout";
+import { drawSyntheticLine } from "@/lib/screenshot/synthetic-line";
 import PictureEditor, { type Picture } from "./screenshot-picture-editor";
 export default function ScreenshotImport({
   onConfirm,
@@ -22,7 +24,9 @@ export default function ScreenshotImport({
     [confirmed, setConfirmed] = useState(false),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState(""),
-    [comparison, setComparison] = useState<string | null>(null);
+    [scopeConfirmed, setScopeConfirmed] = useState(false),
+    [unsupported, setUnsupported] = useState(false);
+  const appended = useRef(false);
   const controller = useRef<AbortController | null>(null);
   const epoch = useRef(0),
     canvases = useRef<Picture[]>([]);
@@ -47,7 +51,8 @@ export default function ScreenshotImport({
     [],
   );
   function replace(next: Picture[]) {
-    setComparison(null);
+    appended.current = false;
+    setUnsupported(false);
     canvases.current = next;
     setPictures(next);
     setRows([]);
@@ -56,7 +61,7 @@ export default function ScreenshotImport({
   async function select(files: File[]) {
     const run = ++epoch.current;
     setBusy(true);
-    setNotice("");
+    setNotice("画像を端末内で読み込んでいます。");
     const next: Picture[] = [];
     try {
       validateImages(files);
@@ -84,7 +89,11 @@ export default function ScreenshotImport({
         }
       }
       clearImages();
+      setScopeConfirmed(false);
       replace(next);
+      setNotice(
+        "画像を読み込みました。並び順とLINEの1対1トークであることを確認してください。",
+      );
     } catch (e) {
       for (const p of next) {
         p.canvas.width = 0;
@@ -99,20 +108,8 @@ export default function ScreenshotImport({
     epoch.current++;
     clearImages();
     const c = document.createElement("canvas");
-    c.width = 640;
-    c.height = 700;
-    const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#f4f1e8";
-    ctx.fillRect(0, 0, 640, 700);
-    ctx.fillStyle = "#293c35";
-    ctx.font = "24px sans-serif";
-    [
-      "合成画像：架空の名前・アイコン",
-      "相手：今週、少し話せる？",
-      "自分：予定を確認してみるね。",
-      "相手：今週、少し話せる？（重複例）",
-      "相手：[読めない部分]",
-    ].forEach((line, i) => ctx.fillText(line, 20, 60 + i * 120));
+    drawSyntheticLine(c);
+    setScopeConfirmed(true);
     replace([{ id: crypto.randomUUID(), canvas: c }]);
 
     setNotice(
@@ -138,11 +135,14 @@ export default function ScreenshotImport({
               `画像 ${i + 1} / ${pictures.length} を読み取り中（${Math.round(n * 100)}%）`,
             );
         },
+        pictures.map((p) => Boolean(p.layoutCropped)),
       );
       if (run !== epoch.current) return;
+      appended.current = false;
       setRows(result.rows);
+      setUnsupported(result.unsupported);
       setNotice(
-        `端末内OCRが完了しました（${(result.milliseconds / 1000).toFixed(1)}秒）。発言者は未確認です。絵文字・小さい文字・脱落や誤読を原画像と照合してください。24発言を超える場合は不要な時刻などを削除してから追加してください。`,
+        `端末内OCRが完了しました（${(result.milliseconds / 1000).toFixed(1)}秒）。${result.rows.length}発言を復元しました。${result.warnings.join(" ")} 発言者・区切り・順序を画像と照合してください。`,
       );
     } catch {
       if (run === epoch.current)
@@ -167,18 +167,6 @@ export default function ScreenshotImport({
     setNotice(
       "画像と以前の読み取り結果を削除しました。相談の下書きは保持しています。",
     );
-  }
-  function change(id: string, patch: Partial<QuoteRow>) {
-    setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-    setConfirmed(false);
-  }
-  function move(index: number, direction: number) {
-    const next = [...rows],
-      target = index + direction;
-    if (target < 0 || target >= next.length) return;
-    [next[index], next[target]] = [next[target], next[index]];
-    setRows(next);
-    setConfirmed(false);
   }
   return (
     <details
@@ -227,12 +215,13 @@ export default function ScreenshotImport({
       </p>
       <fieldset disabled={disabled || busy}>
         <p className="fine">
-          画像を選ぶ → 必要な部分を隠す → 読み取る → 確認・訂正 → 下書きへ追加
+          LINEの1対1トーク画像を選ぶ → 必要な部分を隠す → 会話を復元 →
+          確認・訂正 → 下書きへ追加
         </p>
         <details className="image-requirements">
           <summary>画像の条件・取り扱い（PNG・JPEG、1〜3枚）</summary>
           <p>
-            1枚5MB／合計12MB以下、縦横100〜4096px・800万画素以下。名前・顔・アイコン・連絡先を先に隠してください。実利用者の画像は使わないでください。
+            1枚5MB／合計12MB以下、縦横100〜4096px・800万画素以下。一度に追加できるのは24発言までです。名前・顔・アイコン・連絡先を先に隠してください。実利用者の画像は使わないでください。
           </p>
           <p>
             画像編集と日本語・英語のOCRはこのブラウザー内で処理します。実AI生成は行いません。誤読・読み落としがあるため、読み取り後に画像と照合してください。切り抜きは任意です。
@@ -303,130 +292,41 @@ export default function ScreenshotImport({
             <p>
               処理先：このブラウザー内。外部へ送信する画像はありません。外部AIで読む機能は未接続です。
             </p>
-            <button className="button secondary" type="button" onClick={read}>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={scopeConfirmed}
+                onChange={(e) => setScopeConfirmed(e.target.checked)}
+              />
+              LINEの1対1トークであることを確認しました（グループ・他アプリは対象外）
+            </label>
+            <button
+              className="button secondary"
+              type="button"
+              disabled={!scopeConfirmed}
+              onClick={read}
+            >
               端末内で読み取る
             </button>
           </>
         )}
         {rows.length > 0 && (
           <section>
-            <h4>会話を確認・修正する</h4>
-            <p>
-              発言者・順番・重複を直してください。読めない箇所は補完せず、不明の印を残します。
-            </p>
-            {rows.map((r, i) => (
-              <div className="quote-row" key={r.id}>
-                <p className="fine">
-                  画像 {Number(r.id.split("-")[0]) + 1 || 1}{" "}
-                  の読み取り行（発言の区切りも確認してください）
-                </p>
-                {pictures[Number(r.id.split("-")[0])] && (
-                  <div className="source-comparison">
-                    <button
-                      type="button"
-                      className="button secondary"
-                      aria-expanded={comparison === r.id}
-                      aria-controls={`source-${r.id}`}
-                      onClick={() =>
-                        setComparison(comparison === r.id ? null : r.id)
-                      }
-                    >
-                      {comparison === r.id
-                        ? "照合画像を閉じる"
-                        : "読み取り元の画像と照合"}
-                    </button>
-                    <div id={`source-${r.id}`}>
-                      {comparison === r.id && (
-                        <ScreenshotSourcePreview
-                          source={pictures[Number(r.id.split("-")[0])].canvas}
-                        />
-                      )}
-                    </div>
-                  </div>
-                )}
-                <label>
-                  発言 {i + 1} の人
-                  <select
-                    value={r.speaker}
-                    onChange={(e) =>
-                      change(r.id, {
-                        speaker: e.target.value as QuoteRow["speaker"],
-                      })
-                    }
-                  >
-                    <option value="unknown">未確認</option>
-                    <option value="me">自分</option>
-                    <option value="other">相手</option>
-                  </select>
-                </label>
-                <label>
-                  発言 {i + 1} の本文
-                  <textarea
-                    value={r.text}
-                    maxLength={1000}
-                    onChange={(e) => change(r.id, { text: e.target.value })}
-                  />
-                </label>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={r.uncertain}
-                    onChange={(e) =>
-                      change(r.id, { uncertain: e.target.checked })
-                    }
-                  />{" "}
-                  読めない部分を含む
-                </label>
-                {rows.some(
-                  (other, j) =>
-                    j !== i &&
-                    other.text === r.text &&
-                    other.speaker === r.speaker,
-                ) && (
-                  <p className="fine">
-                    同じ発言があります。重複か確認してください。
-                  </p>
-                )}
-                <div className="actions">
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={i === 0}
-                    onClick={() => move(i, -1)}
-                    aria-label={`発言${i + 1}を上へ`}
-                  >
-                    上へ
-                  </button>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    disabled={i === rows.length - 1}
-                    onClick={() => move(i, 1)}
-                    aria-label={`発言${i + 1}を下へ`}
-                  >
-                    下へ
-                  </button>
-                  <button
-                    type="button"
-                    className="button secondary"
-                    onClick={() => {
-                      setRows(rows.filter((v) => v.id !== r.id));
-                      setConfirmed(false);
-                    }}
-                    aria-label={`発言${i + 1}を削除`}
-                  >
-                    削除
-                  </button>
-                </div>
-              </div>
-            ))}
+            <ScreenshotConversation
+              rows={rows}
+              pictures={pictures}
+              onChange={(next) => {
+                setRows(markOverlap(next));
+                setConfirmed(false);
+              }}
+            />
             <details className="append-preview">
               <summary>下書きに追加する内容を確認</summary>
               <pre>
                 {rows
                   .map(
                     (r) =>
-                      `${r.speaker === "me" ? "自分" : r.speaker === "other" ? "相手" : "発言者未確認"}：${r.uncertain ? "[読めない部分あり・補完していません] " : ""}${r.text}`,
+                      `${r.speaker === "me" ? "自分" : r.speaker === "other" ? "相手" : "発言者未確認"}：${r.uncertain ? "[読めない部分あり・補完していません] " : ""}${r.quote ? `[引用・発言者未確定] ${r.quote}\n[新しく書かれた本文] ` : ""}${r.text}`,
                   )
                   .join("\n")}
               </pre>
@@ -445,10 +345,12 @@ export default function ScreenshotImport({
             <button
               className="button"
               type="button"
-              disabled={!confirmed}
+              disabled={!confirmed || unsupported || !scopeConfirmed}
               onClick={() => {
                 try {
+                  if (appended.current) return;
                   const text = confirmedTranscript(rows);
+                  appended.current = true;
                   if (onConfirm(text)) {
                     clearImages();
                     setRows([]);
@@ -456,11 +358,14 @@ export default function ScreenshotImport({
                     setNotice(
                       "確認した会話を下書きへ追加しました。まだ送信・履歴保存はしていません。",
                     );
-                  } else
+                  } else {
+                    appended.current = false;
                     setNotice(
                       "下書きの上限を超えるため追加できません。元の下書きは保持しています。",
                     );
+                  }
                 } catch (e) {
+                  appended.current = false;
                   setNotice((e as Error).message);
                 }
               }}

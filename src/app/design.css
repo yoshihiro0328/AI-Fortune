@@ -2108,3 +2108,130 @@ body:has(.app-layout) > .site-footer {
 .source-comparison {
   margin-block: 16px;
 }
+
+.conversation-review-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.conversation-review-columns > * {
+  min-width: 0;
+}
+.review-source {
+  position: sticky;
+  top: 24px;
+  max-height: 80dvh;
+  overflow: auto;
+  overscroll-behavior: auto;
+}
+.review-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+.restored-message {
+  max-width: 94%;
+  min-width: 0;
+  align-self: flex-start;
+  width: fit-content;
+}
+.restored-message.speaker-me {
+  align-self: flex-end;
+}
+.message-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: 14px 18px;
+  border: 1px solid #b6c4b7;
+  border-radius: 18px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.speaker-me .message-bubble {
+  background: #e5eddf;
+}
+.speaker-unknown .message-bubble {
+  border: 2px dashed #9b6632;
+}
+.message-bubble:hover {
+  box-shadow: 0 2px 6px #25493220;
+}
+.message-bubble[aria-expanded="true"] {
+  outline: 2px solid #42634c;
+  outline-offset: 2px;
+}
+.restored-text,
+.quoted-message {
+  white-space: pre-wrap;
+}
+.quoted-message {
+  border-left: 3px solid #758978;
+  padding-left: 10px;
+}
+.review-badge,
+.message-time {
+  font-size: 0.85em;
+  display: block;
+}
+.review-badge {
+  font-weight: 600;
+  color: #78521f;
+}
+.message-editor {
+  width: 100%;
+  min-width: 0;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.message-editor :is(label, textarea, select, input:not([type="checkbox"])) {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.message-editor input[type="checkbox"] {
+  width: auto;
+}
+.message-editor details > * {
+  margin-block: 12px;
+}
+.review-view-switch {
+  display: none;
+}
+@media (max-width: 900px) {
+  .conversation-review-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .review-view-switch {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-block: 16px;
+  }
+  .review-source {
+    position: static;
+    max-height: none;
+    overflow: visible;
+  }
+  .conversation-review[data-view="conversation"] .review-source {
+    display: none;
+  }
+  .conversation-review[data-view="image"] .review-messages {
+    display: none;
+  }
+}
+
+.restored-message:has(.message-bubble[aria-expanded="true"]) {
+  width: 100%;
+  max-width: 100%;
+}
