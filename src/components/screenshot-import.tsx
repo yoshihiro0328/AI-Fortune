@@ -1,35 +1,46 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import {
-  confirmedTranscript,
   imageDimensions,
   validateDimensions,
   validateImages,
+  materialErrors,
   type QuoteRow,
 } from "@/lib/screenshot/model";
 import { recognizeLocally } from "@/lib/screenshot/ocr";
 import ScreenshotConversation from "./screenshot-conversation";
-import { markOverlap } from "@/lib/screenshot/line-layout";
+import ScreenshotSourcePreview from "./screenshot-source-preview";
 import { drawSyntheticLine } from "@/lib/screenshot/synthetic-line";
 import PictureEditor, { type Picture } from "./screenshot-picture-editor";
+
 export default function ScreenshotImport({
-  onConfirm,
+  rows,
+  onChange,
+  onBlocked,
   disabled = false,
 }: {
-  onConfirm: (text: string) => boolean;
+  rows: QuoteRow[];
+  onChange: (rows: QuoteRow[]) => void;
+  onBlocked: (blocked: boolean) => void;
   disabled?: boolean;
 }) {
   const [pictures, setPictures] = useState<Picture[]>([]),
-    [rows, setRows] = useState<QuoteRow[]>([]),
-    [confirmed, setConfirmed] = useState(false),
+    [candidate, setCandidate] = useState<QuoteRow[] | null>(null),
     [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState(""),
-    [scopeConfirmed, setScopeConfirmed] = useState(false),
-    [unsupported, setUnsupported] = useState(false);
-  const appended = useRef(false);
-  const controller = useRef<AbortController | null>(null);
+    [stale, setStale] = useState(false),
+    [notice, setNotice] = useState("");
   const epoch = useRef(0),
+    controller = useRef<AbortController | null>(null),
     canvases = useRef<Picture[]>([]);
+  const running = useRef(false);
+  const picker = useRef<HTMLDetailsElement>(null);
+  function dispose(id: string) {
+    const image = canvases.current.find((p) => p.id === id);
+    if (image) {
+      image.canvas.width = 0;
+      image.canvas.height = 0;
+    }
+  }
   function clearImages() {
     for (const p of canvases.current) {
       p.canvas.width = 0;
@@ -50,34 +61,87 @@ export default function ScreenshotImport({
     },
     [],
   );
-  function replace(next: Picture[]) {
-    appended.current = false;
-    setUnsupported(false);
+  function replacePictures(next: Picture[]) {
     canvases.current = next;
     setPictures(next);
-    setRows([]);
-    setConfirmed(false);
+  }
+  async function read(next = pictures) {
+    if (running.current || disabled || !next.length) return;
+    running.current = true;
+    const run = ++epoch.current,
+      control = new AbortController();
+    controller.current = control;
+    const timer = setTimeout(() => control.abort(), 120000);
+    setBusy(true);
+    onBlocked(true);
+    setStale(rows.length > 0);
+    setCandidate(null);
+    setNotice("端末内で会話を読み取っています。画像は外部へ送りません。");
+    try {
+      const result = await recognizeLocally(
+        next.map((p) => p.canvas),
+        control.signal,
+        (i, n) => {
+          if (run === epoch.current)
+            setNotice(
+              `画像 ${i + 1} / ${next.length} を読み取り中（${Math.round(n * 100)}%）`,
+            );
+        },
+        next.map((p) => Boolean(p.layoutCropped)),
+      );
+      if (run !== epoch.current) return;
+      if (result.unsupported || !result.rows.length)
+        throw Error(
+          result.warnings.join(" ") || "会話を読み取れませんでした。",
+        );
+      if (picker.current) picker.current.open = false;
+      if (rows.length) {
+        setCandidate(result.rows);
+        setStale(true);
+        setNotice(
+          "新しい読み取り結果を用意しました。訂正済みの会話は保持しています。置き換えるか選んでください。",
+        );
+      } else {
+        onChange(result.rows);
+        setStale(false);
+        onBlocked(false);
+        setNotice("");
+      }
+    } catch (e) {
+      if (run === epoch.current) {
+        setNotice(
+          `読み取りを完了できませんでした。${control.signal.aborted ? "中断・時間切れです。" : e instanceof Error ? e.message : "画像を確認してください。"} 以前の会話と相談文は保持しています。`,
+        );
+        // Failed replacement must not associate retained corrections with a different image.
+        clearImages();
+        setStale(false);
+        onBlocked(false);
+      }
+    } finally {
+      clearTimeout(timer);
+      if (run === epoch.current) {
+        running.current = false;
+        setBusy(false);
+        controller.current = null;
+      }
+    }
   }
   async function select(files: File[]) {
+    if (running.current || disabled) return;
     const run = ++epoch.current;
+    running.current = true;
     setBusy(true);
-    setNotice("画像を端末内で読み込んでいます。");
+    onBlocked(true);
     const next: Picture[] = [];
     try {
       validateImages(files);
       for (const file of files) {
-        const bytes = new Uint8Array(await file.arrayBuffer());
-        validateDimensions(imageDimensions(bytes));
+        validateDimensions(
+          imageDimensions(new Uint8Array(await file.arrayBuffer())),
+        );
         const bitmap = await createImageBitmap(file);
-        if (run !== epoch.current) {
-          bitmap.close();
-          for (const p of next) {
-            p.canvas.width = 0;
-            p.canvas.height = 0;
-          }
-          return;
-        }
         try {
+          if (run !== epoch.current) return;
           validateDimensions({ width: bitmap.width, height: bitmap.height });
           const c = document.createElement("canvas");
           c.width = bitmap.width;
@@ -89,118 +153,105 @@ export default function ScreenshotImport({
         }
       }
       clearImages();
-      setScopeConfirmed(false);
-      replace(next);
-      setNotice(
-        "画像を読み込みました。並び順とLINEの1対1トークであることを確認してください。",
-      );
+      replacePictures(next);
+      running.current = false;
+      void read(next);
     } catch (e) {
-      for (const p of next) {
-        p.canvas.width = 0;
-        p.canvas.height = 0;
+      if (run === epoch.current) {
+        setNotice((e as Error).message);
+        setBusy(false);
+        onBlocked(stale);
+        running.current = false;
       }
-      if (run === epoch.current) setNotice((e as Error).message);
     } finally {
-      if (run === epoch.current) setBusy(false);
+      if (canvases.current !== next)
+        for (const p of next) {
+          p.canvas.width = 0;
+          p.canvas.height = 0;
+        }
     }
   }
   function demo() {
-    epoch.current++;
+    if (running.current || disabled) return;
     clearImages();
     const c = document.createElement("canvas");
     drawSyntheticLine(c);
-    setScopeConfirmed(true);
-    replace([{ id: crypto.randomUUID(), canvas: c }]);
-
+    const next = [{ id: crypto.randomUUID(), canvas: c }];
+    replacePictures(next);
+    void read(next);
+  }
+  function edited(next: Picture[]) {
+    replacePictures(next);
+    setStale(true);
+    setCandidate(null);
+    onBlocked(true);
     setNotice(
-      "合成画像を用意しました。編集後、端末内OCRで実際に読み取れます。",
+      "画像が変わりました。以前の会話・訂正は保持していますが、画像とは一致しません。再読み取り後に置き換えるか、画像の変更を取り消してください。",
     );
   }
-  async function read() {
-    const run = ++epoch.current;
-    const control = new AbortController();
-    controller.current = control;
-    const timer = setTimeout(() => control.abort(), 120000);
-    setBusy(true);
-    setRows([]);
-    setConfirmed(false);
-    setNotice("端末内OCRを準備しています。画像は外部へ送りません。");
-    try {
-      const result = await recognizeLocally(
-        pictures.map((p) => p.canvas),
-        control.signal,
-        (i, n) => {
-          if (run === epoch.current)
-            setNotice(
-              `画像 ${i + 1} / ${pictures.length} を読み取り中（${Math.round(n * 100)}%）`,
-            );
-        },
-        pictures.map((p) => Boolean(p.layoutCropped)),
-      );
-      if (run !== epoch.current) return;
-      appended.current = false;
-      setRows(result.rows);
-      setUnsupported(result.unsupported);
-      setNotice(
-        `端末内OCRが完了しました（${(result.milliseconds / 1000).toFixed(1)}秒）。${result.rows.length}発言を復元しました。${result.warnings.join(" ")} 発言者・区切り・順序を画像と照合してください。`,
-      );
-    } catch {
-      if (run === epoch.current)
-        setNotice(
-          "読み取りを完了できませんでした。中断・時間切れ・素材読み込み失敗・行数超過の可能性があります。画像を小さな範囲へ切り抜いて確認してください。元の相談の下書きは保持しています。",
-        );
-    } finally {
-      clearTimeout(timer);
-      if (run === epoch.current) {
-        setBusy(false);
-        controller.current = null;
-      }
-    }
-  }
-  function removePicture(id: string) {
-    const current = canvases.current.find((p) => p.id === id);
-    if (current) {
-      current.canvas.width = 0;
-      current.canvas.height = 0;
-    }
-    replace(canvases.current.filter((p) => p.id !== id));
+  function retain() {
+    clearImages();
+    setCandidate(null);
+    setStale(false);
+    onBlocked(false);
     setNotice(
-      "画像と以前の読み取り結果を削除しました。相談の下書きは保持しています。",
+      "以前の取り込んだ会話・訂正を保持しました。変更した画像は破棄しました。",
     );
   }
+  function cancel() {
+    epoch.current++;
+    controller.current?.abort();
+    running.current = false;
+    setBusy(false);
+    clearImages();
+    setCandidate(null);
+    setStale(false);
+    onChange([]);
+    onBlocked(false);
+    setNotice("取り込みを取り消しました。もともとの相談文は保持しています。");
+  }
+  const errors = materialErrors(rows);
   return (
-    <details
+    <section
       id="screenshot-import"
-      className="screenshot-import"
-      onKeyDown={(event) => {
-        // Editing OCR/crop fields must never implicitly submit the surrounding chat form.
+      className="screenshot-import compact-import"
+      aria-label="スクショから入力"
+      onKeyDown={(e) => {
         if (
-          event.key === "Enter" &&
-          event.target instanceof HTMLInputElement &&
-          !["checkbox", "file"].includes(event.target.type)
+          e.key === "Enter" &&
+          e.target instanceof HTMLInputElement &&
+          !["checkbox", "file"].includes(e.target.type)
         )
-          event.preventDefault();
+          e.preventDefault();
       }}
     >
-      <summary>
-        <svg
-          aria-hidden="true"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        >
-          <rect x="3" y="3" width="18" height="18" rx="3" />
-          <circle cx="8" cy="8" r="1.5" />
-          <path d="m3 17 5-5 4 4 4-6 5 7" />
-        </svg>
-        スクショから入力
-      </summary>
-      <p className="fine">
-        ローカル確認用（公開OFF）。画像は端末内で処理し、外部送信しません。確認した文字だけを下書きへ追加します。自動送信はしません。
-      </p>
+      <details className="import-picker" ref={picker}>
+        <summary>▧ スクショから入力</summary>
+        <p className="fine">
+          ローカル確認用・公開OFF。自分の端末で撮ったLINEの1対1トーク用です。グループは対象外。画像は端末内だけで読み取り、通常の相談送信時に選んだ文字だけを含めます。
+        </p>
+        <fieldset disabled={disabled || busy}>
+          <label>
+            画像を選ぶ
+            <input
+              type="file"
+              accept="image/png,image/jpeg"
+              multiple
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                e.target.value = "";
+                if (files.length) void select(files);
+              }}
+            />
+          </label>
+          <button type="button" className="button secondary" onClick={demo}>
+            合成画像を用意する
+          </button>
+        </fieldset>
+        <p className="fine">
+          PNG・JPEG、1〜3枚。1枚5MB・合計12MB、縦横100〜4096px・800万画素まで。実利用者の画像は使わないでください。再選択・再読み取りは既存の訂正を自動で上書きしません。
+        </p>
+      </details>
       {busy && (
         <button
           type="button"
@@ -214,192 +265,158 @@ export default function ScreenshotImport({
         {notice}
       </p>
       <fieldset disabled={disabled || busy}>
-        <p className="fine">
-          LINEの1対1トーク画像を選ぶ → 必要な部分を隠す → 会話を復元 →
-          確認・訂正 → 下書きへ追加
-        </p>
-        <details className="image-requirements">
-          <summary>画像の条件・取り扱い（PNG・JPEG、1〜3枚）</summary>
-          <p>
-            1枚5MB／合計12MB以下、縦横100〜4096px・800万画素以下。一度に追加できるのは24発言までです。名前・顔・アイコン・連絡先を先に隠してください。実利用者の画像は使わないでください。
-          </p>
-          <p>
-            画像編集と日本語・英語のOCRはこのブラウザー内で処理します。実AI生成は行いません。誤読・読み落としがあるため、読み取り後に画像と照合してください。切り抜きは任意です。
-          </p>
-        </details>
-        <label>
-          画像を選ぶ
-          <input
-            type="file"
-            accept="image/png,image/jpeg"
-            multiple
-            onChange={(e) => {
-              const files = Array.from(e.target.files ?? []);
-              e.target.value = "";
-              void select(files);
-            }}
-          />
-        </label>
-        <button className="button secondary" type="button" onClick={demo}>
-          合成画像を用意する
-        </button>
-        {pictures.map((p, i) => (
-          <div key={p.id}>
-            <h4>画像 {i + 1}</h4>
-            <PictureEditor
-              picture={p}
-              disabled={disabled || busy}
-              onEdit={(updated) => {
-                const next = pictures.map((v) =>
-                  v.id === updated.id ? updated : v,
-                );
-                p.canvas.width = 0;
-                p.canvas.height = 0;
-                replace(next);
-                setNotice(
-                  "画像を編集したため、以前の読み取り結果を破棄しました。端末内で再度読み取ってください。",
-                );
-              }}
-            />
-            <div className="editor-actions">
-              <button
-                type="button"
-                className="button secondary"
-                disabled={i === 0}
-                onClick={() => {
-                  const next = [...pictures];
-                  [next[i - 1], next[i]] = [next[i], next[i - 1]];
-                  replace(next);
-                  setNotice(
-                    "画像の順序を変更しました。もう一度読み取ってください。",
-                  );
-                }}
+        {(pictures.length > 0 || rows.length > 0) && (
+          <div className="import-overview">
+            {!!pictures.length && (
+              <div
+                className="import-thumbnails"
+                aria-label="読み取り画像の縮小表示"
               >
-                画像 {i + 1} を前へ
-              </button>
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => removePicture(p.id)}
-              >
-                画像 {i + 1} を削除
-              </button>
-            </div>
+                {pictures.map((p, i) => (
+                  <div key={p.id}>
+                    <ScreenshotSourcePreview source={p.canvas} />
+                    <span>画像{i + 1}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {!!rows.length && (
+              <p className="import-count" role="status">
+                <strong>会話{rows.length}件を取り込みました</strong> · 送信対象
+                {rows.filter((r) => !r.excluded).length}件 · 未送信
+                {errors.length
+                  ? ` · 要確認${new Set(errors.map((e) => e.split("：")[0])).size}件`
+                  : ""}
+              </p>
+            )}
           </div>
-        ))}
-        {pictures.length > 0 && (
+        )}
+        {!!rows.length && (
           <>
-            <p>
-              処理先：このブラウザー内。外部へ送信する画像はありません。外部AIで読む機能は未接続です。
-            </p>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={scopeConfirmed}
-                onChange={(e) => setScopeConfirmed(e.target.checked)}
+            {!pictures.length && (
+              <p className="fine">
+                取り込んだ文字は保持しています。元画像はこの画面を離れたとき等に破棄しています。
+              </p>
+            )}
+            {errors.length > 0 && (
+              <ul
+                className="import-errors"
+                aria-label="取り込んだ会話の確認箇所"
+              >
+                {errors.map((e) => (
+                  <li key={e}>{e}</li>
+                ))}
+              </ul>
+            )}
+            <details className="import-conversation">
+              <summary>内容を見る・直す</summary>
+              <p className="fine">
+                文字の誤読や、写真・背景と同化した吹き出しの見落としがあり得ます。必要に応じて元画像と照合し、送る発言を選んでください。日時は読めた範囲だけで、日時不明のまま進められます。相手から受け取った画像なら編集内で発言者を一括交換してください。
+              </p>
+              <ScreenshotConversation
+                rows={rows}
+                pictures={stale ? [] : pictures}
+                onChange={onChange}
               />
-              LINEの1対1トークであることを確認しました（グループ・他アプリは対象外）
-            </label>
-            <button
-              className="button secondary"
-              type="button"
-              disabled={!scopeConfirmed}
-              onClick={read}
-            >
-              端末内で読み取る
-            </button>
+            </details>
           </>
         )}
-        {rows.length > 0 && (
-          <section>
-            <ScreenshotConversation
-              rows={rows}
-              pictures={pictures}
-              onChange={(next) => {
-                setRows(markOverlap(next));
-                setConfirmed(false);
-              }}
-            />
-            <details className="append-preview">
-              <summary>下書きに追加する内容を確認</summary>
-              <pre>
-                {rows
-                  .map(
-                    (r) =>
-                      `${r.speaker === "me" ? "自分" : r.speaker === "other" ? "相手" : "発言者未確認"}：${r.uncertain ? "[読めない部分あり・補完していません] " : ""}${r.quote ? `[引用・発言者未確定] ${r.quote}\n[新しく書かれた本文] ` : ""}${r.text}`,
-                  )
-                  .join("\n")}
-              </pre>
-            </details>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={confirmed}
-                onChange={(e) => setConfirmed(e.target.checked)}
-              />{" "}
-              発言者・順番・重複・不明箇所を確認しました
-            </label>
-            <p>
-              確認した会話だけを現在の相談の下書きへ追加します。元画像は追加しません。通常の相談で送信すると、その本文は既存のAI処理と履歴保存の対象になります。
+        {!!pictures.length && (
+          <details className="import-image-editor">
+            <summary>元画像を拡大・隠す・切り抜く・並べ替える</summary>
+            <p className="fine">
+              編集後の画像を再読み取りします。既存の訂正を置き換える前に選択できます。
             </p>
+            {pictures.map((p, i) => (
+              <div key={p.id}>
+                <h4>画像{i + 1}</h4>
+                <PictureEditor
+                  picture={p}
+                  disabled={disabled || busy}
+                  onEdit={(updated) => {
+                    const next = pictures.map((v) =>
+                      v.id === p.id ? updated : v,
+                    );
+                    p.canvas.width = 0;
+                    p.canvas.height = 0;
+                    edited(next);
+                  }}
+                />
+                <div className="editor-actions">
+                  <button
+                    type="button"
+                    className="button secondary"
+                    disabled={i === 0}
+                    onClick={() => {
+                      const next = [...pictures];
+                      [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                      edited(next);
+                    }}
+                  >
+                    画像{i + 1}を前へ
+                  </button>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={() => {
+                      dispose(p.id);
+                      edited(pictures.filter((v) => v.id !== p.id));
+                    }}
+                  >
+                    画像{i + 1}を削除
+                  </button>
+                </div>
+              </div>
+            ))}
             <button
-              className="button"
               type="button"
-              disabled={!confirmed || unsupported || !scopeConfirmed}
+              className="button secondary"
+              onClick={() => void read()}
+            >
+              編集した画像を再読み取り
+            </button>
+          </details>
+        )}
+        {candidate && (
+          <div className="notice">
+            <p>
+              新しい結果：{candidate.length}
+              件。置き換えると以前の訂正は消えます。
+            </p>
+            <details>
+              <summary>置き換える内容を確認</summary>
+              <ScreenshotConversation
+                rows={candidate}
+                pictures={pictures}
+                onChange={setCandidate}
+              />
+            </details>
+            <button
+              type="button"
+              className="button"
               onClick={() => {
-                try {
-                  if (appended.current) return;
-                  const text = confirmedTranscript(rows);
-                  appended.current = true;
-                  if (onConfirm(text)) {
-                    clearImages();
-                    setRows([]);
-                    setConfirmed(false);
-                    setNotice(
-                      "確認した会話を下書きへ追加しました。まだ送信・履歴保存はしていません。",
-                    );
-                  } else {
-                    appended.current = false;
-                    setNotice(
-                      "下書きの上限を超えるため追加できません。元の下書きは保持しています。",
-                    );
-                  }
-                } catch (e) {
-                  appended.current = false;
-                  setNotice((e as Error).message);
-                }
+                onChange(candidate);
+                setCandidate(null);
+                setStale(false);
+                onBlocked(false);
+                setNotice("新しい読み取り結果に置き換えました。未送信です。");
               }}
             >
-              確認した会話を下書きへ追加
+              新しい結果に置き換える
             </button>
-          </section>
+          </div>
         )}
-
-        <button
-          type="button"
-          className="text-button"
-          onClick={(event) => {
-            const details = event.currentTarget.closest("details");
-            if (details) {
-              details.open = false;
-              details.querySelector("summary")?.focus();
-            }
-            epoch.current++;
-            clearImages();
-            setRows([]);
-
-            setConfirmed(false);
-            setNotice(
-              "試作内の画像・抽出結果を破棄しました。相談の下書きは保持しています。",
-            );
-          }}
-        >
-          画像・抽出結果を破棄する
-        </button>
-        <p className="fine">
-          試作内では画像・抽出結果をブラウザーの保存領域やサーバーへ保存せず、相談相手の切替・画面を離れる際に参照を破棄します。端末のメモリ消去やスクリーンショット等の即時削除を保証するものではありません。
-        </p>
+        {stale && (
+          <button type="button" className="button secondary" onClick={retain}>
+            画像の変更を取り消し、以前の会話を保持
+          </button>
+        )}
+        {(rows.length > 0 || pictures.length > 0) && (
+          <button type="button" className="button secondary" onClick={cancel}>
+            取り込みを取り消す
+          </button>
+        )}
       </fieldset>
-    </details>
+    </section>
   );
 }

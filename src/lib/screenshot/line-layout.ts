@@ -217,20 +217,15 @@ export function restoreMessages(
       );
     if (inside.some((l) => l.confidence < 85 || /[�□]/u.test(l.text)))
       issues.push("文字に誤読・欠落の可能性があります");
-    // Indented text or a reply marker signals a possible quote. Keep it unassigned until reviewed.
-    const quote =
-      Boolean(b.inset && inside.length > 1) ||
-      inside.some((l) => /返信|引用|^\s*[>＞]/.test(l.text)) ||
-      (inside.length > 1 &&
-        Math.max(...inside.map((l) => l.bbox!.x0)) -
-          Math.min(...inside.map((l) => l.bbox!.x0)) >
-          width * 0.035);
+    // A word such as 「返信」 is ordinary message text. Only a detected inset
+    // region is evidence of a possible quoted block; line wrapping is not.
+    const quote = Boolean(b.inset && inside.length > 1);
     if (quote)
       issues.push("引用返信の可能性：引用と新しい本文を分けてください");
     const nearby = lines.filter(
       (l) =>
         l.bbox &&
-        !within(l.bbox, b.box) &&
+        !bubbles.some((other) => within(l.bbox!, other.box)) &&
         l.bbox.y1 >= b.box.y0 &&
         l.bbox.y0 <= b.box.y1 &&
         Math.min(
@@ -241,7 +236,15 @@ export function restoreMessages(
     );
     const stamp = nearby.find((l) => time(l.text))?.text.trim();
     const day = lines
-      .filter((l) => l.bbox && l.bbox.y1 <= b.box.y0 && date(l.text))
+      .filter(
+        (l) =>
+          l.bbox &&
+          l.bbox.y1 <= b.box.y0 &&
+          date(l.text) &&
+          !bubbles.some((other) => within(l.bbox!, other.box)) &&
+          Math.abs((l.bbox.x0 + l.bbox.x1) / 2 - width / 2) < width * 0.15,
+      )
+      .sort((a, c) => a.bbox!.y0 - c.bbox!.y0)
       .at(-1)
       ?.text.trim();
     const text = inside

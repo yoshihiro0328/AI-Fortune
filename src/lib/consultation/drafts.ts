@@ -1,3 +1,4 @@
+import type { QuoteRow } from "../screenshot/model";
 import type { Purpose } from "./purpose";
 export type PendingConsultation = {
   requestId: string;
@@ -7,6 +8,7 @@ export type PendingConsultation = {
 };
 export type Draft = {
   purpose?: Purpose | "";
+  material?: QuoteRow[];
   text: string;
   pending: PendingConsultation | null;
 };

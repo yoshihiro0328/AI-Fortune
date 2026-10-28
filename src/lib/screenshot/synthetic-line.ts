@@ -35,6 +35,17 @@ export function drawSyntheticLine(
     },
     { side: "other", text: ["ありがとう"], y: 490, w: 240 },
   ];
+  if (variant === "reply-date") {
+    messages[0].text = ["返信ありがとう"];
+    messages[1].text = ["10月28日"];
+    messages[2].text = ["返信は明日で大丈夫だよ"];
+  }
+  if (variant === "body-date-only") {
+    ctx.fillStyle = bg;
+    ctx.fillRect(250, 95, 160, 35);
+    messages[0].text = ["10月28日"];
+    messages[1].text = ["その日はどうかな"];
+  }
   if (variant === "repeat")
     messages.push({ side: "me", text: ["ありがとう"], y: 590, w: 240 });
   if (variant === "quote")

@@ -50,6 +50,8 @@ try {
   await p.addScriptTag({ content: code });
   for (const [variant, width] of [
     ["light", 640],
+    ["reply-date", 640],
+    ["body-date-only", 640],
     ["dark", 640],
     ["background", 640],
     ["light", 320],
@@ -172,6 +174,10 @@ try {
       result.data.milliseconds,
     );
   }
+  const reply = results.find((r) => r.variant === "reply-date");
+  assert.ok(reply.data.rows.every((r) => !r.quotePending));
+  const bodyDate = results.find((r) => r.variant === "body-date-only");
+  assert.ok(bodyDate.data.rows.every((r) => !r.date));
   const standard = results.find(
     (r) => r.variant === "light" && r.width === 640,
   );

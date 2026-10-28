@@ -2235,3 +2235,126 @@ body:has(.app-layout) > .site-footer {
   width: 100%;
   max-width: 100%;
 }
+
+/* Imported text is part of the composer; source images are opened only on demand. */
+.compact-import,
+.compact-import fieldset,
+.compact-import details {
+  min-width: 0;
+  max-width: 100%;
+}
+.compact-import fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.compact-import .import-thumbnails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.compact-import .import-thumbnails > div {
+  width: 64px;
+  min-width: 0;
+  font-size: 0.8rem;
+}
+.compact-import .import-thumbnails canvas {
+  display: block;
+  width: 64px;
+  height: 76px;
+  object-fit: contain;
+  background: #e8ebe2;
+}
+.compact-import .import-count {
+  margin: 0;
+}
+.compact-import summary {
+  padding-block: 12px;
+  cursor: pointer;
+}
+.compact-import .import-errors {
+  padding-left: 20px;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.compact-import .conversation-review-columns {
+  grid-template-columns: minmax(0, 1fr);
+}
+.compact-import .review-view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block: 16px;
+}
+.compact-import [hidden] {
+  display: none;
+}
+.compact-import .review-source {
+  position: static;
+  max-height: none;
+  overflow: visible;
+}
+.compact-import .message-include {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding-block: 10px;
+  font-size: 0.9em;
+}
+.compact-import .message-include input {
+  width: auto;
+}
+.compact-import .message-dates {
+  display: grid;
+  gap: 16px;
+}
+.compact-import .import-image-editor > div {
+  margin-block: 20px;
+}
+.compact-import input[type="file"] {
+  width: 100%;
+  min-width: 0;
+}
+.compact-import > [role="status"] {
+  margin-block: 8px;
+  font-size: 0.88em;
+}
+.compact-import .import-thumbnails canvas {
+  margin: 0;
+}
+.compact-import .import-count {
+  margin-block: 0;
+}
+.compact-import > fieldset {
+  row-gap: 8px;
+}
+.compact-import > fieldset > .button {
+  align-self: flex-start;
+  padding: 8px 14px;
+}
+.compact-import .import-overview {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+.compact-import .import-overview .import-thumbnails {
+  flex: 0 0 52px;
+  max-width: 52px;
+  gap: 4px;
+}
+.compact-import .import-overview .import-thumbnails > div {
+  width: 52px;
+}
+.compact-import .import-overview .import-thumbnails canvas {
+  width: 52px;
+  height: 60px;
+}
+.compact-import .import-overview .import-count {
+  flex: 1;
+  min-width: 0;
+}

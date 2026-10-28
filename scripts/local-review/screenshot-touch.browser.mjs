@@ -21,13 +21,25 @@ try {
         ? r.continue()
         : (external++, r.abort()),
     );
+    await c.request.post(base + "/__review/scenario", {
+      maxRedirects: 0,
+      headers: {
+        origin: base,
+        "content-type": "application/x-www-form-urlencoded",
+      },
+      data: "mode=free",
+    });
     const p = await c.newPage();
     await p.goto(base + route, { waitUntil: "networkidle", timeout: 60000 });
     const s = p.locator("#screenshot-import");
-    await s.locator(":scope>summary").tap();
+    await s.locator(".import-picker>summary").tap();
     await s
       .getByRole("button", { name: "合成画像を用意する", exact: true })
       .tap();
+    await expect(s.locator(".import-count")).toContainText("会話4件", {
+      timeout: 125000,
+    });
+    await s.locator(".import-image-editor>summary").tap();
     const ed = s.locator(".screenshot-picture"),
       stage = ed.locator(".image-stage");
     await ed.getByLabel("表示倍率").selectOption("2");

@@ -33,7 +33,7 @@ export default function ScreenshotConversation({
       aria-label="復元した会話の確認"
       data-view={view}
     >
-      <h4>会話全体を確認する</h4>
+      <h4>取り込んだ会話</h4>
       <p className="fine">
         左が相手、右が自分です。間違いのある吹き出しだけ選んで直してください。画像の順番は選択時の並びです。日時や重複候補も照合してください。
       </p>
@@ -78,11 +78,15 @@ export default function ScreenshotConversation({
       </div>
       <div className="conversation-review-columns">
         <aside
+          hidden={view !== "image"}
           className="review-source"
           aria-label="読み取り元の画像"
           tabIndex={0}
         >
           <p>画像 {(current?.image ?? 0) + 1}・選んだ発言の領域</p>
+          {!picture && (
+            <p>元画像は保持していません。文字の訂正は続けられます。</p>
+          )}
           <button
             className="button secondary"
             type="button"
@@ -99,12 +103,22 @@ export default function ScreenshotConversation({
             />
           )}
         </aside>
-        <div className="review-messages">
+        <div className="review-messages" hidden={view === "image"}>
           {rows.map((r, i) => (
             <article
               className={`restored-message speaker-${r.speaker}`}
               key={r.id}
             >
+              <label className="message-include">
+                <input
+                  type="checkbox"
+                  checked={!r.excluded}
+                  onChange={(e) =>
+                    change(r.id, { excluded: !e.target.checked })
+                  }
+                />
+                発言{i + 1}を送る{r.excluded ? "（除外中）" : ""}
+              </label>
               <button
                 type="button"
                 className="message-bubble"
@@ -126,12 +140,16 @@ export default function ScreenshotConversation({
                       ? "相手"
                       : "発言者：要確認"}
                 </strong>
-                {(r.uncertain || r.quotePending) && (
-                  <span className="review-badge">要確認</span>
-                )}
+                {!r.keepUnknown &&
+                  ((r.uncertain && !r.reviewed) ||
+                    r.quotePending ||
+                    r.speaker === "unknown") && (
+                    <span className="review-badge">要確認</span>
+                  )}
                 {r.duplicateOf && (
                   <span className="review-badge">
-                    前の画像との重複候補（未削除）
+                    前の画像との重複候補
+                    {r.duplicateKept ? "（残す）" : "（未選択）"}
                   </span>
                 )}
                 {r.quote && (
@@ -180,6 +198,67 @@ export default function ScreenshotConversation({
                       引用と本文が混ざっている可能性があります。本文を直し、引用部分を下の欄へ移してください。引用でなければ空欄で確定できます。
                     </p>
                   )}
+                  <div className="message-dates">
+                    <label>
+                      日付（読めた範囲だけ・空欄可）
+                      <input
+                        value={r.date ?? ""}
+                        maxLength={80}
+                        onChange={(e) => change(r.id, { date: e.target.value })}
+                      />
+                    </label>
+                    <label>
+                      時刻（空欄可）
+                      <input
+                        value={r.time ?? ""}
+                        maxLength={40}
+                        onChange={(e) => change(r.id, { time: e.target.value })}
+                      />
+                    </label>
+                  </div>
+                  {r.duplicateOf && (
+                    <div className="editor-actions">
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() =>
+                          change(r.id, { duplicateKept: true, excluded: false })
+                        }
+                      >
+                        重複候補を残す
+                      </button>
+                      <button
+                        type="button"
+                        className="button secondary"
+                        onClick={() => change(r.id, { excluded: true })}
+                      >
+                        重複候補を除外
+                      </button>
+                    </div>
+                  )}
+                  <div className="editor-actions">
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() =>
+                        change(r.id, { reviewed: true, keepUnknown: false })
+                      }
+                    >
+                      訂正した内容を確認した
+                    </button>
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => change(r.id, { keepUnknown: true })}
+                    >
+                      不明部分を明示したまま使う
+                    </button>
+                  </div>
+                  {r.keepUnknown && (
+                    <p className="fine">
+                      発言者不明・判読困難・引用の区別不明は、不明と明示して送ります。推測で補いません。
+                    </p>
+                  )}
                   <details>
                     <summary>引用・分割・結合・並べ替え</summary>
                     <label>
@@ -196,7 +275,9 @@ export default function ScreenshotConversation({
                     <button
                       className="button secondary"
                       type="button"
-                      onClick={() => change(r.id, { quotePending: false })}
+                      onClick={() =>
+                        change(r.id, { quotePending: false, reviewed: true })
+                      }
                     >
                       引用と本文の区別を確認した
                     </button>

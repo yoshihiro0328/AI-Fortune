@@ -60,6 +60,7 @@ it("confirmed transcript preserves speaker, order and unknowns, and treats image
       speaker: "me" as const,
       text: "[読めない部分]",
       uncertain: true,
+      keepUnknown: true,
     },
   ];
   const t = confirmedTranscript(rows);

@@ -1,4 +1,9 @@
 "use client";
+import {
+  composeMaterial,
+  materialErrors,
+  type QuoteRow,
+} from "@/lib/screenshot/model";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { exchangeExplanation } from "@/lib/display-copy";
@@ -66,6 +71,15 @@ export default function Consultation({
     [topic, setTopic] = useState(""),
     [returnPath, setReturnPath] = useState("/consult");
   const [purpose, setPurpose] = useState<Purpose | "">("");
+  const [material, setMaterial] = useState<QuoteRow[]>([]);
+  const [materialBlocked, setMaterialBlocked] = useState(false);
+  const [materialRevision, setMaterialRevision] = useState(0);
+  const composed = submissionText(composeMaterial(text, material), purpose);
+  const materialInvalid =
+    materialBlocked ||
+    materialErrors(material).length > 0 ||
+    composed.length > 4000;
+  const sendLock = useRef(false);
   const pending = useRef<PendingConsultation | null>(null);
   const drafts = useRef(new ConversationDrafts());
   const activeKey = useRef("");
@@ -82,6 +96,8 @@ export default function Consultation({
     activeKey.current = key;
     const draft = drafts.current.get(key);
     setText(draft.text);
+    setMaterial(draft.material ?? []);
+    setMaterialBlocked(false);
     setPurpose(draft.purpose ?? "");
     pending.current = draft.pending;
     setHasPending(!!draft.pending);
@@ -94,6 +110,9 @@ export default function Consultation({
     setHome(null);
     setTurns([]);
     setText("");
+    setMaterial([]);
+    setMaterialBlocked(false);
+    setMaterialRevision((v) => v + 1);
     setPurpose("");
     setThreadId("");
     setSubjectId("");
@@ -288,57 +307,78 @@ export default function Consultation({
     });
   }
   async function send(retry = false, turn?: Turn) {
-    await act(async () => {
-      // Verify the current owner before any send, including retry after a background account change.
-      await load();
-      let id = threadId;
-      if (!id) {
-        if (!subjectId) throw new Error("相談相手の呼び名を追加してください。");
-        const t = await request<{ id: string }>("/api/consultations", {
-          action: "create_thread",
-          subject: subjectId,
-        });
-        id = t.id;
-        drafts.current.move(activeKey.current, id);
-        activeKey.current = id;
-        setThreadId(id);
-        setSidebarOpen(false);
-      }
-      if (turn) {
-        pending.current = {
-          requestId: turn.id,
-          text: turn.user_text,
-          ...(turn.assistant_text
-            ? { regenerate: true, regenerationId: crypto.randomUUID() }
-            : {}),
-        };
-      } else if (!retry) {
-        if (pending.current)
-          throw new Error(
-            "前の送信結果を確認するため、同じ内容の再送をご利用ください。",
-          );
-        const submitted = submissionText(text.trim(), purpose);
-        if (submitted.length > 4000)
-          throw new Error(
-            "目的の表示を含めて4000文字以内にしてください。下書きは保持しています。",
-          );
-        pending.current = { requestId: crypto.randomUUID(), text: submitted };
-      }
-      setHasPending(true);
-      if (!pending.current?.text)
-        throw new Error("相談したいことを入力してください。");
-      drafts.current.update(id, { pending: pending.current });
-      const epoch = authEpoch.current;
-      await request("/api/consultations/" + id + "/send", pending.current);
-      if (epoch !== authEpoch.current) return;
-      drafts.current.remove(id);
-      pending.current = null;
-      setText("");
-      setPurpose("");
-      setHasPending(false);
-      await load();
-      await open(id);
-    });
+    if (sendLock.current) return;
+    if (
+      !retry &&
+      !turn &&
+      (materialInvalid || !composeMaterial(text, material).trim())
+    ) {
+      setError(
+        materialErrors(material).join("\n") ||
+          "読み取り・変更の確認を終え、合計4000文字以内にしてください。",
+      );
+      return;
+    }
+    sendLock.current = true;
+    try {
+      await act(async () => {
+        // Verify the current owner before any send, including retry after a background account change.
+        await load();
+        let id = threadId;
+        if (!id) {
+          if (!subjectId)
+            throw new Error("相談相手の呼び名を追加してください。");
+          const t = await request<{ id: string }>("/api/consultations", {
+            action: "create_thread",
+            subject: subjectId,
+          });
+          id = t.id;
+          drafts.current.move(activeKey.current, id);
+          activeKey.current = id;
+          setThreadId(id);
+          setSidebarOpen(false);
+        }
+        if (turn) {
+          pending.current = {
+            requestId: turn.id,
+            text: turn.user_text,
+            ...(turn.assistant_text
+              ? { regenerate: true, regenerationId: crypto.randomUUID() }
+              : {}),
+          };
+        } else if (!retry) {
+          if (pending.current)
+            throw new Error(
+              "前の送信結果を確認するため、同じ内容の再送をご利用ください。",
+            );
+          const submitted = composed;
+          if (submitted.length > 4000)
+            throw new Error(
+              "目的の表示を含めて4000文字以内にしてください。下書きは保持しています。",
+            );
+          pending.current = { requestId: crypto.randomUUID(), text: submitted };
+        }
+        setHasPending(true);
+        if (!pending.current?.text)
+          throw new Error("相談したいことを入力してください。");
+        drafts.current.update(id, { pending: pending.current });
+        const epoch = authEpoch.current;
+        await request("/api/consultations/" + id + "/send", pending.current);
+        if (epoch !== authEpoch.current) return;
+        drafts.current.remove(id);
+        pending.current = null;
+        setText("");
+        setMaterial([]);
+        setMaterialBlocked(false);
+        setMaterialRevision((v) => v + 1);
+        setPurpose("");
+        setHasPending(false);
+        await load();
+        await open(id);
+      });
+    } finally {
+      sendLock.current = false;
+    }
   }
   async function manage(action: string, extra: Record<string, unknown> = {}) {
     await request("/api/consultations", { action, id: subjectId, ...extra });
@@ -449,7 +489,6 @@ export default function Consultation({
                     type="search"
                     minLength={2}
                     maxLength={80}
-                    required
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="呼び名・タイトル・会話の言葉"
@@ -521,7 +560,6 @@ export default function Consultation({
                   <input
                     id="nickname"
                     maxLength={40}
-                    required
                     value={nickname}
                     onChange={(e) => setNickname(e.target.value)}
                     placeholder="今の恋人、気になる人 など"
@@ -788,14 +826,23 @@ export default function Consultation({
                 />
                 {screenshotPrototype && subject && (
                   <ScreenshotImport
-                    key={home.ownerId + ":" + subjectId + ":" + threadId}
+                    key={
+                      home.ownerId +
+                      ":" +
+                      subjectId +
+                      ":" +
+                      threadId +
+                      ":" +
+                      materialRevision
+                    }
                     disabled={busy || hasPending}
-                    onConfirm={(quote) => {
-                      const next = appendChange(text, quote, 3900);
-                      if (next === null) return false;
-                      setText(next);
-                      drafts.current.update(activeKey.current, { text: next });
-                      return true;
+                    rows={material}
+                    onBlocked={setMaterialBlocked}
+                    onChange={(next) => {
+                      setMaterial(next);
+                      drafts.current.update(activeKey.current, {
+                        material: next,
+                      });
                     }}
                   />
                 )}
@@ -820,7 +867,6 @@ export default function Consultation({
                 <textarea
                   id="chat-text"
                   maxLength={4000 - submissionText("", purpose).length}
-                  required
                   rows={expanded ? 12 : 4}
                   className={expanded ? "composer-expanded" : ""}
                   value={text}
@@ -838,7 +884,8 @@ export default function Consultation({
                       !e.nativeEvent.isComposing &&
                       !busy &&
                       subject &&
-                      text.trim() &&
+                      composeMaterial(text, material).trim() &&
+                      !materialInvalid &&
                       !hasPending
                     ) {
                       e.preventDefault();
@@ -861,12 +908,20 @@ export default function Consultation({
                 </p>
                 <div className="composer-actions">
                   <span className="fine">
-                    {text.length}/{4000 - submissionText("", purpose).length}
-                    文字
+                    合計{composed.length}/4000文字（残り
+                    {Math.max(0, 4000 - composed.length)}文字）
+                    {composed.length > 4000 &&
+                      "・上限超過：送る発言を減らしてください"}
                   </span>
                   <button
                     className="button"
-                    disabled={busy || !subject || !text.trim() || hasPending}
+                    disabled={
+                      busy ||
+                      !subject ||
+                      !composeMaterial(text, material).trim() ||
+                      hasPending ||
+                      materialInvalid
+                    }
                   >
                     相談を送る
                   </button>
@@ -986,7 +1041,6 @@ export default function Consultation({
                         <input
                           id="thread-title"
                           name="title"
-                          required
                           maxLength={80}
                           defaultValue={
                             home.threads.find((t) => t.id === threadId)?.title

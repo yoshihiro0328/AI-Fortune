@@ -43,7 +43,10 @@ it("groups by bubbles rather than text lines, keeps consecutive bubbles separate
   ]);
   expect(r.rows[0].time).toBe("19:35");
   expect(r.rows[0].date).toBe("10月28日");
-  expect(confirmedTranscript(r.rows)).not.toMatch(/既読|合成画像|19:35/);
+  expect(confirmedTranscript(r.rows)).toContain(
+    "[日付：10月28日・時刻：19:35]",
+  );
+  expect(confirmedTranscript(r.rows)).not.toMatch(/既読|合成画像/);
 });
 it("does not guess unavailable speaker geometry, truncated bubbles or missing text", () => {
   const r = restoreMessages(
@@ -99,7 +102,13 @@ it("does not silently fold possible quotation into new message", () => {
   expect(() => confirmedTranscript(r.rows)).toThrow();
   expect(
     confirmedTranscript([
-      { ...r.rows[0], quotePending: false, quote: "前の文", text: "新しい文" },
+      {
+        ...r.rows[0],
+        quotePending: false,
+        reviewed: true,
+        quote: "前の文",
+        text: "新しい文",
+      },
     ]),
   ).toContain("[引用・発言者未確定] 前の文\n[新しく書かれた本文] 新しい文");
 });
@@ -198,4 +207,23 @@ it("a mask that removes alignment evidence cannot turn an incoming bubble into a
   expect(bubbles).toHaveLength(1);
   expect(bubbles[0].obscured).toBe(true);
   expect(restoreMessages([], bubbles, 0, w, h).rows[0].speaker).toBe("unknown");
+});
+
+it("ordinary reply words and dates inside bubbles are content, not quoted blocks or date separators", () => {
+  const r = restoreMessages(
+    [
+      line("返信ありがとう", box(70, 160, 260, 180)),
+      line("10月28日", box(70, 200, 200, 220)),
+      line("返信は明日で大丈夫だよ", box(240, 295, 460, 330)),
+      line("19:45", box(160, 300, 215, 320)),
+    ],
+    bubbles.slice(0, 2),
+    0,
+    500,
+    700,
+  );
+  expect(r.rows.every((r) => !r.quotePending && !r.date)).toBe(true);
+  expect(r.rows[0].text).toContain("10月28日");
+  expect(r.rows[1].time).toBe("19:45");
+  expect(confirmedTranscript(r.rows)).toContain("[時刻：19:45]");
 });

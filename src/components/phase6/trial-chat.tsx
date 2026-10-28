@@ -1,4 +1,9 @@
 "use client";
+import {
+  composeMaterial,
+  materialErrors,
+  type QuoteRow,
+} from "@/lib/screenshot/model";
 import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -80,10 +85,40 @@ export default function TrialChat({
     [scriptReady, setScriptReady] = useState(false),
     [claimConsent, setClaimConsent] = useState(false),
     [notice, setNotice] = useState("");
+  const [material, setMaterial] = useState<QuoteRow[]>([]);
+  const [materialBlocked, setMaterialBlocked] = useState(false);
+  const [materialRevision, setMaterialRevision] = useState(0);
+  const sendLock = useRef(false);
+  const privacyEpoch = useRef(0);
+  const composed = composeMaterial(text, material);
+  const materialInvalid =
+    materialBlocked ||
+    materialErrors(material).length > 0 ||
+    composed.length > (session?.maxLength ?? 800);
   const requestRef = useRef<{ fingerprint: string; id: string } | null>(null),
     challengeElement = useRef<HTMLDivElement>(null),
     widget = useRef<string | null>(null),
     chatRoot = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const clear = () => {
+      privacyEpoch.current++;
+      requestRef.current = null;
+      setSession(null);
+      setBusy(false);
+      setConsent(false);
+      setMaterial([]);
+      setMaterialBlocked(false);
+      setMaterialRevision((v) => v + 1);
+      setText("");
+    };
+    const channel = new BroadcastChannel("yorisoi-auth-change");
+    channel.onmessage = clear;
+    window.addEventListener("yorisoi-auth-change", clear);
+    return () => {
+      channel.close();
+      window.removeEventListener("yorisoi-auth-change", clear);
+    };
+  }, []);
   const config = topics[topic],
     answer = session?.turn?.answer,
     used =
@@ -92,26 +127,33 @@ export default function TrialChat({
       session?.claimed ||
       session?.deleted;
   const refresh = useCallback(async () => {
+    const epoch = privacyEpoch.current;
     const data = await request<Session>("/api/trial/session");
+    if (epoch !== privacyEpoch.current) return data;
     setSession(data);
     if (data.turn?.input) {
       setTopic(data.turn.input.topicId);
       setFields(data.turn.input.fields);
       setText(data.turn.input.text);
+      setMaterial([]);
+      setMaterialRevision((v) => v + 1);
       setPurpose(data.turn.input.purpose ?? "");
     }
     return data;
   }, []);
   useEffect(() => {
     let alive = true;
+    const epoch = privacyEpoch.current;
     void request<Session>("/api/trial/session")
       .then((data) => {
-        if (!alive) return;
+        if (!alive || epoch !== privacyEpoch.current) return;
         setSession(data);
         if (data.turn?.input) {
           setTopic(data.turn.input.topicId);
           setFields(data.turn.input.fields);
           setText(data.turn.input.text);
+          setMaterial([]);
+          setMaterialRevision((v) => v + 1);
           setPurpose(data.turn.input.purpose ?? "");
         }
       })
@@ -131,8 +173,12 @@ export default function TrialChat({
     if (!session?.expiresAt) return;
     const timeout = setTimeout(
       () => {
+        privacyEpoch.current++;
         setSession(null);
         setText("");
+        setMaterial([]);
+        setMaterialBlocked(false);
+        setMaterialRevision((v) => v + 1);
         setFields({});
         setNotice("お試しの閲覧・引き継ぎ期限が終了しました。");
         void refresh().catch(() => {});
@@ -175,10 +221,26 @@ export default function TrialChat({
     };
   }, [scriptReady, siteKey, session?.active, session?.enabled]);
   async function send() {
-    if (busy || !text.trim() || !consent || used || !session?.enabled) return;
+    if (
+      sendLock.current ||
+      busy ||
+      !composed.trim() ||
+      materialInvalid ||
+      !consent ||
+      used ||
+      !session?.enabled
+    )
+      return;
+    sendLock.current = true;
+    const epoch = privacyEpoch.current;
     setBusy(true);
     setError("");
-    const fingerprint = JSON.stringify({ topic, text, fields, purpose });
+    const fingerprint = JSON.stringify({
+      topic,
+      text: composed,
+      fields,
+      purpose,
+    });
     if (requestRef.current?.fingerprint !== fingerprint)
       requestRef.current = { fingerprint, id: crypto.randomUUID() };
     try {
@@ -187,6 +249,7 @@ export default function TrialChat({
           consentVersion,
           challengeToken: challenge,
         });
+        if (epoch !== privacyEpoch.current) return;
         setSession(s);
       }
       const s = await request<Session>("/api/trial/turns", "POST", {
@@ -194,18 +257,25 @@ export default function TrialChat({
         topicId: topic,
         topicVersion: 1,
         ...(purpose ? { purpose } : {}),
-        text,
+        text: composed,
         fields,
       });
+      if (epoch !== privacyEpoch.current) return;
       setSession(s);
+      setText(composed);
+      setMaterial([]);
+      setMaterialBlocked(false);
+      setMaterialRevision((v) => v + 1);
       setNotice("回答が届きました。");
     } catch (e) {
+      if (epoch !== privacyEpoch.current) return;
       setError(e instanceof Error ? e.message : "送信できませんでした。");
       if (widget.current) {
         window.turnstile?.reset(widget.current);
         setChallenge("");
       }
     } finally {
+      sendLock.current = false;
       setBusy(false);
     }
   }
@@ -245,6 +315,9 @@ export default function TrialChat({
     try {
       await request("/api/trial/session/content", "DELETE");
       setText("");
+      setMaterial([]);
+      setMaterialBlocked(false);
+      setMaterialRevision((v) => v + 1);
       setFields({});
 
       await refresh();
@@ -439,14 +512,11 @@ export default function TrialChat({
             />
             {screenshotPrototype && session?.enabled && (
               <ScreenshotImport
-                key={`${topic}:${memberEmail ?? "anonymous"}:${session.expiresAt ?? "new"}`}
+                key={`${memberEmail ?? "anonymous"}:${materialRevision}`}
                 disabled={busy}
-                onConfirm={(quote) => {
-                  const next = text.trim() ? text + "\n\n" + quote : quote;
-                  if (next.length > (session?.maxLength ?? 800)) return false;
-                  setText(next);
-                  return true;
-                }}
+                rows={material}
+                onBlocked={setMaterialBlocked}
+                onChange={setMaterial}
               />
             )}
             <label htmlFor="trial-text">
@@ -482,13 +552,17 @@ export default function TrialChat({
           </div>
           <div className="p6-composer-actions composer-actions">
             <span>
-              {text.length}/{session?.maxLength ?? 800}文字
+              合計{composed.length}/{session?.maxLength ?? 800}文字（残り
+              {Math.max(0, (session?.maxLength ?? 800) - composed.length)}文字）
+              {composed.length > (session?.maxLength ?? 800) &&
+                "・上限超過：送る発言を減らしてください"}
             </span>
             <button
               className="p6-button"
               disabled={
                 busy ||
-                !text.trim() ||
+                !composed.trim() ||
+                materialInvalid ||
                 !consent ||
                 !session?.enabled ||
                 (!session.active && !challenge)
