@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-vi.mock("next/navigation", () => ({ usePathname: () => "/chat" }));
+const route = vi.hoisted(() => ({ path: "/chat" }));
+vi.mock("next/navigation", () => ({ usePathname: () => route.path }));
 import Plans from "../src/components/plans";
 import BillingTerms from "../src/components/billing-terms";
 import DiagnosisProgress from "../src/components/diagnosis-progress";
@@ -73,7 +74,7 @@ describe("presentation preserves purchase conditions and honest progress", () =>
   it("has one consultation/history entry in the desktop navigation and the same mobile name", () => {
     const html = render(createElement(Shell, null, ""));
     const nav = html.match(
-      /<nav aria-label="メインナビゲーション">([\s\S]*?)<\/nav>/,
+      /<nav aria-label="メインナビゲーション"[^>]*>([\s\S]*?)<\/nav>/,
     )![1];
     expect(nav.match(/href="\/consult"/g)).toHaveLength(1);
     expect(nav).toContain("相談・履歴");
@@ -86,5 +87,52 @@ describe("presentation preserves purchase conditions and honest progress", () =>
     );
     expect(homeSample.answer).toContain("理由まではまだ分かりません");
     expect(homeSample.nextStep).toContain("急ぎの用件なら");
+  });
+});
+
+describe("shared route families", () => {
+  it("keeps the same desktop and mobile destinations for every application route", () => {
+    for (const path of [
+      "/chat",
+      "/consult",
+      "/account",
+      "/diagnosis/partner-mind",
+      "/result/example",
+      "/report/example",
+    ]) {
+      route.path = path;
+      const html = render(createElement(Shell, null, "content"));
+      expect(html).toContain('class="app-sidebar"');
+      expect(html).toContain('class="app-content"');
+      const navs = [
+        ...html.matchAll(
+          /<nav aria-label="メインナビゲーション"[^>]*>([\s\S]*?)<\/nav>/g,
+        ),
+      ].map((m) => m[1]);
+      expect(navs).toHaveLength(2);
+      expect(navs[0]).toBe(navs[1]);
+      expect(navs[0]).toContain("aria-current=");
+      expect(html).toContain('aria-expanded="false"');
+      expect(html).toContain('aria-labelledby="site-menu-title"');
+    }
+  });
+  it("keeps information pages on the public header without a sidebar", () => {
+    for (const path of [
+      "/",
+      "/plans",
+      "/guides",
+      "/guides/example",
+      "/help",
+      "/legal/terms",
+      "/report-sample",
+      "/safety",
+    ]) {
+      route.path = path;
+      const html = render(createElement(Shell, null, "content"));
+      expect(html).toContain("site-public-header");
+      expect(html).toContain('class="site-login"');
+      expect(html).not.toContain('class="app-sidebar"');
+    }
+    route.path = "/chat";
   });
 });

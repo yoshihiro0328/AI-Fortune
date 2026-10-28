@@ -7,13 +7,7 @@ import ConsultationAnswer from "../consultation-answer";
 import ConsultationPurpose from "../consultation-purpose";
 import type { Purpose } from "@/lib/consultation/purpose";
 import TrialRetention from "./trial-retention";
-import {
-  ArrowLeft,
-  ArrowUp,
-  ChatCircleDots,
-  ClockCounterClockwise,
-  CheckCircle,
-} from "@phosphor-icons/react";
+import { ArrowUp, ChatCircleDots, CheckCircle } from "@phosphor-icons/react";
 import {
   topics,
   topicIds,
@@ -265,17 +259,10 @@ export default function TrialChat({
         />
       )}
       <div className="p6-chat-heading">
-        <Link href="/" aria-label="ホームに戻る">
-          <ArrowLeft size={24} />
-        </Link>
         <div>
           <h1>すぐ相談</h1>
           <span className="p6-small">相手はあとで整理できます</span>
         </div>
-        <Link className="button secondary" href="/consult">
-          <ClockCounterClockwise size={21} />
-          相談・履歴
-        </Link>
       </div>
       <div className="p6-chat-meta">
         <span>
@@ -437,7 +424,7 @@ export default function TrialChat({
             サービス上の本文・回答を削除する
           </button>
         )}
-        <Link className="p6-safety-link" href="/safety">
+        <Link className="p6-safety-link button secondary" href="/safety">
           危険や強いつらさを感じるとき
         </Link>
         {used && <TrialRetention />}

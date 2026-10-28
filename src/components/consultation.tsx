@@ -349,9 +349,6 @@ export default function Consultation({
           <p className="eyebrow">いつでも、前の話の続きから。</p>
           <h1>ふたりのことを相談する</h1>
         </div>
-        <Link className="button secondary" href="/account">
-          マイページ
-        </Link>
       </div>
       {boot ? (
         <p role="status">相談履歴を読み込んでいます…</p>
@@ -915,7 +912,7 @@ export default function Consultation({
                 <p className="fine">
                   AIが回答を作れなかった場合や、同じ送信の再試行・回答の再生成は、追加の回数を使いません。通信が途切れたときは、まず履歴をご確認ください。
                   <Link href="/plans#consultation-count">回数の数え方</Link>{" "}
-                  <Link href="/safety">
+                  <Link className="button secondary" href="/safety">
                     危険やつらさを感じるとき（回数制限なし）
                   </Link>
                 </p>

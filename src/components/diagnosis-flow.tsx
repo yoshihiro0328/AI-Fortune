@@ -231,14 +231,16 @@ export default function DiagnosisFlow() {
             >
               新しく診断を始める
             </a>
-            <Link href="/account">ログインして確認する</Link>
+            <Link className="button secondary" href="/account">
+              ログインして確認する
+            </Link>
           </div>
         </aside>
       )}
       {boot ? (
         <p role="status">質問を読み込んでいます…</p>
       ) : !started ? (
-        <div className="panel">
+        <div className="panel diagnosis-intro">
           <h1>ふたりのことを、聞かせてください。</h1>
           <p>
             ふたりの状況に合わせて、必要なことだけ聞いていきます。質問の数は回答内容によって変わります。分からないことは、そのまま教えてください。

@@ -39,9 +39,7 @@ export default function Page() {
                   ][index]
                 }
               </p>
-              <h2>
-                <Link href={"/guides/" + g.slug}>{g.title}</Link>
-              </h2>
+              <h2>{g.title}</h2>
               <p>{g.description}</p>
               <Link
                 className="reading-open"

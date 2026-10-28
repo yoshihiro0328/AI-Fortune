@@ -108,7 +108,9 @@ export default function ConsultationSummary() {
           </div>
         )}
         <div className="actions">
-          <Link href="/plans">プランを確認する</Link>
+          <Link className="button secondary" href="/plans">
+            プランを確認する
+          </Link>
           {data.hasBilling && (
             <button
               className="text-button"
@@ -137,6 +139,7 @@ export default function ConsultationSummary() {
         {data.subjects.slice(0, 4).map((s) => (
           <div className="history-row" key={s.id}>
             <Link
+              className="button secondary"
               href={
                 "/consult" +
                 (data.threads.find((t) => t.subject_id === s.id)
@@ -165,7 +168,9 @@ export default function ConsultationSummary() {
             </span>
           </div>
         ))}
-        <Link href="/consult">相談・履歴をすべて見る</Link>
+        <Link className="button secondary" href="/consult">
+          相談・履歴をすべて見る
+        </Link>
       </section>
     </section>
   );

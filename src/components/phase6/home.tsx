@@ -74,11 +74,16 @@ export default function Home({
             </li>
           ))}
         </ul>
-        <p>
-          <Link href="/diagnosis/partner-mind">質問に答える無料診断</Link>
-          <span aria-hidden> · </span>
-          <Link href="/consult">前回の相談を続ける</Link>
-        </p>
+        <div className="home-entry-actions">
+          <Link href="/diagnosis/partner-mind">
+            質問に答える無料診断
+            <ArrowRight size={18} aria-hidden />
+          </Link>
+          <Link href="/consult">
+            前回の相談を続ける
+            <ArrowRight size={18} aria-hidden />
+          </Link>
+        </div>
       </nav>
       <section className="home-answer" aria-labelledby="answer-heading">
         <h2 id="answer-heading">回答イメージ</h2>

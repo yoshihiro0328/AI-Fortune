@@ -46,25 +46,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           本文へ
         </a>
         {demo && <DemoBanner />}
-        <header className="legacy-header">
-          <Link className="brand" href="/">
-            よりそい<span>YORISOI</span>
-          </Link>
-          <nav className="header-links" aria-label="メインメニュー">
-            <Link className="nav-link" href="/consult">
-              相談・履歴
-            </Link>
-            <Link className="nav-link" href="/account">
-              マイページ
-            </Link>
-            <Link className="nav-link" href="/plans">
-              料金
-            </Link>
-            <Link className="nav-link" href="/legal/ai">
-              AI診断について
-            </Link>
-          </nav>
-        </header>
         {!demo &&
         process.env.NEXT_PUBLIC_SUPABASE_URL &&
         process.env.SUBSCRIPTION_INTEGRATION_LOCAL !== "true" &&

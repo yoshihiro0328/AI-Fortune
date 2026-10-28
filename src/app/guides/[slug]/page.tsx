@@ -81,7 +81,9 @@ export default async function Page({
           .slice(0, 3)
           .map((x) => (
             <li key={x.slug}>
-              <Link href={"/guides/" + x.slug}>{x.title}</Link>
+              <Link className="button secondary" href={"/guides/" + x.slug}>
+                {x.title}
+              </Link>
             </li>
           ))}
       </ul>

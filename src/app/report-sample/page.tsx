@@ -55,13 +55,17 @@ export default function Page() {
           Plusは月額{yen(pricing.plus)}
           （税込）で相談回数を増やす自動更新プランです。詳細レポートは含まれず、別売です。
         </p>
-        <Link href="/plans">料金・回数・購入条件を見る</Link>
+        <Link className="button secondary" href="/plans">
+          料金・回数・購入条件を見る
+        </Link>
       </section>
       <div className="actions">
         <Link className="button" href="/diagnosis/partner-mind">
           無料診断をはじめる
         </Link>
-        <Link href="/">トップに戻る</Link>
+        <Link className="button secondary" href="/">
+          トップに戻る
+        </Link>
       </div>
     </main>
   );

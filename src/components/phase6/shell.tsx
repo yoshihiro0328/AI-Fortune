@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import {
   House,
   ChatCircleDots,
@@ -8,15 +9,70 @@ import {
   ClipboardText,
   CreditCard,
   UserCircle,
+  BookOpen,
+  Question,
+  List,
+  X,
 } from "@phosphor-icons/react";
+
 const links = [
   ["/", "ホーム", House],
   ["/chat", "すぐ相談", ChatCircleDots],
   ["/consult", "相談・履歴", Users],
   ["/diagnosis/partner-mind", "無料診断", ClipboardText],
-  ["/plans", "料金・プラン", CreditCard],
   ["/account", "マイページ", UserCircle],
+  ["/plans", "料金・プラン", CreditCard],
+  ["/guides", "読みもの", BookOpen],
+  ["/help", "ヘルプ・お問い合わせ", Question],
 ] as const;
+const publicLinks = links.filter(([href]) =>
+  ["/plans", "/guides", "/help"].includes(href),
+);
+export function isAppPage(path: string) {
+  return (
+    ["/chat", "/consult", "/account"].includes(path) ||
+    ["/diagnosis/", "/result/", "/report/"].some((prefix) =>
+      path.startsWith(prefix),
+    )
+  );
+}
+function selectedHref(path: string) {
+  if (path.startsWith("/result/") || path.startsWith("/report/"))
+    return "/diagnosis/partner-mind";
+  if (path.startsWith("/guides/")) return "/guides";
+  return path;
+}
+function Navigation({
+  path,
+  onNavigate,
+  publicOnly = false,
+}: {
+  path: string;
+  onNavigate?: () => void;
+  publicOnly?: boolean;
+}) {
+  return (
+    <nav aria-label="メインナビゲーション" className="site-navigation">
+      {(publicOnly ? publicLinks : links).map(([href, title, Icon]) => (
+        <Link
+          key={href}
+          href={href}
+          onClick={onNavigate}
+          aria-current={
+            selectedHref(path) === href
+              ? path === href
+                ? "page"
+                : "location"
+              : undefined
+          }
+        >
+          <Icon size={22} aria-hidden />
+          <span>{title}</span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
 export default function Phase6Shell({
   children,
   demoHome = false,
@@ -25,90 +81,129 @@ export default function Phase6Shell({
   demoHome?: boolean;
 }) {
   const pathname = usePathname();
-  // A rewritten demo homepage must render the same shell on server and client.
   const path = demoHome ? "/" : pathname;
-  const chat = path === "/chat";
-  const modern = path === "/" || chat;
-  if (!modern) return children;
-  if (path === "/")
+  const app = isAppPage(path),
+    home = path === "/";
+  const dialog = useRef<HTMLDialogElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const [open, setOpen] = useState(false);
+  const close = () => dialog.current?.close();
+  useEffect(() => {
+    dialog.current?.close();
+  }, [path]);
+  useEffect(() => {
+    const desktop = matchMedia("(min-width: 1000px)");
+    const changed = () => {
+      if (desktop.matches) dialog.current?.close();
+    };
+    desktop.addEventListener("change", changed);
+    return () => desktop.removeEventListener("change", changed);
+  }, []);
+  const brand = (
+    <Link className="p6-brand" href="/">
+      よりそい<small>YORISOI</small>
+    </Link>
+  );
+  const menu = (
+    <>
+      <button
+        className="site-menu-trigger"
+        ref={trigger}
+        aria-expanded={open}
+        aria-controls="site-menu-dialog"
+        aria-haspopup="dialog"
+        onClick={() => {
+          dialog.current?.showModal();
+          setOpen(true);
+        }}
+      >
+        <List size={22} aria-hidden />
+        <span>メニュー</span>
+      </button>
+      <dialog
+        ref={dialog}
+        id="site-menu-dialog"
+        className="site-menu-dialog"
+        aria-labelledby="site-menu-title"
+        onKeyDown={(event) => {
+          if (event.key !== "Tab") return;
+          const items = event.currentTarget.querySelectorAll<HTMLElement>(
+            "a[href], button:not([disabled])",
+          );
+          const first = items[0],
+            last = items[items.length - 1];
+          if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last?.focus();
+          } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first?.focus();
+          }
+        }}
+        onClose={() => {
+          setOpen(false);
+          trigger.current?.focus();
+        }}
+      >
+        <div className="site-menu-heading">
+          <h2 id="site-menu-title">メニュー</h2>
+          <button
+            className="site-menu-close"
+            onClick={close}
+            aria-label="メニューを閉じる"
+          >
+            <X size={24} aria-hidden />
+          </button>
+        </div>
+        <Navigation path={path} onNavigate={close} />
+      </dialog>
+    </>
+  );
+  if (!app)
     return (
-      <div className="p6 yorisoi-home-shell">
-        <header className="home-header">
-          <Link className="p6-brand" href="/">
-            よりそい<small>YORISOI</small>
-          </Link>
-          <nav aria-label="メインメニュー">
-            <Link className="home-header-extra" href="/consult">
-              相談・履歴
+      <div
+        className={home ? "p6 yorisoi-home-shell site-public" : "site-public"}
+      >
+        <header
+          className={
+            home ? "home-header site-public-header" : "site-public-header"
+          }
+        >
+          {brand}
+          <div className="site-header-actions">
+            <div className="site-public-desktop">
+              <Navigation path={path} publicOnly />
+            </div>
+            <Link href="/account" className="site-login">
+              ログイン
             </Link>
-            <Link className="home-header-extra" href="/plans">
-              料金・プラン
-            </Link>
-            <Link href="/account">ログイン</Link>
-          </nav>
+            {menu}
+          </div>
         </header>
         {children}
       </div>
     );
+  const title = path.startsWith("/result/")
+    ? "診断結果"
+    : path.startsWith("/report/")
+      ? "詳細レポート"
+      : (links.find(([href]) => href === path)?.[1] ?? "無料診断");
   return (
-    <div className={`p6 ${chat ? "p6-chat-shell" : ""}`}>
-      <aside className="p6-sidebar">
-        <Link className="p6-brand" href="/">
-          よりそい<small>YORISOI</small>
-        </Link>
-        <p className="p6-small">ふたりのことを、ひとつずつ。</p>
-        <nav aria-label="メインナビゲーション">
-          {links.map(([href, title, Icon]) => (
-            <Link
-              key={title}
-              href={href}
-              aria-current={path === href ? "page" : undefined}
-            >
-              <Icon size={23} aria-hidden />
-              {title}
-            </Link>
-          ))}
-        </nav>
-        <div className="p6-sidebar-note">
-          <p>
-            あなたのペースで、
-            <br />
-            一歩ずつ。
-          </p>
-          <Link href="/legal/ai">よりそいについて</Link>
-        </div>
+    <div className={`app-layout${path === "/chat" ? " app-chat-layout" : ""}`}>
+      <aside className="app-sidebar" aria-label="サイト全体の移動">
+        {brand}
+        <p className="fine">あなたのペースで、一歩ずつ。</p>
+        <Navigation path={path} />
       </aside>
-      <div className="p6-workspace">
-        <header className="p6-topbar">
-          <Link className="p6-brand p6-mobile" href="/">
-            よりそい<small>YORISOI</small>
-          </Link>
-          <span className="p6-desktop p6-small">
-            ふたりのことを、ひとつずつ。　 / {chat ? "すぐ相談" : "ホーム"}
-          </span>
-          <nav aria-label="アカウント">
-            <Link href="/plans">料金</Link>
-            <Link href="/account">ログイン</Link>
-          </nav>
+      <div className="app-workspace">
+        <header className="app-topbar">
+          <span className="app-section-name">{title}</span>
+          {menu}
         </header>
-        {children}
+        <div className="app-content">
+          {path === "/chat" ? <div className="p6">{children}</div> : children}
+        </div>
       </div>
-      {!chat && (
-        <nav className="p6-bottom" aria-label="モバイルナビゲーション">
-          {[links[0], links[1], links[2], links[5]].map(
-            ([href, title, Icon]) => (
-              <Link
-                key={title}
-                href={href}
-                aria-current={path === href ? "page" : undefined}
-              >
-                <Icon size={23} aria-hidden />
-                <span>{title}</span>
-              </Link>
-            ),
-          )}
-        </nav>
-      )}
     </div>
   );
 }

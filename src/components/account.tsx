@@ -348,6 +348,7 @@ export default function Account({
                   </div>
                   <div className="history-actions">
                     <Link
+                      className="button secondary"
                       href={
                         r.status === "answering" || r.status === "followup"
                           ? "/diagnosis/partner-mind?resume=" + r.id
@@ -359,13 +360,23 @@ export default function Account({
                         : "診断結果を見る"}
                     </Link>
                     {user && (
-                      <Link href={"/consult?diagnosis=" + r.id}>
+                      <Link
+                        className="button secondary"
+                        href={"/consult?diagnosis=" + r.id}
+                      >
                         この診断から相談する
                       </Link>
                     )}
                     {["paid", "report_generating", "report_ready"].includes(
                       r.status,
-                    ) && <Link href={"/report/" + r.id}>詳細レポート</Link>}
+                    ) && (
+                      <Link
+                        className="button secondary"
+                        href={"/report/" + r.id}
+                      >
+                        詳細レポート
+                      </Link>
+                    )}
                   </div>
                 </article>
               ))

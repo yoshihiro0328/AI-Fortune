@@ -20,14 +20,16 @@ export default function SaveResultNote({
     return (
       <aside className="notice save-note">
         保存状態を確認できません。
-        <Link href="/account">マイページで確認する</Link>
+        <Link className="button secondary" href="/account">
+          マイページで確認する
+        </Link>
       </aside>
     );
   if (state === "saved" || saved)
     return (
       <aside className="notice save-note" aria-label="結果の保存について">
         <p>保存済み — このアカウントのマイページから読み返せます。</p>
-        <Link href="/account#diagnosis-history">
+        <Link className="button secondary" href="/account#diagnosis-history">
           保存した診断・レポートを見る
         </Link>
       </aside>
@@ -64,7 +66,7 @@ export default function SaveResultNote({
         保存前にブラウザの保存情報（Cookie）を削除したり、別のブラウザや端末へ移ったりすると、購入したレポートも開けなくなることがあります。URLの保存だけでは復元できません。
       </p>
       {state === "anonymous" ? (
-        <Link href={accountReturnLink(returnTo)}>
+        <Link className="button secondary" href={accountReturnLink(returnTo)}>
           登録・ログインして保存する
         </Link>
       ) : (
