@@ -68,7 +68,7 @@ body:has(.p6) {
   gap: 14px;
 }
 .p6-topbar nav a {
-  min-width:44px;
+  min-width: 44px;
   font-size: 13px;
   min-height: 44px;
   display: flex;
@@ -275,11 +275,11 @@ body:has(.p6) {
   color: #52645a;
 }
 .p6-conversation {
-  flex: 1;
+  flex: none;
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 24px 2px;
+  overflow: visible;
+  overscroll-behavior: auto;
+  padding: 12px 2px;
   overflow-wrap: anywhere;
 }
 .p6-chat-welcome h2 {
@@ -586,7 +586,7 @@ body:has(.p6-chat) .p6-topbar {
     padding: 18px 0;
   }
   .p6-conversation {
-    padding: 26px 4px;
+    padding: 8px 4px;
   }
   .p6-composer-dock {
     padding-bottom: 16px;

@@ -72,8 +72,14 @@ export function createFixture(root) {
     advice:
       "【固定の表示例】一度だけ都合を尋ね、返事を待つ時間をとることが考えられます。",
   };
-  const now = new Date().toISOString(),
-    end = new Date(Date.now() + 14 * 864e5).toISOString();
+  const now = new Date().toISOString();
+  const tokyo = new Date(Date.now() + 9 * 3600e3);
+  const start = new Date(
+    Date.UTC(tokyo.getUTCFullYear(), tokyo.getUTCMonth(), 1) - 9 * 3600e3,
+  ).toISOString();
+  const end = new Date(
+    Date.UTC(tokyo.getUTCFullYear(), tokyo.getUTCMonth() + 1, 1) - 9 * 3600e3,
+  ).toISOString();
   let mode = "free",
     answers = [],
     finished = false,
@@ -154,7 +160,7 @@ export function createFixture(root) {
       used: 1,
       reserved: 0,
       remaining: ["plus", "scheduled"].includes(mode) ? 29 : 2,
-      period_start: now,
+      period_start: start,
       period_end: end,
     },
     subscription: ["plus", "scheduled", "canceled"].includes(mode)

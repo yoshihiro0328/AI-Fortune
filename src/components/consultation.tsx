@@ -9,9 +9,11 @@ import {
 import { accountReturnLink } from "@/lib/auth-return";
 import { topics, topicIds } from "@/lib/trial/topics";
 import ConsultationEvents from "./consultation-events";
+import ConversationViewport from "./conversation-viewport";
 import ConsultationAnswer from "./consultation-answer";
 import dynamic from "next/dynamic";
 const ScreenshotImport = dynamic(() => import("./screenshot-import"));
+import { inputGuidance } from "@/lib/consultation/input-guidance";
 import ConsultationPurpose from "./consultation-purpose";
 import {
   appendChange,
@@ -501,7 +503,9 @@ export default function Consultation({
                       aria-pressed={subjectId === s.id}
                       onClick={() => selectSubject(s)}
                     >
-                      {s.nickname}
+                      <span className="subject-name" title={s.nickname}>
+                        {s.nickname}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -528,7 +532,7 @@ export default function Consultation({
                 </form>
                 {subject && (
                   <>
-                    <h3>{subject.nickname}との相談履歴</h3>
+                    <h3>この相手との相談履歴</h3>
                     <button
                       className="text-button"
                       disabled={busy}
@@ -580,14 +584,17 @@ export default function Consultation({
               </div>
             </aside>
             <section className="chat-panel" aria-label="相談チャット">
-              <h2>
+              <h2 className="current-subject">
                 {subject
                   ? subject.nickname + "について"
                   : "相談相手を追加してください"}
               </h2>
               {subject && (
                 <details className="memory-panel">
-                  <summary>覚えていること・最近の出来事</summary>
+                  <summary>
+                    覚えていること・最近の出来事（メモ{subject.memory.length}
+                    件）
+                  </summary>
                   <p className="fine">
                     前に話した内容を参考に、続きから相談できます。相談は相手ごとに分けて保存し、その相手のメモと最近の会話を使います。メモはいつでも確認・修正・削除できます。
                   </p>
@@ -677,10 +684,10 @@ export default function Consultation({
                   subject={subject.id}
                 />
               )}
-              <div
-                className="chat-messages"
-                aria-live="polite"
-                aria-busy={busy}
+              <ConversationViewport
+                busy={busy}
+                threadKey={home.ownerId + ":" + subjectId + ":" + threadId}
+                firstId={turns[0]?.id}
               >
                 {more && (
                   <button
@@ -756,7 +763,7 @@ export default function Consultation({
                     内容を整理しています。少しお待ちください…
                   </p>
                 )}
-              </div>
+              </ConversationViewport>
               <form
                 className="chat-composer"
                 onSubmit={(e) => {
@@ -780,47 +787,52 @@ export default function Consultation({
                   }}
                 />
                 {turns.length > 0 && (
-                  <fieldset
-                    className="change-entry"
-                    disabled={busy || hasPending || !subject}
-                  >
-                    <legend>前回から、何か変化はありましたか？（任意）</legend>
-                    <div className="actions">
-                      {[
-                        "返信が来た",
-                        "会って話した",
-                        "まだ何もしていない",
-                        "自分で入力する",
-                      ].map((label) => (
-                        <button
-                          type="button"
-                          className="button secondary"
-                          key={label}
-                          onClick={() => {
-                            if (label !== "自分で入力する") {
-                              const next = appendChange(text, label + "。");
-                              if (next === null) {
-                                setError(
-                                  "入力が長いため追加できません。今の下書きは保持しています。",
-                                );
-                                return;
+                  <details className="change-disclosure">
+                    <summary>前回からの変化を伝える（任意）</summary>
+                    <fieldset
+                      className="change-entry"
+                      disabled={busy || hasPending || !subject}
+                    >
+                      <legend>
+                        前回から、何か変化はありましたか？（任意）
+                      </legend>
+                      <div className="actions">
+                        {[
+                          "返信が来た",
+                          "会って話した",
+                          "まだ何もしていない",
+                          "自分で入力する",
+                        ].map((label) => (
+                          <button
+                            type="button"
+                            className="button secondary"
+                            key={label}
+                            onClick={() => {
+                              if (label !== "自分で入力する") {
+                                const next = appendChange(text, label + "。");
+                                if (next === null) {
+                                  setError(
+                                    "入力が長いため追加できません。今の下書きは保持しています。",
+                                  );
+                                  return;
+                                }
+                                setText(next);
+                                drafts.current.update(activeKey.current, {
+                                  text: next,
+                                });
                               }
-                              setText(next);
-                              drafts.current.update(activeKey.current, {
-                                text: next,
-                              });
-                            }
-                            document.getElementById("chat-text")?.focus();
-                          }}
-                        >
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="fine">
-                      本文へ追加するだけです。確認して送信するまで、出来事や履歴には保存しません。
-                    </p>
-                  </fieldset>
+                              document.getElementById("chat-text")?.focus();
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="fine">
+                        本文へ追加するだけです。確認して送信するまで、出来事や履歴には保存しません。
+                      </p>
+                    </fieldset>
+                  </details>
                 )}
                 {screenshotPrototype && subject && (
                   <ScreenshotImport
@@ -836,7 +848,9 @@ export default function Consultation({
                   />
                 )}
                 <div className="input-heading">
-                  <label htmlFor="chat-text">相談したいこと</label>
+                  <label htmlFor="chat-text">
+                    {purpose ? inputGuidance[purpose].label : "相談したいこと"}
+                  </label>
                   <button
                     className="text-button"
                     type="button"
@@ -879,12 +893,20 @@ export default function Consultation({
                       void send();
                     }
                   }}
+                  aria-describedby="consult-input-help"
                   placeholder={
-                    topic
-                      ? topics[topic as keyof typeof topics].placeholder
-                      : "昨日LINEが来たので、返信を一緒に考えたい…"
+                    purpose
+                      ? inputGuidance[purpose].example
+                      : topic
+                        ? topics[topic as keyof typeof topics].placeholder
+                        : "昨日LINEが来たので、返信を一緒に考えたい…"
                   }
                 />
+                <p id="consult-input-help" className="fine input-help">
+                  {purpose
+                    ? inputGuidance[purpose].help
+                    : "今あったことや迷っていることを、自由に書いてください。"}
+                </p>
                 <div className="composer-actions">
                   <span className="fine">
                     {text.length}/{4000 - submissionText("", purpose).length}

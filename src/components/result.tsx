@@ -153,9 +153,7 @@ export default function Result({ id }: { id: string }) {
               各指標は100点満点（0〜100）の整理用の目安です。入力された出来事をもとにAIが評価したもので、相手の好意や恋愛が成功する確率、客観的な精度を示すものではありません。
             </p>
             <p className="fine">
-              <a className="button secondary" href="#result-evidence">
-                良い兆候・気に留めたいこと
-              </a>
+              <a href="#result-evidence">良い兆候・気に留めたいこと</a>
               の理由と、まだ分からないことを合わせてお読みください。入力にない事情は判断できません。
             </p>
           </section>
@@ -225,7 +223,7 @@ export default function Result({ id }: { id: string }) {
               </>
             )}
           </section>
-          <div>
+          <div className="section-actions">
             <ContinueDiagnosis id={id} state={d.saveState} />
           </div>
         </>
@@ -239,7 +237,7 @@ export default function Result({ id }: { id: string }) {
           </p>
         )
       )}
-      <p>
+      <p className="section-actions">
         <Link
           className="button secondary"
           href="/"

@@ -20,6 +20,9 @@ export default function Account({
   testEmailOnly?: boolean;
   verificationOnly?: boolean;
 }) {
+  const [diagnosisNames, setDiagnosisNames] = useState<Record<string, string>>(
+    {},
+  );
   const [mode, setMode] = useState<Mode>("login"),
     [email, setEmail] = useState(""),
     [password, setPassword] = useState(""),
@@ -151,7 +154,9 @@ export default function Account({
           )}
           {user && mode !== "update" ? (
             <>
-              {!verificationOnly && <ConsultationSummary />}
+              {!verificationOnly && (
+                <ConsultationSummary onDiagnosisNames={setDiagnosisNames} />
+              )}
               {hasUnsaved && (
                 <aside
                   className="notice account-save"
@@ -326,14 +331,22 @@ export default function Account({
               rows.map((r) => (
                 <article className="diagnosis-history-row" key={r.id}>
                   <div>
+                    <p className="diagnosis-row-title">
+                      {user && diagnosisNames[r.id]
+                        ? diagnosisNames[r.id]
+                        : "質問に答えて整理"}
+                    </p>
                     <time dateTime={r.created_at}>
-                      {new Date(r.created_at).toLocaleDateString("ja-JP", {
+                      {new Date(r.created_at).toLocaleString("ja-JP", {
                         year: "numeric",
                         month: "long",
                         day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
                         timeZone: "Asia/Tokyo",
                       })}
                     </time>
+                    <span className="fine"> · 診断 {r.id.slice(-8)}</span>
                     <p className="fine">
                       {["answering", "followup"].includes(r.status)
                         ? "回答の途中"

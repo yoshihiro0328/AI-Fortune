@@ -43,6 +43,16 @@ export default async function Page({
   const { slug } = await params;
   const g = guides.find((g) => g.slug === slug);
   if (!g) notFound();
+  const topic =
+    slug === "reconciliation"
+      ? "reunion"
+      : ["mixed-signals", "app-next-date", "unclear-relationship"].includes(
+            slug,
+          )
+        ? "crush"
+        : ["fewer-meetings", "changed-attitude"].includes(slug)
+          ? "distance"
+          : "reply";
   return (
     <main id="main" className="legal reading-article">
       <Link className="button secondary" href="/guides">
@@ -61,14 +71,14 @@ export default async function Page({
         <p>
           一般的な例と、実際のふたりの状況は違うことがあります。最近のやり取りから、次にどうするかを一緒に整理できます。
         </p>
-        <Link className="button" href="/diagnosis/partner-mind?source=guide">
-          質問に答えて整理する
-        </Link>
-        <p>
-          <Link className="button secondary" href="/chat">
+        <div className="section-actions">
+          <Link className="button" href="/diagnosis/partner-mind?source=guide">
+            質問に答えて整理する
+          </Link>
+          <Link className="button secondary" href={`/chat?topic=${topic}`}>
             自由な文章で相談をはじめる
           </Link>
-        </p>
+        </div>
         <p className="fine">
           初回診断無料・登録不要。既に相談している方は、
           <Link href="/consult">前回の続きから</Link>話せます。

@@ -21,6 +21,7 @@ try {
     [390, 844],
   ]) {
     const c = await browser.newContext({ viewport: { width, height } });
+    c.setDefaultNavigationTimeout(60000);
     const errors = [];
     let external = 0;
     await c.route("**/*", (r) =>
@@ -39,6 +40,7 @@ try {
     p.on("pageerror", (e) => errors.push(e.message));
     const reset = async (mode) => {
       await c.request.post(base + "/__review/scenario", {
+        maxRedirects: 0,
         headers: {
           origin: base,
           "content-type": "application/x-www-form-urlencoded",
@@ -184,13 +186,13 @@ try {
       .click();
     await p.getByText("保存済み —", { exact: false }).waitFor();
     await p.locator("#report-toc").waitFor();
-    assert.equal(await p.locator("#report-toc a").count(), 13);
+    assert.equal(await p.locator(".report-toc-groups a").count(), 13);
     assert.equal(await p.locator("#report-toc details[open]").count(), 0);
     for (const s of await p.locator("#report-toc summary").all()) {
       await s.focus();
       await p.keyboard.press("Enter");
     }
-    await p.locator('#report-toc a[href="#report-item-9"]').focus();
+    await p.locator('.report-shortcuts a[href="#report-item-9"]').focus();
     await p.keyboard.press("Enter");
     await p.waitForURL("**#report-item-9");
     assert.equal(

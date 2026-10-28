@@ -36,6 +36,47 @@ export default function Page() {
       <section className="help-section" aria-labelledby="faq-heading">
         <h2 id="faq-heading">よくある質問</h2>
         <details>
+          <summary>回答が届かないとき</summary>
+          <p>
+            まず通信状態と画面の「回答を準備中」などの表示を確認してください。回答待ちの間は新しい相談を重ねて送らないでください。相談・履歴では元の会話を開き、画面に復旧用の操作が出ている場合に限り、その同じ相談の操作を使います。
+          </p>
+          <p>
+            登録なしの相談は、元のブラウザで開いてください。結果が分からないまま別の相談として送り直さず、表示が変わらない場合はお問い合わせください。相談本文や秘密情報は問い合わせに貼り付けないでください。
+          </p>
+          <div className="actions">
+            <Link className="button secondary" href="/consult">
+              相談・履歴を開く
+            </Link>
+            <Link className="button secondary" href="/contact">
+              問い合わせる
+            </Link>
+          </div>
+        </details>
+        <details>
+          <summary>購入済みなのにレポートを開けないとき</summary>
+          <p>
+            再購入せず、購入時と同じブラウザ・アカウントで、マイページの「詳細レポートを読む」を開いてください。作成中なら完了を待ちます。未保存の場合はCookieを削除しないでください。
+          </p>
+          <p>
+            購入済みの表示と閲覧状態が一致しない場合は、診断番号と表示されたエラーをお問い合わせください。カード番号・パスワードは不要です。
+          </p>
+          <Link className="button secondary" href="/account#diagnosis-history">
+            診断・購入済みレポートを確認
+          </Link>
+        </details>
+        <details>
+          <summary>認証メールが来ないとき</summary>
+          <p>
+            入力したアドレス、迷惑メールフォルダ、受信拒否設定を確認してください。送信中や受付完了の直後に繰り返し送らず、マイページの表示を確認します。再送が必要な場合は「確認メールを再送」から手続きできます。届いたリンクは手続きを始めたブラウザで開いてください。
+          </p>
+          <p>
+            メール送信が無効・準備中と表示されている場合は、再送しても解決しません。問い合わせ先へ状況をお知らせください。
+          </p>
+          <Link className="button secondary" href="/account">
+            マイページで確認
+          </Link>
+        </details>
+        <details>
           <summary>どこまで無料？ 登録は必要？</summary>
           <p>
             初回診断は登録なしで利用できます。継続相談は無料登録・ログイン後、月の無料枠内で利用でき、無料プランでも履歴を引き継げます。登録なしのお試し相談は、提供中の場合にトップから案内します。

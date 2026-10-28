@@ -91,6 +91,7 @@ try {
       if (r.method() === "POST" && r.url().endsWith("/send"))
         sent.push(r.postDataJSON());
     });
+    await p.locator(".change-disclosure > summary").click();
     await p.getByRole("button", { name: "返信が来た", exact: true }).click();
     assert.equal(sent.length, 0);
     assert.match(await p.locator("#chat-text").inputValue(), /返信が来た/);

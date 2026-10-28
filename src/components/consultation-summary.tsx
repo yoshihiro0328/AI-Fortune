@@ -9,7 +9,11 @@ import {
   japanDate,
 } from "@/lib/consultation/subscription-display";
 import type { ConsultationHome } from "@/lib/consultation/model";
-export default function ConsultationSummary() {
+export default function ConsultationSummary({
+  onDiagnosisNames,
+}: {
+  onDiagnosisNames?: (names: Record<string, string>) => void;
+}) {
   const payment = usePaymentDisplay();
   const [data, setData] = useState<ConsultationHome | null>(null),
     [error, setError] = useState(""),
@@ -22,6 +26,15 @@ export default function ConsultationSummary() {
       .then(load)
       .catch(() => load().catch((e) => setError(e.message)));
   }, []);
+  useEffect(() => {
+    if (!data || !onDiagnosisNames) return;
+    const names: Record<string, string> = {};
+    for (const link of data.links) {
+      const subject = data.subjects.find((s) => s.id === link.subject_id);
+      if (subject) names[link.diagnosis_id] = subject.nickname;
+    }
+    onDiagnosisNames(names);
+  }, [data, onDiagnosisNames]);
   async function billing(action: string) {
     setBusy(true);
     setError("");
@@ -168,9 +181,11 @@ export default function ConsultationSummary() {
             </span>
           </div>
         ))}
-        <Link className="button secondary" href="/consult">
-          相談・履歴をすべて見る
-        </Link>
+        <div className="section-actions">
+          <Link className="button secondary" href="/consult">
+            相談・履歴をすべて見る
+          </Link>
+        </div>
       </section>
     </section>
   );

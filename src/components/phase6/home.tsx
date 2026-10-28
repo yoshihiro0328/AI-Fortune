@@ -124,7 +124,7 @@ export default function Home({
         <div className="home-diagnosis-intro">
           <p>相談は自由な文章で、診断は質問に答えながら状況を整理します。</p>
           <Link className="home-secondary" href="/diagnosis/partner-mind">
-            じっくり診断する
+            質問に答えて整理
             <ArrowRight size={24} aria-hidden />
           </Link>
           <p>

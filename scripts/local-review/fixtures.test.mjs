@@ -112,3 +112,21 @@ test("presentation scenarios retain scheduled entitlement and distinguish empty 
   assert(report.relationship_analysis.length > 300);
   assert(report.messages.natural.includes("補足"));
 });
+
+// The free allowance uses calendar months in Japan, not a rolling 14-day demo window.
+test("free and canceled preview periods cover the current Tokyo calendar month", () => {
+  const f = createFixture(process.cwd());
+  for (const mode of ["free", "canceled"]) {
+    f.reset(mode);
+    const u = f.handle("GET", url("/api/consultations")).data.usage;
+    const a = new Date(Date.parse(u.period_start) + 9 * 3600e3);
+    const b = new Date(Date.parse(u.period_end) + 9 * 3600e3);
+    assert.equal(a.getUTCDate(), 1);
+    assert.equal(b.getUTCDate(), 1);
+    assert.equal(a.getUTCHours(), 0);
+    assert.equal(b.getUTCHours(), 0);
+    assert.equal((b.getUTCMonth() - a.getUTCMonth() + 12) % 12, 1);
+    assert.ok(Date.parse(u.period_start) <= Date.now());
+    assert.ok(Date.parse(u.period_end) > Date.now());
+  }
+});

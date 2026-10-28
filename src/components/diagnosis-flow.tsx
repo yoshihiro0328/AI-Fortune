@@ -251,6 +251,9 @@ export default function DiagnosisFlow() {
           <p className="fine">
             AIが回答を作るため、入力内容をOpenAIに送信します。氏名・住所・電話番号・メールアドレスなど、個人を特定できる情報は入力しないでください。ブラウザの保存情報（Cookie）を削除すると、アカウントに保存していない診断は開けなくなります。
           </p>
+          <p className="fine">
+            質問に回答し、必要な追加質問のあとに結果を確認します。「保存して次へ」で保存した回答は、同じブラウザから再開できます。入力中でまだ保存していない回答は残りません。
+          </p>
           <label className="choice">
             <input
               type="checkbox"

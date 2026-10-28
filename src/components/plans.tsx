@@ -33,11 +33,15 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
           <p className="price">
             0<span>円</span>
           </p>
-          <p>初回診断は登録不要。登録後のAIとのやり取りは月{free}往復まで。</p>
+          <p>
+            相談回数：<strong>月{free}往復</strong>
+            まで。登録・ログイン後に利用できます。
+          </p>
           <ul>
-            <li>状況に合わせた無料診断と結果</li>
-            <li>相手ごとに前の話を引き継ぐ相談</li>
-            <li>診断・相談履歴の閲覧</li>
+            <li>返信作成：利用できます</li>
+            <li>履歴の引き継ぎ：利用できます</li>
+            <li>診断・相談履歴の閲覧：利用できます</li>
+            <li>詳細レポート：別売{yen(pricing.report)}・単発購入</li>
           </ul>
           <Link className="button secondary" href="/diagnosis/partner-mind">
             質問に答えて整理する
@@ -51,12 +55,14 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             <span> / 月（税込）</span>
           </p>
           <p>
-            AIとのやり取りは月{plus}往復まで。前の話の続きから相談できます。
+            相談回数：<strong>月{plus}往復</strong>
+            まで。無料プランとの主な違いは相談できる回数です。
           </p>
           <ul>
-            <li>以前の話を踏まえたAIチャット</li>
-            <li>LINE返信文面の作成</li>
-            <li>状況の変化・次の行動の相談</li>
+            <li>返信作成：利用できます</li>
+            <li>履歴の引き継ぎ：利用できます</li>
+            <li>診断・相談履歴の閲覧：利用できます</li>
+            <li>詳細レポート：別売{yen(pricing.report)}・単発購入</li>
           </ul>
           <p className="fine">
             詳細レポートは含まれません。別途{yen(pricing.report)}（税込）です。
@@ -83,9 +89,7 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
           </button>
           <p className="fine">
             登録後、メールアドレスの確認が必要です。
-            <Link className="button secondary" href="/account">
-              ログイン・新規登録
-            </Link>
+            <Link href="/account">ログイン・新規登録</Link>
           </p>
         </section>
         <section className="plan-card">

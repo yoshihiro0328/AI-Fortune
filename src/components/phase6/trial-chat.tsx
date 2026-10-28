@@ -8,10 +8,11 @@ const ScreenshotImport = dynamic(() => import("../screenshot-import"), {
 import { useRouter } from "next/navigation";
 import Script from "next/script";
 import ConsultationAnswer from "../consultation-answer";
+import { inputGuidance } from "@/lib/consultation/input-guidance";
 import ConsultationPurpose from "../consultation-purpose";
 import type { Purpose } from "@/lib/consultation/purpose";
 import TrialRetention from "./trial-retention";
-import { ArrowUp, ChatCircleDots, CheckCircle } from "@phosphor-icons/react";
+import { ArrowUp, CheckCircle } from "@phosphor-icons/react";
 import {
   topics,
   topicIds,
@@ -266,11 +267,8 @@ export default function TrialChat({
       )}
       <div className="p6-chat-heading">
         <div>
-          <h1>チャットで相談</h1>
-          <p>
-            自由に書いて、今の悩みや返信について相談できます。先に診断を受ける必要はありません。
-          </p>
-          <span className="p6-small">相手はあとで整理できます</span>
+          <h1>{config.title}</h1>
+          <p>{config.guide}</p>
         </div>
       </div>
       <div className="p6-chat-meta">
@@ -296,63 +294,61 @@ export default function TrialChat({
       <div className="p6-conversation" tabIndex={0} aria-label="相談内容">
         {!answer && !session?.claimed && (
           <section className="p6-chat-welcome">
-            <ChatCircleDots size={40} aria-hidden />
-            <h2>{config.title}</h2>
-            <p>{config.guide}</p>
-            <p className="p6-policy">{config.policy}</p>
-            <label className="p6-small">
-              相談のテーマ
-              <select
-                value={topic}
-                disabled={busy || !!used}
-                onChange={(e) => {
-                  setTopic(e.target.value as TopicId);
-                  setFields({});
-                }}
-              >
-                {topicIds.map((t) => (
-                  <option key={t} value={t}>
-                    {topics[t].name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {config.fields.length > 0 && (
-              <details className="p6-topic-fields" open>
-                <summary>
-                  もう少し教える <small>任意・分かる範囲で大丈夫です</small>
-                </summary>
-                {config.fields.map((f) => (
-                  <label key={f.key}>
-                    {f.label}
-                    {f.options ? (
-                      <select
-                        disabled={busy || !!used}
-                        value={fields[f.key] ?? ""}
-                        onChange={(e) =>
-                          setFields({ ...fields, [f.key]: e.target.value })
-                        }
-                      >
-                        <option value="">選ばなくても大丈夫です</option>
-                        {f.options.map((o) => (
-                          <option key={o}>{o}</option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        disabled={busy || !!used}
-                        maxLength={160}
-                        value={fields[f.key] ?? ""}
-                        placeholder={f.placeholder}
-                        onChange={(e) =>
-                          setFields({ ...fields, [f.key]: e.target.value })
-                        }
-                      />
-                    )}
-                  </label>
-                ))}
-              </details>
-            )}
+            <details className="chat-extra">
+              <summary>テーマ・もう少し教える（任意）</summary>
+              <p className="p6-policy">{config.policy}</p>
+              <label className="p6-small">
+                相談のテーマ
+                <select
+                  value={topic}
+                  disabled={busy || !!used}
+                  onChange={(e) => {
+                    setTopic(e.target.value as TopicId);
+                    setFields({});
+                  }}
+                >
+                  {topicIds.map((t) => (
+                    <option key={t} value={t}>
+                      {topics[t].name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {config.fields.length > 0 && (
+                <div className="p6-topic-fields">
+                  <p className="fine">任意・分かる範囲で大丈夫です</p>
+                  {config.fields.map((f) => (
+                    <label key={f.key}>
+                      {f.label}
+                      {f.options ? (
+                        <select
+                          disabled={busy || !!used}
+                          value={fields[f.key] ?? ""}
+                          onChange={(e) =>
+                            setFields({ ...fields, [f.key]: e.target.value })
+                          }
+                        >
+                          <option value="">選ばなくても大丈夫です</option>
+                          {f.options.map((o) => (
+                            <option key={o}>{o}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          disabled={busy || !!used}
+                          maxLength={160}
+                          value={fields[f.key] ?? ""}
+                          placeholder={f.placeholder}
+                          onChange={(e) =>
+                            setFields({ ...fields, [f.key]: e.target.value })
+                          }
+                        />
+                      )}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </details>
           </section>
         )}
         {answer && (
@@ -424,9 +420,7 @@ export default function TrialChat({
             （この端末の時刻）
           </p>
         )}
-        <Link className="p6-safety-link button secondary" href="/safety">
-          危険や強いつらさを感じるとき
-        </Link>
+
         {used && <TrialRetention />}
       </div>
       {!used && (
@@ -455,13 +449,18 @@ export default function TrialChat({
                 }}
               />
             )}
-            <label htmlFor="trial-text">{config.label}</label>
+            <label htmlFor="trial-text">
+              {purpose ? inputGuidance[purpose].label : config.label}
+            </label>
             <textarea
               id="trial-text"
               value={text}
               maxLength={session?.maxLength ?? 800}
               disabled={busy}
-              placeholder={config.placeholder}
+              aria-describedby="trial-input-help"
+              placeholder={
+                purpose ? inputGuidance[purpose].example : config.placeholder
+              }
               rows={3}
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => {
@@ -475,6 +474,11 @@ export default function TrialChat({
                 }
               }}
             />
+            <p id="trial-input-help" className="fine input-help">
+              {purpose
+                ? inputGuidance[purpose].help
+                : "まとまっていなくても大丈夫です。実名や連絡先は省いてください。"}
+            </p>
           </div>
           <div className="p6-composer-actions composer-actions">
             <span>
@@ -514,6 +518,11 @@ export default function TrialChat({
           <div ref={challengeElement} />
         </form>
       )}
+      <div className="safety-action">
+        <Link className="p6-safety-link button secondary" href="/safety">
+          危険や強いつらさを感じるとき
+        </Link>
+      </div>
       {session?.active && !session.deleted && !session.claimed && (
         <section
           className="destructive-actions"

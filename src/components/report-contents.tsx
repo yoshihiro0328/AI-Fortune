@@ -90,6 +90,17 @@ export default function ReportContents({
         <p className="fine">
           3つの章・13項目。章を開くと、読みたい項目へ移動できます。
         </p>
+        <div className="actions report-shortcuts" aria-label="次の行動への近道">
+          <a className="button secondary" href="#report-item-8">
+            今、連絡するか迷ったら
+          </a>
+          <a className="button secondary" href="#report-item-9">
+            返信文の3案を見る
+          </a>
+          <a className="button secondary" href="#report-item-11">
+            今後7日間の行動を見る
+          </a>
+        </div>
         <div className="report-toc-groups">
           {chapters.map((chapter) => (
             <details key={chapter.title}>
