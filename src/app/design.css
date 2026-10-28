@@ -1205,3 +1205,38 @@ body:has(.yorisoi-home-shell) > .site-footer {
 .reading-article h1 {
   text-wrap: balance;
 }
+
+/* Standalone auxiliary actions remain buttons, including retry and save. */
+.text-button,
+.p6-text-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #f0f3eb;
+  color: #365943;
+  font: inherit;
+  line-height: 1.6;
+  text-align: center;
+  text-decoration: none;
+  white-space: normal;
+}
+.text-button:hover:not(:disabled),
+.p6-text-button:hover:not(:disabled) {
+  background: #e3eadf;
+  border-color: #79927d;
+}
+.text-button:active:not(:disabled),
+.p6-text-button:active:not(:disabled) {
+  background: #d9e3d5;
+}
+.text-button:focus-visible,
+.p6-text-button:focus-visible {
+  outline: 3px solid #365943;
+  outline-offset: 3px;
+}
