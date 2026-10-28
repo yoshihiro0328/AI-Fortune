@@ -299,6 +299,13 @@ try {
     await reset("free");
     await go("/consult");
     await p.locator("#chat-text").fill("画面を離れると消える下書き");
+    if (
+      !(await p
+        .getByRole("link", { name: "マイページ", exact: true })
+        .first()
+        .isVisible())
+    )
+      await p.getByRole("button", { name: "メニュー", exact: true }).click();
     await p
       .getByRole("link", { name: "マイページ", exact: true })
       .first()

@@ -242,6 +242,9 @@ export default function DiagnosisFlow() {
       ) : !started ? (
         <div className="panel diagnosis-intro">
           <h1>ふたりのことを、聞かせてください。</h1>
+          <p className="fine">
+            登録なしで利用できる無料診断です。詳細レポートの購入は任意です。
+          </p>
           <p>
             ふたりの状況に合わせて、必要なことだけ聞いていきます。質問の数は回答内容によって変わります。分からないことは、そのまま教えてください。
           </p>

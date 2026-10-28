@@ -73,7 +73,7 @@ describe("operator information readiness", () => {
   it("shows the incomplete notice when just one field is blank", async () => {
     configure({ ...env, OPERATOR_PHONE: " " });
     expect(await renderLegal("terms")).toContain(
-      "運営者情報や運用方針に未確定の項目",
+      "運営者の公開情報と本番での運用確認が完了していません",
     );
   });
   it("renders configured identity, retention and refund policy without conflicting timing", async () => {
