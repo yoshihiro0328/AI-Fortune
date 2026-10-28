@@ -37,3 +37,19 @@ it("shows the purpose-specific approved bounds and receives once without returni
     await fs.rm(dir, { recursive: true, force: true });
   }
 });
+
+it("shows the approved continuation time without advertising a new 20-minute window", async () => {
+  const dir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "purpose-extension-form-test-"),
+  );
+  const r = await aiKeyReceiver({ directory: dir, scope: "purpose-extension" });
+  try {
+    const h = await fetch(r.url).then((v) => v.text());
+    expect(h).toContain("受領後追加10分");
+    expect(h).toContain("今回累積54要求");
+    expect(h).not.toContain("20分");
+  } finally {
+    await r.close();
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});

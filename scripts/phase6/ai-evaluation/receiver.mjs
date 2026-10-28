@@ -11,16 +11,21 @@ export async function aiKeyReceiver({
   onSubmission = () => {},
   scope = "legacy",
 }) {
-  check(["legacy", "purpose"].includes(scope), "RECEIVER_SCOPE_DENIED");
+  check(
+    ["legacy", "purpose", "purpose-extension"].includes(scope),
+    "RECEIVER_SCOPE_DENIED",
+  );
   const roles = ["key"];
   const title =
-    scope === "purpose"
+    scope !== "legacy"
       ? "相談目的AI評価：API資格情報の安全な受渡し"
       : "AI評価B：API資格情報の安全な受渡し";
   const allowance =
-    scope === "purpose"
-      ? "今回最大54要求・20分・税別US$3以内（累積842要求・US$12以内）"
-      : "最大842生成 / 税別US$12以内";
+    scope === "purpose-extension"
+      ? "残る5ケースのみ・受領後追加10分（今回累積54要求・税別US$3以内／従来累積842要求・US$12以内）"
+      : scope === "purpose"
+        ? "今回最大54要求・20分・税別US$3以内（累積842要求・US$12以内）"
+        : "最大842生成 / 税別US$12以内";
   const st = fs.lstatSync(directory);
   check(
     st.isDirectory() &&
