@@ -5,6 +5,7 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { purposeCases } from "./cases";
 import { purposeBudget, limits } from "./budget.mjs";
+import { continuationPlan, digest } from "./continuation.mjs";
 import { evaluationDatabase } from "../phase6/ai-evaluation/isolated-db";
 const bridge = vi.hoisted(() => ({ db: vi.fn(), parse: vi.fn() }));
 vi.mock("@/lib/supabase/admin", () => ({
@@ -24,15 +25,18 @@ import { submissionText } from "@/lib/consultation/purpose";
 import { replyParts } from "@/lib/consultation/reply-parts";
 it("purpose evaluation with real application prompts, isolated DB and bounded provider", async () => {
   const live = process.env.PURPOSE_EVALUATION_MODE === "live";
+  const continuationFixture =
+    process.env.PURPOSE_EVALUATION_MODE === "offline-continuation";
   if (
     process.env.OPENAI_API_KEY ||
     process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.STRIPE_SECRET_KEY
   )
     throw Error("CLEAN_ENV");
-  const dir = live
-    ? path.resolve(process.env.PURPOSE_EVALUATION_DIRECTORY || "/denied")
-    : await fs.mkdtemp("/tmp/yorisoi-purpose-offline-");
+  const dir =
+    live || continuationFixture
+      ? path.resolve(process.env.PURPOSE_EVALUATION_DIRECTORY || "/denied")
+      : await fs.mkdtemp("/tmp/yorisoi-purpose-offline-");
   const st = await fs.lstat(dir);
   if (
     !st.isDirectory() ||
@@ -69,15 +73,34 @@ it("purpose evaluation with real application prompts, isolated DB and bounded pr
       throw Error("PRIVATE_FILE");
     return JSON.parse(await fs.readFile(p, "utf8"));
   };
-  const prior = live
-    ? await readPrivate("prior.json")
-    : { calls: 10, reservedNano: 1200000000, elapsedMillis: 5000 };
+  const prior =
+    live || continuationFixture
+      ? await readPrivate("prior.json")
+      : { calls: 10, reservedNano: 1200000000, elapsedMillis: 5000 };
   const caseHash = createHash("sha256")
     .update(JSON.stringify(purposeCases))
     .digest("hex");
+  let selected = purposeCases.map((c) => ({ ...c, evaluationId: c.id }));
+  let carried: Parameters<typeof purposeBudget>[0]["carried"] = undefined;
+  let reuse: Record<string, { hash: string; result: unknown; usage: unknown }> =
+    {};
+  let continuationHash: string | undefined;
+  if (live || continuationFixture) {
+    try {
+      const c = await readPrivate("continuation.json");
+      continuationHash = digest(JSON.stringify(c));
+      const plan = continuationPlan({ ...c, cases: purposeCases, prior });
+      selected = plan.selected;
+      carried = plan.carried;
+      reuse = plan.reuse;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+    }
+  }
   if (live) {
     const a = await readPrivate("approval.json");
     if (
+      a.continuationHash !== continuationHash ||
       a.scope !== "consultation-purpose-v1" ||
       a.model !== limits.model ||
       a.maxCalls !== 54 ||
@@ -96,12 +119,13 @@ it("purpose evaluation with real application prompts, isolated DB and bounded pr
   let key = "",
     local: Awaited<ReturnType<typeof evaluationDatabase>> | undefined,
     stage = "setup",
-    current = purposeCases[0],
+    current = selected[0],
     stageIndex = 0;
   const start = Date.now();
   const gate = purposeBudget({
     prior,
     startedAt: start,
+    carried,
     checkpoint: async (data: unknown) => {
       await journal.writeFile(JSON.stringify(data) + "\n");
       await journal.sync();
@@ -140,11 +164,19 @@ it("purpose evaluation with real application prompts, isolated DB and bounded pr
         })
       : null;
     bridge.parse.mockImplementation(async (request) => {
-      const id = `${current.id}-${stageIndex++}`;
+      const id = `${current.evaluationId}-${stageIndex++}`;
       stage = id;
       const hash = createHash("sha256")
         .update(JSON.stringify(request))
         .digest("hex");
+      if (reuse[id]) {
+        if (reuse[id].hash !== hash) throw Error("REUSE_REQUEST_CHANGED");
+        await save(id + "-reused.json", {
+          hash,
+          source: "confirmed prior safety stage",
+        });
+        return { output_parsed: reuse[id].result, usage: reuse[id].usage };
+      }
       await save(id + "-pending.json", { id, hash });
       const r = await gate.call(
         id,
@@ -187,18 +219,27 @@ it("purpose evaluation with real application prompts, isolated DB and bounded pr
       });
       return r;
     });
-    for (let i = 0; i < purposeCases.length; i++) {
-      current = purposeCases[i];
+    for (let i = 0; i < selected.length; i++) {
+      current = selected[i];
       stageIndex = 0;
+      try {
+        await fs.access(path.join(dir, "stop-requested.json"));
+        throw Error("QUALITY_STOP");
+      } catch (e) {
+        if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
+      }
       // The pilot is inspected locally before dispatching the other 15 cases.
-      if (live && i === 3) {
+      if (live && ((!carried && i === 3) || (carried && i === 1))) {
         await save("pilot-ready.json", {
           caseHash,
-          cases: purposeCases.slice(0, 3).map((c) => c.id),
+          cases: selected.slice(0, carried ? 1 : 3).map((c) => c.evaluationId),
         });
         stage = "pilot-review";
         while (true) {
-          if (Date.now() - start >= limits.millis)
+          if (
+            Date.now() - start + (carried?.elapsedMillis ?? 0) >=
+            limits.millis
+          )
             throw Error("REVIEW_DEADLINE");
           try {
             const review = await readPrivate("pilot-review.json");
@@ -235,8 +276,9 @@ it("purpose evaluation with real application prompts, isolated DB and bounded pr
         throw Error("DANGER_MISSED");
       if (current.purpose === "organize" && copies.length)
         throw Error("UNREQUESTED_REPLY");
-      await save(current.id + ".json", {
-        input: current,
+      await save(current.evaluationId + ".json", {
+        input: purposeCases.find((c) => c.id === current.id),
+        evaluationId: current.evaluationId,
         result: answer,
         copyTexts: copies,
         quality: live ? "human_review_pending" : "synthetic_wiring_only",

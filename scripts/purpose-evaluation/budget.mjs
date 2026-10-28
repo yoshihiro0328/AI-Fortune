@@ -11,11 +11,23 @@ export const limits = Object.freeze({
   output: 4096,
   context: 1050000,
 });
+/**
+ * @typedef {{calls:number,completed:number,reservedNano:number,inputTokens:number,outputTokens:number,elapsedMillis:number}} Carry
+ * @param {{prior:any, checkpoint:(data:any)=>Promise<void>, now?:()=>number, startedAt?:number, carried?:Carry}} options
+ */
 export function purposeBudget({
   prior,
   checkpoint,
   now = Date.now,
   startedAt = now(),
+  carried = {
+    calls: 0,
+    completed: 0,
+    reservedNano: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    elapsedMillis: 0,
+  },
 }) {
   if (
     !prior ||
@@ -27,11 +39,27 @@ export function purposeBudget({
     typeof checkpoint !== "function"
   )
     throw Error("PRIOR_REQUIRED");
-  let calls = 0,
-    cost = 0,
-    completed = 0,
-    input = 0,
-    output = 0,
+  if (
+    ![
+      "calls",
+      "completed",
+      "reservedNano",
+      "inputTokens",
+      "outputTokens",
+      "elapsedMillis",
+    ].every((k) => Number.isSafeInteger(carried[k]) && carried[k] >= 0) ||
+    carried.calls !== carried.completed ||
+    carried.calls > limits.calls ||
+    carried.reservedNano > limits.nanoUSD ||
+    carried.elapsedMillis >= limits.millis
+  )
+    throw Error("CARRY_REQUIRED");
+  const deadline = startedAt + limits.millis - carried.elapsedMillis;
+  let calls = carried.calls,
+    cost = carried.reservedNano,
+    completed = carried.completed,
+    input = carried.inputTokens,
+    output = carried.outputTokens,
     stopped = false,
     busy = false;
   const stages = new Set();
@@ -45,7 +73,11 @@ export function purposeBudget({
     priorPreserved: prior,
     cumulativeCalls: prior.calls + calls,
     cumulativeReservedNano: prior.reservedNano + cost,
-    elapsedMillis: prior.elapsedMillis + Math.max(0, now() - startedAt),
+    elapsedMillis:
+      prior.elapsedMillis +
+      carried.elapsedMillis +
+      Math.max(0, now() - startedAt),
+    carriedPreserved: carried,
     billedUSD: null,
   });
   return {
@@ -57,7 +89,7 @@ export function purposeBudget({
         stages.has(id) ||
         calls >= limits.calls ||
         prior.calls + calls >= 842 ||
-        now() >= startedAt + limits.millis
+        now() >= deadline
       )
         throw Error("PURPOSE_STOP");
       const keys = [
@@ -98,19 +130,17 @@ export function purposeBudget({
       cost += hold;
       try {
         await checkpoint({ phase: "reserved", id, ...summary() });
-        if (now() >= startedAt + limits.millis) throw Error("DEADLINE");
+        if (now() >= deadline) throw Error("DEADLINE");
         const r = await dispatch(
           { ...request, service_tier: "default", truncation: "disabled" },
           {
             maxRetries: 0,
-            signal: AbortSignal.timeout(
-              Math.min(60000, startedAt + limits.millis - now()),
-            ),
+            signal: AbortSignal.timeout(Math.min(60000, deadline - now())),
           },
         );
         const u = r.usage;
         if (
-          now() >= startedAt + limits.millis ||
+          now() >= deadline ||
           r.status !== "completed" ||
           r.model !== limits.model ||
           r.service_tier !== "default" ||
