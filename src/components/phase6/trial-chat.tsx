@@ -550,6 +550,42 @@ export default function TrialChat({
                 : "まとまっていなくても大丈夫です。実名や連絡先は省いてください。"}
             </p>
           </div>
+          <label className="p6-check">
+            <input
+              type="checkbox"
+              checked={consent}
+              disabled={busy}
+              onChange={(e) => setConsent(e.target.checked)}
+            />
+            <span>
+              18歳以上で、<Link href="/legal/terms">利用規約</Link>と
+              <Link href="/legal/privacy">プライバシー</Link>
+              を確認し、入力のOpenAIへの送信に同意します。
+            </span>
+          </label>
+          <div className="composer-feedback" aria-live="polite">
+            {busy ? (
+              <p role="status">送信中・回答を待っています。</p>
+            ) : error ? (
+              <p role="alert" className="error">
+                {error}
+              </p>
+            ) : (
+              <p>
+                {!session?.enabled
+                  ? "現在、お試し相談は利用できません。"
+                  : !composed.trim()
+                    ? "相談文を入力するか、会話を取り込んでください。"
+                    : materialInvalid
+                      ? "会話の確認箇所・文字数を確認してください。"
+                      : !consent
+                        ? "送信前に、上の同意欄を確認してください。"
+                        : !session.active && !challenge
+                          ? "認証の完了をお待ちください。"
+                          : "送信できます。"}
+              </p>
+            )}
+          </div>
           <div className="p6-composer-actions composer-actions">
             <span>
               合計{composed.length}/{session?.maxLength ?? 800}文字（残り
@@ -572,19 +608,6 @@ export default function TrialChat({
               <ArrowUp size={20} />
             </button>
           </div>
-          <label className="p6-check">
-            <input
-              type="checkbox"
-              checked={consent}
-              disabled={busy}
-              onChange={(e) => setConsent(e.target.checked)}
-            />
-            <span>
-              18歳以上で、<Link href="/legal/terms">利用規約</Link>と
-              <Link href="/legal/privacy">プライバシー</Link>
-              を確認し、入力のOpenAIへの送信に同意します。
-            </span>
-          </label>
           <p className="p6-small">
             閲覧・引き継ぎは開始から最大24時間です。すべての保存先からの24時間以内の完全削除は保証していません。登録は任意です。
           </p>

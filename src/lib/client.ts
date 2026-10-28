@@ -2,6 +2,7 @@ export class RequestError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
   }
@@ -36,7 +37,7 @@ export async function request<T>(url: string, data?: unknown): Promise<T> {
     );
   }
   if (!r.ok)
-    throw new RequestError(r.status, j.error ?? "通信に失敗しました。");
+    throw new RequestError(r.status, j.error ?? "通信に失敗しました。", j.code);
   return j;
 }
 export function track(name: string, id?: string) {
@@ -63,3 +64,11 @@ export type Diagnosis = {
   free_report: import("./ai/schemas").FreeReport | null;
   payment_status: string | null;
 };
+
+export function isDefiniteInputRejection(error: unknown) {
+  return (
+    error instanceof RequestError &&
+    [400, 413].includes(error.status) &&
+    error.code === "INPUT_REJECTED"
+  );
+}

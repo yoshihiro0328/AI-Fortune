@@ -153,7 +153,7 @@ export default function ReportContents({
               )}
             </aside>
           )}
-          <a className="back-to-toc" href="#report-toc">
+          <a className="back-to-toc button secondary" href="#report-toc">
             目次に戻る
           </a>
         </section>

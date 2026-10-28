@@ -10,7 +10,9 @@ export function safeReturnTo(value: unknown): string | null {
     )
   )
     return value;
-  if (new RegExp(`^/consult\\?(?:diagnosis|thread)=${uuid}$`).test(value))
+  if (
+    new RegExp(`^/consult\\?(?:diagnosis|thread|subject)=${uuid}$`).test(value)
+  )
     return value;
   return null;
 }

@@ -349,6 +349,26 @@ export function createFixture(root) {
       if (
         p === "/api/consultations" &&
         method === "POST" &&
+        b.action === "create_thread"
+      ) {
+        if (mode === "anonymous")
+          return { status: 401, data: { error: "合成の未ログイン状態です。" } };
+        const subject = subjects.find((s) => s.id === b.subject);
+        if (!subject)
+          return { status: 404, data: { error: "相談相手がありません。" } };
+        const thread = {
+          id: "sample-thread-" + (threads.length + 1),
+          subject_id: subject.id,
+          title: "新しい合成相談",
+          created_at: now,
+          updated_at: now,
+        };
+        threads.push(thread);
+        return ok(thread);
+      }
+      if (
+        p === "/api/consultations" &&
+        method === "POST" &&
         b.action === "search"
       ) {
         const query = String(b.query).toLowerCase();
@@ -400,15 +420,18 @@ export function createFixture(root) {
         }
       }
       if (
-        /^\/api\/consultations\/sample-thread(?:-b)?\/send$/.test(p) &&
+        /^\/api\/consultations\/sample-thread(?:-[a-z0-9]+)?\/send$/.test(p) &&
         method === "POST"
       ) {
         if (mode === "anonymous")
           return { status: 401, data: { error: "合成の未ログイン状態です。" } };
-        if (typeof b.text !== "string" || b.text.length > 2000)
+        if (typeof b.text !== "string" || b.text.length > 4000)
           return {
             status: 400,
-            data: { error: "合成の相談文を入力してください。" },
+            data: {
+              error: "合成の相談文を1〜4000文字で入力してください。",
+              code: "INPUT_REJECTED",
+            },
           };
         if (turns.length >= 100)
           return {
@@ -418,8 +441,15 @@ export function createFixture(root) {
                 "合成履歴の上限です。上部の状態切替でリセットしてください。",
             },
           };
+        const prior = turns.find(
+          (t) => t.id === b.requestId && t.thread_id === p.split("/")[3],
+        );
+        if (prior)
+          return prior.user_text === b.text
+            ? ok({ ok: true, synthetic: true })
+            : { status: 409, data: { error: "合成の送信内容が異なります。" } };
         turns.push({
-          id: "sample-turn-" + turns.length,
+          id: b.requestId ?? "sample-turn-" + turns.length,
           thread_id: p.split("/")[3],
           user_text: b.text,
           assistant_text:

@@ -158,7 +158,7 @@ export default function ConsultationSummary({
                 (data.threads.find((t) => t.subject_id === s.id)
                   ? "?thread=" +
                     data.threads.find((t) => t.subject_id === s.id)!.id
-                  : "")
+                  : "?subject=" + encodeURIComponent(s.id))
               }
             >
               {s.nickname}

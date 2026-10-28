@@ -364,22 +364,48 @@ export default function ScreenshotImport({
             )}
             <details className="import-conversation">
               <summary>内容を見る・直す</summary>
-              <p className="fine">
-                文字の誤読や、写真・背景と同化した吹き出しの見落としがあり得ます。必要に応じて元画像と照合し、送る発言を選んでください。日時は読めた範囲だけで、日時不明のまま進められます。相手から受け取った画像なら編集内で発言者を一括交換してください。
-              </p>
-              <ScreenshotConversation
-                rows={rows}
-                pictures={stale ? [] : pictures}
-                onChange={onChange}
-              />
-              {imageEditor}
-              <button
-                type="button"
-                className="button secondary"
-                onClick={cancel}
-              >
-                取り込みを取り消す
-              </button>
+              <div className="import-review-stack">
+                <p className="fine">
+                  文字の誤読や、写真・背景と同化した吹き出しの見落としがあり得ます。必要に応じて元画像と照合し、送る発言を選んでください。日時は読めた範囲だけで、日時不明のまま進められます。相手から受け取った画像なら編集内で発言者を一括交換してください。
+                </p>
+                <ScreenshotConversation
+                  rows={rows}
+                  pictures={stale ? [] : pictures}
+                  onChange={onChange}
+                />
+                <div className="import-edit-actions">{imageEditor}</div>
+                <div className="import-dismiss-actions">
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={(e) => {
+                      const details = e.currentTarget.closest("details");
+                      if (details) {
+                        details.open = false;
+                        const input = details
+                          .closest("form")
+                          ?.querySelector<HTMLTextAreaElement>(
+                            "#chat-text, #trial-text",
+                          );
+                        if (input) input.focus();
+                        else details.querySelector("summary")?.focus();
+                      }
+                    }}
+                  >
+                    編集を閉じて相談入力へ戻る
+                  </button>
+                  <p className="fine">
+                    取り込みの取消は会話材料だけを削除します。入力した相談文は残ります。
+                  </p>
+                  <button
+                    type="button"
+                    className="button secondary"
+                    onClick={cancel}
+                  >
+                    取り込みを取り消す
+                  </button>
+                </div>
+              </div>
             </details>
           </>
         )}

@@ -14,6 +14,7 @@ export class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
+    public code?: string,
   ) {
     super(message);
   }
@@ -140,7 +141,7 @@ export async function api(fn: () => Promise<unknown>) {
   } catch (e) {
     if (e instanceof HttpError)
       return Response.json(
-        { error: e.message },
+        { error: e.message, ...(e.code ? { code: e.code } : {}) },
         { status: e.status, headers: { "Cache-Control": "private, no-store" } },
       );
     safeOperationalLog("request_failed");

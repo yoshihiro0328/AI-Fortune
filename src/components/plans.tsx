@@ -1,6 +1,6 @@
 "use client";
 import { usePaymentDisplay } from "./payment-display-provider";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { request } from "@/lib/client";
 import BillingTerms from "./billing-terms";
@@ -10,6 +10,18 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
   const [consent, setConsent] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [member, setMember] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void request<{ user: { confirmed: boolean } | null }>("/api/auth")
+      .then((r) => {
+        if (alive) setMember(!!r.user?.confirmed);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
   async function checkout() {
     setBusy(true);
     setError("");
@@ -43,9 +55,20 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             <li>診断・相談履歴の閲覧：利用できます</li>
             <li>詳細レポート：別売{yen(pricing.report)}・単発購入</li>
           </ul>
-          <Link className="button secondary" href="/diagnosis/partner-mind">
-            質問に答えて整理する
-          </Link>
+          <div className="section-actions">
+            <Link
+              className="button"
+              href={member ? "/consult" : "/account?next=%2Fconsult"}
+            >
+              {member ? "無料プランで相談する" : "登録・ログインして無料相談"}
+            </Link>
+            <Link className="button secondary" href="/chat">
+              登録なしのお試しについて
+            </Link>
+            <Link className="button secondary" href="/diagnosis/partner-mind">
+              質問に答えて整理する（無料診断）
+            </Link>
+          </div>
         </section>
         <section className="plan-card">
           <p className="eyebrow">出来事があったときに、また</p>

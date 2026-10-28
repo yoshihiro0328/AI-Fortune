@@ -85,7 +85,9 @@ export default function Result({ id }: { id: string }) {
         </section>
       ) : r ? (
         <>
-          <h1>今のふたりを、整理すると。</h1>
+          <h1>
+            今のふたりを、<span className="question-ending">整理すると。</span>
+          </h1>
           <section className="panel">
             <h2>現在の状況</h2>
             <p>{r.summary}</p>

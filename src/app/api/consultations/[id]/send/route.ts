@@ -28,7 +28,15 @@ export async function POST(
     const user = await member(),
       { id } = await params;
     await ownThread(user, id);
-    const input = await body(req, schema);
+    const input = await body(req, schema).catch((e) => {
+      if (e instanceof HttpError && [400, 413].includes(e.status))
+        throw new HttpError(
+          e.status,
+          "相談文を1〜4000文字以内で入力してください。処理は開始していません。",
+          "INPUT_REJECTED",
+        );
+      throw e;
+    });
     // Idempotent successful responses do not invoke the provider or spend quota again.
     const prior = checked(
       await db()

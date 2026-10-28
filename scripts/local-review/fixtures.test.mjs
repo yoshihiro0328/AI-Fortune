@@ -130,3 +130,28 @@ test("free and canceled preview periods cover the current Tokyo calendar month",
     assert.ok(Date.parse(u.period_end) > Date.now());
   }
 });
+
+test("consultation fixture matches 4000 input contract, creates the selected empty subject and deduplicates", () => {
+  const f = createFixture(process.cwd());
+  f.reset("free");
+  const t = f.handle("POST", url("/api/consultations"), {
+    action: "create_thread",
+    subject: "sample-person-c",
+  }).data;
+  const target = url("/api/consultations/" + t.id + "/send");
+  const invalid = f.handle("POST", target, {
+    requestId: "r1",
+    text: "長".repeat(4001),
+  });
+  assert.equal(invalid.status, 400);
+  assert.equal(invalid.data.code, "INPUT_REJECTED");
+  assert.equal(
+    f.handle("POST", target, { requestId: "r1", text: "長".repeat(2300) })
+      .status,
+    200,
+  );
+  f.handle("POST", target, { requestId: "r1", text: "長".repeat(2300) });
+  const state = f.handle("GET", url("/api/consultations?thread=" + t.id)).data;
+  assert.equal(state.subject.id, "sample-person-c");
+  assert.equal(state.turns.length, 1);
+});

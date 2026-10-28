@@ -355,6 +355,9 @@ export default async function Legal({
           aria-labelledby="privacy-summary-title"
         >
           <h2 id="privacy-summary-title">まず知っておきたい5つのこと</h2>
+          <p>
+            <a href="#legal-contents">詳細の目次へ</a>
+          </p>
           <dl>
             <div>
               <dt>保存する情報</dt>
@@ -371,15 +374,13 @@ export default async function Legal({
             <div>
               <dt>AI提供元での学習・保持</dt>
               <dd>
-                APIの入力・回答は、明示的な共有同意がない限り学習に使われません。安全対策の記録は原則最大30日間、法令・安全上の例外でそれ以上保持される場合があります。よりそいでの削除と提供元での削除は別です。詳細と本番設定の確認状況は下に記載します。
+                明示的な共有同意がない限りAPIの入力・回答は学習に使われません。提供元の記録には保持期間と例外があり、よりそいでの削除とは別です。詳細・確認状況は本文をご覧ください。
               </dd>
             </div>
             <div>
               <dt>保存期間</dt>
               <dd>
-                {privacy.retention}
-                {privacy.local &&
-                  " 期限前通知・定期削除の本番稼働は確認待ちです。永続的な閲覧や、期限内の完全削除を約束する表示ではありません。"}
+                情報の種類により期間が異なります。採用済みの期間、削除の例外、本番運用の確認状況は本文にまとめています。
               </dd>
             </div>
             <div>
@@ -393,7 +394,11 @@ export default async function Legal({
           </dl>
         </section>
       )}
-      <nav className="legal-toc" aria-label="このページの目次">
+      <nav
+        id="legal-contents"
+        className="legal-toc"
+        aria-label="このページの目次"
+      >
         <p>
           <strong>このページの内容</strong>
         </p>

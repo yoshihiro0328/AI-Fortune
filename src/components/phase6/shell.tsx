@@ -114,6 +114,8 @@ export default function Phase6Shell({
         aria-haspopup="dialog"
         onClick={() => {
           dialog.current?.showModal();
+          dialog.current?.scrollTo(0, 0);
+          dialog.current?.querySelector(".site-menu-list")?.scrollTo(0, 0);
           setOpen(true);
         }}
       >
@@ -155,7 +157,9 @@ export default function Phase6Shell({
             <X size={24} aria-hidden />
           </button>
         </div>
-        <Navigation path={path} onNavigate={close} />
+        <div className="site-menu-list">
+          <Navigation path={path} onNavigate={close} />
+        </div>
       </dialog>
     </>
   );

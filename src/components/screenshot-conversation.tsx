@@ -31,7 +31,7 @@ export default function ScreenshotConversation({
     <section
       className="conversation-review"
       aria-label="復元した会話の確認"
-      data-view={view}
+      data-view={picture ? view : "conversation"}
     >
       <h4>取り込んだ会話</h4>
       <p className="fine">
@@ -58,27 +58,34 @@ export default function ScreenshotConversation({
           自分と相手をまとめて入れ替える
         </button>
       </div>
-      <div className="review-view-switch" aria-label="照合する表示">
-        <button
-          type="button"
-          className="button secondary"
-          aria-pressed={view === "conversation"}
-          onClick={() => setView("conversation")}
-        >
-          会話を見る
-        </button>
-        <button
-          type="button"
-          className="button secondary"
-          aria-pressed={view === "image"}
-          onClick={() => setView("image")}
-        >
-          画像を見る
-        </button>
-      </div>
+      {picture && (
+        <div className="review-view-switch" aria-label="照合する表示">
+          <button
+            type="button"
+            className="button secondary"
+            aria-pressed={view === "conversation"}
+            onClick={() => setView("conversation")}
+          >
+            会話を見る
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            aria-pressed={view === "image"}
+            onClick={() => setView("image")}
+          >
+            画像を見る
+          </button>
+        </div>
+      )}
+      {!picture && (
+        <p className="fine">
+          元画像は保持していません。会話の文字は訂正できます。
+        </p>
+      )}
       <div className="conversation-review-columns">
         <aside
-          hidden={view !== "image"}
+          hidden={!picture || view !== "image"}
           className="review-source"
           aria-label="読み取り元の画像"
           tabIndex={0}
@@ -103,7 +110,7 @@ export default function ScreenshotConversation({
             />
           )}
         </aside>
-        <div className="review-messages" hidden={view === "image"}>
+        <div className="review-messages" hidden={!!picture && view === "image"}>
           {rows.map((r, i) => (
             <article
               className={`restored-message speaker-${r.speaker}`}

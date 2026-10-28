@@ -130,6 +130,9 @@ export default function DiagnosisFlow() {
           ? "回答を選んでください。"
           : "回答を入力してください。",
       );
+      requestAnimationFrame(() =>
+        document.getElementById("question-error")?.focus(),
+      );
       return;
     }
     setError("");
@@ -213,7 +216,7 @@ export default function DiagnosisFlow() {
   return (
     <main id="main" className="flow">
       <div className="eyebrow">質問に答えて整理 · ふたりの今と次の行動</div>
-      {error && (
+      {error && !started && (
         <p role="alert" className="error">
           {error}
         </p>
@@ -298,6 +301,7 @@ export default function DiagnosisFlow() {
               disabled={!!busy}
               style={{ border: 0, padding: 0 }}
               aria-labelledby="question-title"
+              aria-describedby={error ? "question-error" : undefined}
             >
               {["radio", "select"].includes(q.question_type) ? (
                 q.options_json.map((o) => (
@@ -345,6 +349,16 @@ export default function DiagnosisFlow() {
                 />
               )}
             </fieldset>
+            {error && (
+              <p
+                id="question-error"
+                role="alert"
+                tabIndex={-1}
+                className="error"
+              >
+                {error} 回答を確認してから、もう一度進んでください。
+              </p>
+            )}
             <div className="actions">
               <button
                 className="button secondary"

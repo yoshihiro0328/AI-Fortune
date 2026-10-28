@@ -286,11 +286,11 @@ body:has(.yorisoi-home-shell) > .site-footer {
   letter-spacing: 0.28em;
   margin-top: 10px;
 }
-.home-header nav {
+.home-header .site-public-desktop nav {
   display: flex;
   align-items: center;
 }
-.home-header nav a {
+.home-header .site-public-desktop nav a {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
@@ -298,7 +298,7 @@ body:has(.yorisoi-home-shell) > .site-footer {
   text-decoration: underline;
   text-underline-offset: 10px;
 }
-.home-header nav .home-header-extra {
+.home-header .site-public-desktop nav .home-header-extra {
   display: none;
 }
 .yorisoi-home {
@@ -514,7 +514,7 @@ body:has(.yorisoi-home-shell) > .site-footer {
     font-size: 11px;
     margin-top: 6px;
   }
-  .home-header nav a {
+  .home-header .site-public-desktop nav a {
     font-size: 16px;
   }
   .home-hero {
@@ -2357,4 +2357,65 @@ body:has(.app-layout) > .site-footer {
 .compact-import .import-overview .import-count {
   flex: 1;
   min-width: 0;
+}
+
+/* Shared interaction regions: no conditional child supplies its neighbour's spacing. */
+.site-menu-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  max-height: calc(100dvh - 24px);
+}
+.site-menu-heading {
+  flex: 0 0 auto;
+}
+.site-menu-list {
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.site-menu-dialog .site-navigation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+}
+.site-menu-dialog .site-navigation a {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+}
+.site-menu-dialog .site-navigation span {
+  min-width: 0;
+  overflow-wrap: normal;
+}
+.import-review-stack,
+.import-dismiss-actions {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.import-dismiss-actions {
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+  margin-top: 8px;
+}
+.import-edit-actions:empty {
+  display: none;
+}
+.composer-feedback {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+.composer-feedback p {
+  margin: 0;
+}
+.chat-exchange {
+  scroll-margin-top: 24px;
+}
+.chat-exchange:focus {
+  outline: 2px solid var(--green);
+  outline-offset: 4px;
 }

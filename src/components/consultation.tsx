@@ -25,7 +25,12 @@ import {
   submissionText,
   type Purpose,
 } from "@/lib/consultation/purpose";
-import { RequestError, request as apiRequest } from "@/lib/client";
+import { consultationEntry } from "@/lib/consultation/entry";
+import {
+  isDefiniteInputRejection,
+  RequestError,
+  request as apiRequest,
+} from "@/lib/client";
 import {
   memoryLabels,
   type ConsultationHome,
@@ -158,7 +163,7 @@ export default function Consultation({
     return h;
   }, [request, clearPrivate]);
   const open = useCallback(
-    async (id: string) => {
+    async (id: string, expectedSubject?: string) => {
       const seq = ++generation.current;
       setError("");
       const d = await request<{
@@ -168,6 +173,8 @@ export default function Consultation({
         hasMore: boolean;
       }>("/api/consultations?thread=" + id);
       if (seq !== generation.current) return;
+      if (expectedSubject && d.subject.id !== expectedSubject)
+        throw new Error("指定された相談と相手が一致しません。");
       setThreadId(id);
       setSidebarOpen(false);
       setSubjectId(d.subject.id);
@@ -193,24 +200,15 @@ export default function Consultation({
         const selectedTopic = p.get("topic");
         if (topicIds.some((id) => id === selectedTopic))
           setTopic(selectedTopic!);
-        const diagnosisId = p.get("diagnosis") ?? "";
-        const linked = h.links.find((l) => l.diagnosis_id === diagnosisId);
-        setDiagnosis(linked ? "" : diagnosisId);
-        const id = linked
-          ? h.threads.find((t) => t.subject_id === linked.subject_id)?.id
-          : (p.get("thread") ?? (!diagnosisId ? h.threads[0]?.id : undefined));
-        if (id) await open(id);
-        else {
-          const selected = linked
-            ? h.subjects.find((s) => s.id === linked.subject_id)
-            : !diagnosisId
-              ? h.subjects[0]
-              : undefined;
-          if (selected) {
-            setSubjectId(selected.id);
-            setRename(selected.nickname);
-            switchDraft("new:" + selected.id);
-          }
+        const entry = consultationEntry(h, p);
+        const { linked } = entry;
+        setDiagnosis(entry.diagnosis);
+        if (entry.threadId)
+          await open(entry.threadId, p.get("subject") ?? undefined);
+        else if (entry.subject) {
+          setSubjectId(entry.subject.id);
+          setRename(entry.subject.nickname);
+          switchDraft("new:" + entry.subject.id);
         }
         if (linked) setNotice("この診断に紐づく相談相手を開きました。");
       })
@@ -303,6 +301,11 @@ export default function Consultation({
         setTurns([]);
         setRename(s.nickname);
         setMemoryEdit(false);
+        window.history.replaceState(
+          null,
+          "",
+          "/consult?subject=" + encodeURIComponent(s.id),
+        );
       }
     });
   }
@@ -358,12 +361,41 @@ export default function Consultation({
             );
           pending.current = { requestId: crypto.randomUUID(), text: submitted };
         }
+        if (retry && pending.current && id) {
+          const existing = await request<{ turns: Turn[] }>(
+            "/api/consultations?thread=" + id,
+          );
+          const resolved = existing.turns.find(
+            (t) =>
+              t.id === pending.current?.requestId &&
+              t.status === "ready" &&
+              t.assistant_text,
+          );
+          if (resolved && !pending.current.regenerate) {
+            drafts.current.remove(id);
+            pending.current = null;
+            setHasPending(false);
+            setMaterialRevision((v) => v + 1);
+            await open(id);
+            setNotice("回答が届きました。");
+            return;
+          }
+        }
         setHasPending(true);
         if (!pending.current?.text)
           throw new Error("相談したいことを入力してください。");
         drafts.current.update(id, { pending: pending.current });
         const epoch = authEpoch.current;
-        await request("/api/consultations/" + id + "/send", pending.current);
+        try {
+          await request("/api/consultations/" + id + "/send", pending.current);
+        } catch (e) {
+          if (isDefiniteInputRejection(e)) {
+            pending.current = null;
+            setHasPending(false);
+            drafts.current.update(id, { pending: null });
+          }
+          throw e;
+        }
         if (epoch !== authEpoch.current) return;
         drafts.current.remove(id);
         pending.current = null;
@@ -375,6 +407,7 @@ export default function Consultation({
         setHasPending(false);
         await load();
         await open(id);
+        setNotice("回答が届きました。");
       });
     } finally {
       sendLock.current = false;
@@ -415,7 +448,10 @@ export default function Consultation({
               プランの違い
             </Link>
           </p>
-          <p className="fine">{exchangeExplanation}</p>
+          <details className="consultation-usage-details">
+            <summary>利用回数と相談のしくみ</summary>
+            <p className="fine">{exchangeExplanation}</p>
+          </details>
           {error && (
             <p className="error" role="alert">
               {error}
@@ -622,6 +658,17 @@ export default function Consultation({
               </div>
             </aside>
             <section className="chat-panel" aria-label="相談チャット">
+              <div className="section-actions">
+                <button
+                  type="button"
+                  className="button secondary"
+                  onClick={() => {
+                    document.getElementById("chat-text")?.focus();
+                  }}
+                >
+                  相談を書く
+                </button>
+              </div>
               <h2 className="current-subject">
                 {subject
                   ? subject.nickname + "について"
@@ -758,7 +805,12 @@ export default function Consultation({
                   </p>
                 )}
                 {turns.map((t) => (
-                  <article className="chat-exchange" key={t.id}>
+                  <article
+                    className="chat-exchange"
+                    key={t.id}
+                    id={"turn-" + t.id}
+                    tabIndex={-1}
+                  >
                     <div className="chat-bubble user-message">
                       <small>あなた · {date(t.created_at)}</small>
                       <p>{t.user_text}</p>
@@ -870,7 +922,7 @@ export default function Consultation({
                   rows={expanded ? 12 : 4}
                   className={expanded ? "composer-expanded" : ""}
                   value={text}
-                  disabled={busy || !subject}
+                  disabled={busy || hasPending || !subject}
                   onChange={(e) => {
                     setText(e.target.value);
                     drafts.current.update(activeKey.current, {
@@ -906,6 +958,51 @@ export default function Consultation({
                     ? inputGuidance[purpose].help
                     : "今あったことや迷っていることを、自由に書いてください。"}
                 </p>
+                <div className="composer-feedback" aria-live="polite">
+                  {busy && (
+                    <p role="status">
+                      送信中・回答を待っています。下書きは保持しています。
+                    </p>
+                  )}
+                  {error && (
+                    <p className="error" role="alert">
+                      {error}
+                    </p>
+                  )}
+                  {hasPending && !busy && (
+                    <p>
+                      前の送信結果が未確認です。履歴を照合し、同じ送信番号で復旧してください。新しい内容は送信しません。
+                    </p>
+                  )}
+                  {!busy && notice === "回答が届きました。" && (
+                    <p role="status">{notice}</p>
+                  )}
+                  {turns.some((t) => t.assistant_text) && (
+                    <button
+                      type="button"
+                      className="button secondary"
+                      onClick={() => {
+                        const last = turns
+                          .filter((t) => t.assistant_text)
+                          .at(-1);
+                        const el = document.getElementById("turn-" + last?.id);
+                        el?.scrollIntoView({
+                          block: "start",
+                          behavior: "smooth",
+                        });
+                        el?.focus({ preventScroll: true });
+                      }}
+                    >
+                      最近の回答を見る
+                    </button>
+                  )}
+                  {!subject && <p>相談相手を選んでから入力してください。</p>}
+                  {materialInvalid && (
+                    <p>
+                      取り込んだ会話の確認箇所と合計文字数を確認してください。
+                    </p>
+                  )}
+                </div>
                 <div className="composer-actions">
                   <span className="fine">
                     合計{composed.length}/4000文字（残り
