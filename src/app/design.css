@@ -1253,8 +1253,13 @@ body:has(.yorisoi-home-shell) > .site-footer {
   border-bottom: 1px solid var(--line);
 }
 .home-header.site-public-header {
-  max-width: none;
+  max-width: 1160px;
+  margin-inline: auto;
   border: 0;
+}
+.home-header .site-public-desktop {
+  background: #faf8f2ed;
+  border-radius: 10px;
 }
 .site-header-actions {
   display: flex;
