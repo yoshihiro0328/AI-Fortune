@@ -8,6 +8,7 @@ import {
   validateImages,
   type QuoteRow,
 } from "@/lib/screenshot/model";
+import { recognizeLocally } from "@/lib/screenshot/ocr";
 type Picture = { id: string; canvas: HTMLCanvasElement };
 function PictureEditor({
   picture,
@@ -114,11 +115,11 @@ export default function ScreenshotImport({
   disabled?: boolean;
 }) {
   const [pictures, setPictures] = useState<Picture[]>([]),
-    [synthetic, setSynthetic] = useState(false),
     [rows, setRows] = useState<QuoteRow[]>([]),
     [confirmed, setConfirmed] = useState(false),
     [busy, setBusy] = useState(false),
     [notice, setNotice] = useState("");
+  const controller = useRef<AbortController | null>(null);
   const epoch = useRef(0),
     canvases = useRef<Picture[]>([]);
   function clearImages() {
@@ -132,6 +133,7 @@ export default function ScreenshotImport({
   useEffect(
     () => () => {
       epoch.current++;
+      controller.current?.abort();
       for (const p of canvases.current) {
         p.canvas.width = 0;
         p.canvas.height = 0;
@@ -178,7 +180,6 @@ export default function ScreenshotImport({
       }
       clearImages();
       replace(next);
-      setSynthetic(false);
     } catch (e) {
       for (const p of next) {
         p.canvas.width = 0;
@@ -208,41 +209,48 @@ export default function ScreenshotImport({
       "相手：[読めない部分]",
     ].forEach((line, i) => ctx.fillText(line, 20, 60 + i * 120));
     replace([{ id: "synthetic", canvas: c }]);
-    setSynthetic(true);
-    setNotice("合成画像です。実OCRの精度確認ではありません。");
-  }
-  function read() {
-    if (!synthetic) {
-      setNotice(
-        "実OCRは未接続です。この画像は外部へ送りません。相談の下書きは保持しています。",
-      );
-      return;
-    }
-    setRows([
-      {
-        id: "1",
-        speaker: "other",
-        text: "今週、少し話せる？",
-        uncertain: false,
-      },
-      {
-        id: "2",
-        speaker: "me",
-        text: "予定を確認してみるね。",
-        uncertain: false,
-      },
-      {
-        id: "3",
-        speaker: "other",
-        text: "今週、少し話せる？",
-        uncertain: false,
-      },
-      { id: "4", speaker: "unknown", text: "[読めない部分]", uncertain: true },
-    ]);
-    setConfirmed(false);
+
     setNotice(
-      "固定の模擬読み取り結果です。画像内容から認識した結果ではありません。",
+      "合成画像を用意しました。編集後、端末内OCRで実際に読み取れます。",
     );
+  }
+  async function read() {
+    const run = ++epoch.current;
+    const control = new AbortController();
+    controller.current = control;
+    const timer = setTimeout(() => control.abort(), 120000);
+    setBusy(true);
+    setRows([]);
+    setConfirmed(false);
+    setNotice("端末内OCRを準備しています。画像は外部へ送りません。");
+    try {
+      const result = await recognizeLocally(
+        pictures.map((p) => p.canvas),
+        control.signal,
+        (i, n) => {
+          if (run === epoch.current)
+            setNotice(
+              `画像 ${i + 1} / ${pictures.length} を読み取り中（${Math.round(n * 100)}%）`,
+            );
+        },
+      );
+      if (run !== epoch.current) return;
+      setRows(result.rows);
+      setNotice(
+        `端末内OCRが完了しました（${(result.milliseconds / 1000).toFixed(1)}秒）。発言者は未確認です。絵文字・小さい文字・脱落や誤読を原画像と照合してください。24発言を超える場合は不要な時刻などを削除してから追加してください。`,
+      );
+    } catch {
+      if (run === epoch.current)
+        setNotice(
+          "読み取りを完了できませんでした。中断・時間切れ・素材読み込み失敗・行数超過の可能性があります。画像を小さな範囲へ切り抜いて確認してください。元の相談の下書きは保持しています。",
+        );
+    } finally {
+      clearTimeout(timer);
+      if (run === epoch.current) {
+        setBusy(false);
+        controller.current = null;
+      }
+    }
   }
   function change(id: string, patch: Partial<QuoteRow>) {
     setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -259,9 +267,21 @@ export default function ScreenshotImport({
   return (
     <details id="screenshot-import" className="screenshot-import">
       <summary>スクショ取り込みのローカル試作（本体は無効）</summary>
+      {busy && (
+        <button
+          type="button"
+          className="button secondary"
+          onClick={() => controller.current?.abort()}
+        >
+          読み取りを中断する
+        </button>
+      )}
+      <p role="status" aria-live="polite">
+        {notice}
+      </p>
       <fieldset disabled={disabled || busy}>
         <p className="notice">
-          実画像の外部送信・実AI・実OCRは行いません。画像の編集はこの端末内、読み取りは合成画像専用の模擬処理です。
+          画像編集と日本語・英語のOCRはこのブラウザー内で処理します。画像の外部送信・実AI生成は行いません。誤読や読み落としがあるため、必ず原画像と照合してください。
         </p>
         <p>
           PNG・JPEGを1〜3枚、1枚5MB／合計12MB以下、縦横100〜4096px・800万画素以下。名前・顔・アイコン・連絡先を先に隠してください。実利用者の画像は使わないでください。
@@ -304,7 +324,7 @@ export default function ScreenshotImport({
               処理先：このブラウザー内。外部へ送信する画像はありません。外部AIで読む機能は未接続です。
             </p>
             <button className="button secondary" type="button" onClick={read}>
-              {synthetic ? "模擬読み取りへ" : "読み取りの準備状況を確認"}
+              端末内で読み取る
             </button>
           </>
         )}
@@ -316,6 +336,10 @@ export default function ScreenshotImport({
             </p>
             {rows.map((r, i) => (
               <div className="quote-row" key={r.id}>
+                <p className="fine">
+                  画像 {Number(r.id.split("-")[0]) + 1 || 1}{" "}
+                  の読み取り行（発言の区切りも確認してください）
+                </p>
                 <label>
                   発言 {i + 1} の人
                   <select
@@ -362,6 +386,7 @@ export default function ScreenshotImport({
                 <div className="actions">
                   <button
                     type="button"
+                    className="button secondary"
                     disabled={i === 0}
                     onClick={() => move(i, -1)}
                     aria-label={`発言${i + 1}を上へ`}
@@ -370,6 +395,7 @@ export default function ScreenshotImport({
                   </button>
                   <button
                     type="button"
+                    className="button secondary"
                     disabled={i === rows.length - 1}
                     onClick={() => move(i, 1)}
                     aria-label={`発言${i + 1}を下へ`}
@@ -378,6 +404,7 @@ export default function ScreenshotImport({
                   </button>
                   <button
                     type="button"
+                    className="button secondary"
                     onClick={() => {
                       setRows(rows.filter((v) => v.id !== r.id));
                       setConfirmed(false);
@@ -427,7 +454,7 @@ export default function ScreenshotImport({
             </button>
           </section>
         )}
-        <p role="status">{notice}</p>
+
         <button
           type="button"
           className="text-button"
@@ -435,7 +462,7 @@ export default function ScreenshotImport({
             epoch.current++;
             clearImages();
             setRows([]);
-            setSynthetic(false);
+
             setConfirmed(false);
             setNotice(
               "試作内の画像・抽出結果を破棄しました。相談の下書きは保持しています。",

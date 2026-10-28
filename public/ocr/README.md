@@ -1,0 +1,7 @@
+# Pinned on-device OCR assets
+
+Tesseract.js 6.0.1 and tesseract.js-core 6.0.0 were obtained from their official npm distributions. Japanese/English LSTM weights are from tesseract-ocr/tessdata_fast commit `87416418657359cb625c412a48b6e1d6d41c29bd`. The included license files apply to the respective assets. `manifest.json` pins SHA-256 and size; the offline test verifies every asset.
+
+The local prototype explicitly specifies same-origin worker, core and language paths, with `cacheMethod: "none"`, and processes canvases in a dedicated worker. No CDN fallback or external recognition service is used by the application. Both SIMD and non-SIMD LSTM bundles are included. Generic library CDN defaults are not application configuration. Third-party distributed JavaScript is kept verbatim and excluded from application lint; its pinned integrity is tested instead.
+
+The feature remains disabled in production. Manual comparison with the original is required: OCR may omit or misread emojis, small text, punctuation, and bubble boundaries. Speaker identity is deliberately unconfirmed; duplicates are retained. Browser termination/reference release does not promise secure physical memory erasure or deletion of the user's original file. Screenshots and recognized text are not written to persistent storage by the OCR component; confirmed text becomes an ordinary existing consultation draft and is only submitted by the user's normal send action.

@@ -372,7 +372,9 @@ export default function Consultation({
             {home.usage.plan === "plus" ? "Plus" : "無料プラン"} · 残り{" "}
             <strong>{home.usage.remaining}往復</strong> / {home.usage.limit}往復
             · {date(home.usage.period_end)}まで{" "}
-            <Link href="/plans">プランの違い</Link>
+            <Link className="button secondary" href="/plans">
+              プランの違い
+            </Link>
           </p>
           <p className="fine">{exchangeExplanation}</p>
           {error && (
@@ -568,7 +570,10 @@ export default function Consultation({
                       .filter((l) => l.subject_id === subjectId)
                       .map((l) => (
                         <p key={l.diagnosis_id}>
-                          <Link href={"/result/" + l.diagnosis_id}>
+                          <Link
+                            className="button secondary"
+                            href={"/result/" + l.diagnosis_id}
+                          >
                             この相手についての診断を見る
                           </Link>
                         </p>

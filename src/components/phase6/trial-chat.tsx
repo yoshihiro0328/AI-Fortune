@@ -272,7 +272,7 @@ export default function TrialChat({
           <h1>すぐ相談</h1>
           <span className="p6-small">相手はあとで整理できます</span>
         </div>
-        <Link href="/consult">
+        <Link className="button secondary" href="/consult">
           <ClockCounterClockwise size={21} />
           相談・履歴
         </Link>
@@ -292,7 +292,9 @@ export default function TrialChat({
           <p>
             登録なし相談は現在準備中です。入力内容をAIへ送信することはありません。
           </p>
-          <Link href="/diagnosis/partner-mind">じっくり無料診断する</Link>
+          <Link className="button secondary" href="/diagnosis/partner-mind">
+            じっくり無料診断する
+          </Link>
         </div>
       )}
       <div className="p6-conversation" tabIndex={0} aria-label="相談内容">

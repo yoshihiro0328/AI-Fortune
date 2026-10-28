@@ -35,6 +35,8 @@ jobs:
         run: node --test scripts/local-review/fixtures.test.mjs
       - name: AI evaluation full isolated path (synthetic only)
         run: npx vitest run --config scripts/phase6/ai-evaluation/evaluation.config.ts
+      - name: Consultation purpose runner (synthetic only; no API credentials)
+        run: npx vitest run --config scripts/purpose-evaluation/evaluation.config.ts
       - name: Portable payment script regressions (synthetic only; no Mac browser or OS sandbox)
         run: npm run test:payment-scripts
       - name: Portable Plus connected scenario, restoration and provider HTTP (synthetic only; no Mac browser or OS sandbox)

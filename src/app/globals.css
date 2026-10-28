@@ -1042,8 +1042,7 @@ nav a,
 .site-footer a {
   border-radius: 6px;
 }
-nav a[aria-current="page"],
-.site-footer a[aria-current="page"] {
+nav:not(.site-footer nav) a[aria-current="page"] {
   background: var(--accent);
   text-decoration-thickness: 2px;
   font-weight: 700;
@@ -1244,4 +1243,47 @@ main .reading-open:hover,
 .home-reading.home-return-cards {
   grid-auto-rows: 1fr;
   align-items: stretch;
+}
+
+/* Footer remains a quiet text menu, including its current-page state. */
+.site-footer a,
+.site-footer a[aria-current="page"],
+.site-footer a:hover {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+.site-footer a[aria-current="page"] {
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+}
+.actions > .button,
+.history-actions > a {
+  align-self: stretch;
+  justify-content: center;
+}
+.button.secondary {
+  text-decoration: none;
+  min-height: 44px;
+}
+.screenshot-import > [role="status"] {
+  min-height: 1.5em;
+}
+
+.button.secondary {
+  background: #f0f3eb;
+}
+.quote-row .actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.quote-row .actions .button {
+  padding: 10px 8px;
+  min-height: 44px;
+}
+@media (max-width: 600px) {
+  .screenshot-picture .actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

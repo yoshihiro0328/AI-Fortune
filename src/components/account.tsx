@@ -404,7 +404,9 @@ export default function Account({
               </button>
             )}
             <p>
-              <Link href="/contact">診断データの削除・退会を依頼する</Link>
+              <Link className="button secondary" href="/contact">
+                診断データの削除・退会を依頼する
+              </Link>
             </p>
           </section>
         </>

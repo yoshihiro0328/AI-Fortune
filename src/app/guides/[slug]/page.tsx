@@ -45,7 +45,9 @@ export default async function Page({
   if (!g) notFound();
   return (
     <main id="main" className="legal reading-article">
-      <Link href="/guides">恋愛相談の読みもの</Link>
+      <Link className="button secondary" href="/guides">
+        恋愛相談の読みもの
+      </Link>
       <h1>{g.title}</h1>
       <p className="lead">{g.description}</p>
       {g.sections.map(([title, text]) => (
@@ -63,7 +65,9 @@ export default async function Page({
           無料診断をはじめる
         </Link>
         <p>
-          <Link href="/chat">自由な文章で相談をはじめる</Link>
+          <Link className="button secondary" href="/chat">
+            自由な文章で相談をはじめる
+          </Link>
         </p>
         <p className="fine">
           初回診断無料・登録不要。既に相談している方は、

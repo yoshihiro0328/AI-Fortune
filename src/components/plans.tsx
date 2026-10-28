@@ -83,7 +83,9 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
           </button>
           <p className="fine">
             登録後、メールアドレスの確認が必要です。
-            <Link href="/account">ログイン・新規登録</Link>
+            <Link className="button secondary" href="/account">
+              ログイン・新規登録
+            </Link>
           </p>
         </section>
         <section className="plan-card">
@@ -102,7 +104,9 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
             <li>7日・30日の行動プラン</li>
           </ul>
           <p>
-            <Link href="/report-sample">詳細レポートの見本を見る</Link>
+            <Link className="button secondary" href="/report-sample">
+              詳細レポートの見本を見る
+            </Link>
           </p>
           <Link className="button secondary" href="/account#diagnosis-history">
             マイページで診断履歴を見る
@@ -120,7 +124,9 @@ export default function Plans({ free, plus }: { free: number; plus: number }) {
       <section className="panel">
         <BillingTerms free={free} plus={plus} compact />
         <p>{payment.notice}</p>
-        <Link href="/legal/refund">返金・キャンセルの方針</Link>
+        <Link className="button secondary" href="/legal/refund">
+          返金・キャンセルの方針
+        </Link>
       </section>
     </>
   );
