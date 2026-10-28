@@ -33,6 +33,8 @@ const fixture = () => ({
   expectedHash: digest(journal),
   prior,
   elapsedMillis: 11000,
+  firstReceiptAt: 1000,
+  now: 12000,
   cases,
   results: { "clear-reply": { input: cases[0] } },
   review: { "clear-reply": "fail" },
@@ -128,4 +130,13 @@ it("continuation cannot reset scoped request, time or cost limits; prior unknown
   await expect(cost.call("cost", request, async () => {})).rejects.toThrow(
     "PURPOSE_BUDGET",
   );
+});
+
+it("preparation and CI waiting cannot reset the first-receipt deadline", () => {
+  expect(() => continuationPlan({ ...fixture(), now: 1201000 })).toThrow(
+    "RECEIPT_DEADLINE",
+  );
+  expect(
+    continuationPlan({ ...fixture(), now: 901000 }).carried.elapsedMillis,
+  ).toBe(900000);
 });

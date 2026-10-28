@@ -7,12 +7,21 @@ export function continuationPlan({
   expectedHash,
   prior,
   elapsedMillis,
+  firstReceiptAt,
+  now = Date.now(),
   cases,
   results,
   review,
   safetyStages,
 }) {
   if (digest(journal) !== expectedHash) throw Error("HISTORY_HASH");
+  if (
+    !Number.isSafeInteger(firstReceiptAt) ||
+    firstReceiptAt > now ||
+    now >= firstReceiptAt + 1200000
+  )
+    throw Error("RECEIPT_DEADLINE");
+  const wallElapsed = now - firstReceiptAt;
   const entries = journal
     .trim()
     .split("\n")
@@ -85,7 +94,7 @@ export function continuationPlan({
       reservedNano: last.reservedNano,
       inputTokens: last.inputTokens,
       outputTokens: last.outputTokens,
-      elapsedMillis,
+      elapsedMillis: Math.max(elapsedMillis, wallElapsed),
     },
   };
 }
