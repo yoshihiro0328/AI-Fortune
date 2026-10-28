@@ -786,54 +786,6 @@ export default function Consultation({
                     });
                   }}
                 />
-                {turns.length > 0 && (
-                  <details className="change-disclosure">
-                    <summary>前回からの変化を伝える（任意）</summary>
-                    <fieldset
-                      className="change-entry"
-                      disabled={busy || hasPending || !subject}
-                    >
-                      <legend>
-                        前回から、何か変化はありましたか？（任意）
-                      </legend>
-                      <div className="actions">
-                        {[
-                          "返信が来た",
-                          "会って話した",
-                          "まだ何もしていない",
-                          "自分で入力する",
-                        ].map((label) => (
-                          <button
-                            type="button"
-                            className="button secondary"
-                            key={label}
-                            onClick={() => {
-                              if (label !== "自分で入力する") {
-                                const next = appendChange(text, label + "。");
-                                if (next === null) {
-                                  setError(
-                                    "入力が長いため追加できません。今の下書きは保持しています。",
-                                  );
-                                  return;
-                                }
-                                setText(next);
-                                drafts.current.update(activeKey.current, {
-                                  text: next,
-                                });
-                              }
-                              document.getElementById("chat-text")?.focus();
-                            }}
-                          >
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="fine">
-                        本文へ追加するだけです。確認して送信するまで、出来事や履歴には保存しません。
-                      </p>
-                    </fieldset>
-                  </details>
-                )}
                 {screenshotPrototype && subject && (
                   <ScreenshotImport
                     key={home.ownerId + ":" + subjectId + ":" + threadId}
@@ -946,6 +898,54 @@ export default function Consultation({
                     危険やつらさを感じるとき（回数制限なし）
                   </Link>
                 </p>
+                {turns.length > 0 && (
+                  <details className="change-disclosure">
+                    <summary>前回からの変化を伝える（任意）</summary>
+                    <fieldset
+                      className="change-entry"
+                      disabled={busy || hasPending || !subject}
+                    >
+                      <legend>
+                        前回から、何か変化はありましたか？（任意）
+                      </legend>
+                      <div className="actions">
+                        {[
+                          "返信が来た",
+                          "会って話した",
+                          "まだ何もしていない",
+                          "自分で入力する",
+                        ].map((label) => (
+                          <button
+                            type="button"
+                            className="button secondary"
+                            key={label}
+                            onClick={() => {
+                              if (label !== "自分で入力する") {
+                                const next = appendChange(text, label + "。");
+                                if (next === null) {
+                                  setError(
+                                    "入力が長いため追加できません。今の下書きは保持しています。",
+                                  );
+                                  return;
+                                }
+                                setText(next);
+                                drafts.current.update(activeKey.current, {
+                                  text: next,
+                                });
+                              }
+                              document.getElementById("chat-text")?.focus();
+                            }}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="fine">
+                        本文へ追加するだけです。確認して送信するまで、出来事や履歴には保存しません。
+                      </p>
+                    </fieldset>
+                  </details>
+                )}
               </form>
               {subject && (
                 <details className="organize">

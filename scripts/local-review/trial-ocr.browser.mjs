@@ -46,7 +46,7 @@ try {
     .getByRole("button", { name: "合成画像を用意する", exact: true })
     .click();
   await p.locator(".p6-check input").check();
-  await s.getByLabel("高さ（%）").press("Enter");
+  await s.getByRole("group", { name: "画像の選択範囲" }).press("Enter");
   assert.equal(sent, 0);
   await s
     .getByRole("button", { name: "端末内で読み取る", exact: true })
@@ -87,6 +87,7 @@ try {
   assert.equal(await s.locator("canvas").count(), 0);
   await expect(p.locator("#trial-text")).toHaveValue(/保持する下書き/);
   results.discardPreservesDraft = true;
+  await s.locator(":scope > summary").click();
   await s
     .getByRole("button", { name: "合成画像を用意する", exact: true })
     .click();
@@ -96,7 +97,9 @@ try {
   await s
     .getByRole("button", { name: "読み取りを中断する", exact: true })
     .click();
-  await expect(s.locator("fieldset")).toBeEnabled({ timeout: 125000 });
+  await expect(s.locator("fieldset")).not.toHaveAttribute("disabled", "", {
+    timeout: 125000,
+  });
   await expect(p.locator("#trial-text")).toHaveValue(/保持する下書き/);
   results.cancelPreservesDraft = true;
   assert.equal(external, 0);

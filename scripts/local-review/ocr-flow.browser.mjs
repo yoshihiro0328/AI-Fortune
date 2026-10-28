@@ -44,9 +44,13 @@ try {
       buffer: Buffer.from(v, "base64"),
     })),
   );
-  await p.getByLabel("高さ（%）").first().fill("80");
+  const stage = p.getByRole("group", { name: "画像の選択範囲" }).first();
+  await stage.press("Space");
+  for (let i = 0; i < 5; i++) await stage.press("ArrowUp");
+  for (let i = 0; i < 5; i++) await stage.press("ArrowLeft");
+  for (let i = 0; i < 10; i++) await stage.press("Shift+ArrowRight");
   await p
-    .getByRole("button", { name: "この範囲だけ切り抜く", exact: true })
+    .getByRole("button", { name: "切り抜く", exact: true })
     .first()
     .click();
   assert.equal(

@@ -1944,28 +1944,167 @@ body:has(.app-layout) > .site-footer {
   padding: 0;
   background: transparent;
 }
-@media (min-width: 900px) {
-  .p6-composer {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    column-gap: 16px;
+/* Both composers use one full-width column, including the expanded editor. */
+.p6-composer,
+.chat-composer {
+  display: block;
+  min-width: 0;
+}
+.p6-composer > *,
+.chat-composer > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.p6-composer > .purpose-picker,
+.chat-composer > .purpose-picker {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+}
+.p6-composer > .screenshot-import,
+.chat-composer > .screenshot-import {
+  width: 100%;
+  margin: 12px 0 16px;
+}
+.screenshot-import,
+.screenshot-import fieldset,
+.screenshot-picture {
+  min-width: 0;
+  max-width: 100%;
+}
+.screenshot-import fieldset {
+  margin-inline: 0;
+}
+.screenshot-import input[type="file"] {
+  width: 100%;
+  min-width: 0;
+  white-space: normal;
+}
+.editor-toolbar,
+.editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 16px 0;
+}
+.editor-toolbar > *,
+.editor-actions > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.editor-toolbar label {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.editor-toolbar select {
+  width: auto;
+}
+.image-viewport {
+  width: 100%;
+  max-height: 360px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  background: #e8e9e2;
+  overscroll-behavior: auto;
+}
+.image-stage {
+  position: relative;
+  margin: 0 auto;
+  flex: none;
+  touch-action: auto;
+}
+.image-stage[data-selecting="true"] {
+  touch-action: none;
+  cursor: crosshair;
+}
+.image-stage:focus-visible {
+  outline: 3px solid #356449;
+  outline-offset: -3px;
+}
+.screenshot-import .image-stage canvas {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  display: block;
+}
+.image-selection {
+  position: absolute;
+  border: 2px solid #174b39;
+  background: #407c6750;
+  cursor: move;
+  pointer-events: none;
+}
+.image-stage[data-selecting="true"] .image-selection {
+  pointer-events: auto;
+}
+.image-selection span {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  background: #fff;
+  border: 2px solid #174b39;
+  border-radius: 50%;
+}
+.image-selection [data-corner="nw"] {
+  left: 0;
+  top: 0;
+  cursor: nwse-resize;
+}
+.image-selection [data-corner="ne"] {
+  right: 0;
+  top: 0;
+  cursor: nesw-resize;
+}
+.image-selection [data-corner="sw"] {
+  left: 0;
+  bottom: 0;
+  cursor: nesw-resize;
+}
+.image-selection [data-corner="se"] {
+  right: 0;
+  bottom: 0;
+  cursor: nwse-resize;
+}
+.append-preview {
+  margin-block: 16px;
+}
+.append-preview pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+}
+.screenshot-import button {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.screenshot-import .quote-row :is(textarea, select) {
+  width: 100%;
+  min-width: 0;
+}
+@media (max-width: 600px) {
+  .editor-toolbar,
+  .editor-actions {
+    gap: 12px;
   }
-  .p6-composer > .purpose-picker {
-    grid-column: 1;
-    margin: 0 0 12px;
+  .editor-toolbar > button,
+  .editor-actions > button {
+    flex: 1 1 140px;
   }
-  .p6-composer > .screenshot-import:not([open]) {
-    grid-column: 2;
-    grid-row: 1;
-    align-self: end;
-    margin: 0 0 12px;
-  }
-  .p6-composer > .screenshot-import[open] {
-    grid-column: 1 / -1;
-  }
-  .p6-composer > label:not(.purpose-picker),
-  .p6-composer > textarea,
-  .p6-composer > .input-help {
-    grid-column: 1 / -1;
-  }
+}
+
+.screenshot-import > [role="status"]:empty {
+  min-height: 0;
+  margin: 0;
+}
+.image-requirements {
+  margin-block: 12px;
+}
+.source-comparison {
+  margin-block: 16px;
 }

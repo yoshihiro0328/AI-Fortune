@@ -1184,15 +1184,6 @@ nav:not(.site-footer nav) a[aria-current="page"] {
   border: 1px solid var(--line);
   margin: 12px 0;
 }
-.crop-fields {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-}
-.crop-fields input {
-  width: 100%;
-  min-width: 0;
-}
 .quote-row {
   border-top: 1px solid var(--line);
   padding: 16px 0;
@@ -1207,9 +1198,6 @@ nav:not(.site-footer nav) a[aria-current="page"] {
   width: auto;
 }
 @media (max-width: 600px) {
-  .crop-fields {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
   .screenshot-import {
     padding: 12px;
   }

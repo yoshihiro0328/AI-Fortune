@@ -3,110 +3,13 @@ import { useEffect, useRef, useState } from "react";
 import {
   confirmedTranscript,
   imageDimensions,
-  percentageRect,
   validateDimensions,
   validateImages,
   type QuoteRow,
 } from "@/lib/screenshot/model";
 import { recognizeLocally } from "@/lib/screenshot/ocr";
-type Picture = { id: string; canvas: HTMLCanvasElement };
-function PictureEditor({
-  picture,
-  onEdit,
-}: {
-  picture: Picture;
-  onEdit: (p: Picture) => void;
-}) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const [rect, setRect] = useState([0, 0, 100, 15]),
-    [error, setError] = useState("");
-  useEffect(() => {
-    const c = ref.current;
-    if (c) {
-      c.width = picture.canvas.width;
-      c.height = picture.canvas.height;
-      c.getContext("2d")?.drawImage(picture.canvas, 0, 0);
-    }
-  }, [picture]);
-  function edit(crop: boolean) {
-    try {
-      const r = percentageRect(
-          rect,
-          picture.canvas.width,
-          picture.canvas.height,
-        ),
-        c = document.createElement("canvas");
-      c.width = crop ? r.width : picture.canvas.width;
-      c.height = crop ? r.height : picture.canvas.height;
-      const ctx = c.getContext("2d")!;
-      if (crop)
-        ctx.drawImage(
-          picture.canvas,
-          r.x,
-          r.y,
-          r.width,
-          r.height,
-          0,
-          0,
-          r.width,
-          r.height,
-        );
-      else {
-        ctx.drawImage(picture.canvas, 0, 0);
-        ctx.fillStyle = "#111";
-        ctx.fillRect(r.x, r.y, r.width, r.height);
-      }
-      onEdit({ ...picture, canvas: c });
-      setError("");
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }
-  return (
-    <section className="screenshot-picture">
-      <canvas
-        ref={ref}
-        role="img"
-        aria-label="処理対象の画像。名前・アイコン等が隠れているか確認してください。"
-      />
-      <div className="crop-fields">
-        {["左から", "上から", "幅", "高さ"].map((label, i) => (
-          <label key={label}>
-            {label}（%）
-            <input
-              type="number"
-              min={0}
-              max={100}
-              value={rect[i]}
-              onChange={(e) =>
-                setRect(
-                  rect.map((n, j) => (j === i ? Number(e.target.value) : n)),
-                )
-              }
-            />
-          </label>
-        ))}
-      </div>
-      <div className="actions">
-        <button
-          className="button secondary"
-          type="button"
-          onClick={() => edit(false)}
-        >
-          この範囲を黒く隠す
-        </button>
-        <button
-          className="button secondary"
-          type="button"
-          onClick={() => edit(true)}
-        >
-          この範囲だけ切り抜く
-        </button>
-      </div>
-      {error && <p role="alert">{error}</p>}
-    </section>
-  );
-}
+import ScreenshotSourcePreview from "./screenshot-source-preview";
+import PictureEditor, { type Picture } from "./screenshot-picture-editor";
 export default function ScreenshotImport({
   onConfirm,
   disabled = false,
@@ -118,7 +21,8 @@ export default function ScreenshotImport({
     [rows, setRows] = useState<QuoteRow[]>([]),
     [confirmed, setConfirmed] = useState(false),
     [busy, setBusy] = useState(false),
-    [notice, setNotice] = useState("");
+    [notice, setNotice] = useState(""),
+    [comparison, setComparison] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
   const epoch = useRef(0),
     canvases = useRef<Picture[]>([]);
@@ -143,6 +47,7 @@ export default function ScreenshotImport({
     [],
   );
   function replace(next: Picture[]) {
+    setComparison(null);
     canvases.current = next;
     setPictures(next);
     setRows([]);
@@ -208,7 +113,7 @@ export default function ScreenshotImport({
       "相手：今週、少し話せる？（重複例）",
       "相手：[読めない部分]",
     ].forEach((line, i) => ctx.fillText(line, 20, 60 + i * 120));
-    replace([{ id: "synthetic", canvas: c }]);
+    replace([{ id: crypto.randomUUID(), canvas: c }]);
 
     setNotice(
       "合成画像を用意しました。編集後、端末内OCRで実際に読み取れます。",
@@ -251,6 +156,17 @@ export default function ScreenshotImport({
         controller.current = null;
       }
     }
+  }
+  function removePicture(id: string) {
+    const current = canvases.current.find((p) => p.id === id);
+    if (current) {
+      current.canvas.width = 0;
+      current.canvas.height = 0;
+    }
+    replace(canvases.current.filter((p) => p.id !== id));
+    setNotice(
+      "画像と以前の読み取り結果を削除しました。相談の下書きは保持しています。",
+    );
   }
   function change(id: string, patch: Partial<QuoteRow>) {
     setRows(rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -295,9 +211,7 @@ export default function ScreenshotImport({
         スクショから入力
       </summary>
       <p className="fine">
-        ローカル確認用・公開機能は無効です。画像選択 → 端末内読み取り →
-        発言者・順序・内容の確認と修正 →
-        下書きへ追加。画像をAIへ添付せず、確認したテキストだけを追加します。自動送信はしません。
+        ローカル確認用（公開OFF）。画像は端末内で処理し、外部送信しません。確認した文字だけを下書きへ追加します。自動送信はしません。
       </p>
       {busy && (
         <button
@@ -312,12 +226,18 @@ export default function ScreenshotImport({
         {notice}
       </p>
       <fieldset disabled={disabled || busy}>
-        <p className="notice">
-          画像編集と日本語・英語のOCRはこのブラウザー内で処理します。画像の外部送信・実AI生成は行いません。誤読や読み落としがあるため、必ず原画像と照合してください。
+        <p className="fine">
+          画像を選ぶ → 必要な部分を隠す → 読み取る → 確認・訂正 → 下書きへ追加
         </p>
-        <p>
-          PNG・JPEGを1〜3枚、1枚5MB／合計12MB以下、縦横100〜4096px・800万画素以下。名前・顔・アイコン・連絡先を先に隠してください。実利用者の画像は使わないでください。
-        </p>
+        <details className="image-requirements">
+          <summary>画像の条件・取り扱い（PNG・JPEG、1〜3枚）</summary>
+          <p>
+            1枚5MB／合計12MB以下、縦横100〜4096px・800万画素以下。名前・顔・アイコン・連絡先を先に隠してください。実利用者の画像は使わないでください。
+          </p>
+          <p>
+            画像編集と日本語・英語のOCRはこのブラウザー内で処理します。実AI生成は行いません。誤読・読み落としがあるため、読み取り後に画像と照合してください。切り抜きは任意です。
+          </p>
+        </details>
         <label>
           画像を選ぶ
           <input
@@ -339,6 +259,7 @@ export default function ScreenshotImport({
             <h4>画像 {i + 1}</h4>
             <PictureEditor
               picture={p}
+              disabled={disabled || busy}
               onEdit={(updated) => {
                 const next = pictures.map((v) =>
                   v.id === updated.id ? updated : v,
@@ -346,8 +267,35 @@ export default function ScreenshotImport({
                 p.canvas.width = 0;
                 p.canvas.height = 0;
                 replace(next);
+                setNotice(
+                  "画像を編集したため、以前の読み取り結果を破棄しました。端末内で再度読み取ってください。",
+                );
               }}
             />
+            <div className="editor-actions">
+              <button
+                type="button"
+                className="button secondary"
+                disabled={i === 0}
+                onClick={() => {
+                  const next = [...pictures];
+                  [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                  replace(next);
+                  setNotice(
+                    "画像の順序を変更しました。もう一度読み取ってください。",
+                  );
+                }}
+              >
+                画像 {i + 1} を前へ
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => removePicture(p.id)}
+              >
+                画像 {i + 1} を削除
+              </button>
+            </div>
           </div>
         ))}
         {pictures.length > 0 && (
@@ -372,6 +320,30 @@ export default function ScreenshotImport({
                   画像 {Number(r.id.split("-")[0]) + 1 || 1}{" "}
                   の読み取り行（発言の区切りも確認してください）
                 </p>
+                {pictures[Number(r.id.split("-")[0])] && (
+                  <div className="source-comparison">
+                    <button
+                      type="button"
+                      className="button secondary"
+                      aria-expanded={comparison === r.id}
+                      aria-controls={`source-${r.id}`}
+                      onClick={() =>
+                        setComparison(comparison === r.id ? null : r.id)
+                      }
+                    >
+                      {comparison === r.id
+                        ? "照合画像を閉じる"
+                        : "読み取り元の画像と照合"}
+                    </button>
+                    <div id={`source-${r.id}`}>
+                      {comparison === r.id && (
+                        <ScreenshotSourcePreview
+                          source={pictures[Number(r.id.split("-")[0])].canvas}
+                        />
+                      )}
+                    </div>
+                  </div>
+                )}
                 <label>
                   発言 {i + 1} の人
                   <select
@@ -448,6 +420,17 @@ export default function ScreenshotImport({
                 </div>
               </div>
             ))}
+            <details className="append-preview">
+              <summary>下書きに追加する内容を確認</summary>
+              <pre>
+                {rows
+                  .map(
+                    (r) =>
+                      `${r.speaker === "me" ? "自分" : r.speaker === "other" ? "相手" : "発言者未確認"}：${r.uncertain ? "[読めない部分あり・補完していません] " : ""}${r.text}`,
+                  )
+                  .join("\n")}
+              </pre>
+            </details>
             <label className="check">
               <input
                 type="checkbox"
@@ -490,7 +473,12 @@ export default function ScreenshotImport({
         <button
           type="button"
           className="text-button"
-          onClick={() => {
+          onClick={(event) => {
+            const details = event.currentTarget.closest("details");
+            if (details) {
+              details.open = false;
+              details.querySelector("summary")?.focus();
+            }
             epoch.current++;
             clearImages();
             setRows([]);
