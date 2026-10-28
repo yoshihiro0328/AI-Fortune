@@ -155,3 +155,24 @@ test("consultation fixture matches 4000 input contract, creates the selected emp
   assert.equal(state.subject.id, "sample-person-c");
   assert.equal(state.turns.length, 1);
 });
+
+test("scenario reset restores the historyless subject instead of retaining generated threads", () => {
+  const f = createFixture(process.cwd());
+  const t = f.handle("POST", url("/api/consultations"), {
+    action: "create_thread",
+    subject: "sample-person-c",
+  }).data;
+  assert(
+    f
+      .handle("GET", url("/api/consultations"))
+      .data.threads.some((x) => x.id === t.id),
+  );
+  f.reset("free");
+  const h = f.handle("GET", url("/api/consultations")).data;
+  assert.equal(h.threads.length, 2);
+  assert(!h.threads.some((x) => x.subject_id === "sample-person-c"));
+  assert.equal(
+    f.handle("GET", url("/api/consultations?thread=" + t.id)).status,
+    404,
+  );
+});

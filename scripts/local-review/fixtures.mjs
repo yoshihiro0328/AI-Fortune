@@ -222,6 +222,7 @@ export function createFixture(root) {
       answers = [];
       finished = false;
       trial = null;
+      threads.splice(2); // Remove only threads created by disposable local scenarios.
       seedTurns();
       return true;
     },
