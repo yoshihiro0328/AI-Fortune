@@ -2,12 +2,14 @@ import { createHash } from "node:crypto";
 export const digest = (value) =>
   createHash("sha256").update(value).digest("hex");
 // Pure validation: callers supply private, owner-only records. No API replay.
+/** @param {{journal:string,expectedHash:string,prior:any,elapsedMillis:number,firstReceiptAt:number,extension?:{scope:string,maxMillis:number,receivedAt:number},now?:number,cases:any[],results:any,review:any,safetyStages:any}} options */
 export function continuationPlan({
   journal,
   expectedHash,
   prior,
   elapsedMillis,
   firstReceiptAt,
+  extension,
   now = Date.now(),
   cases,
   results,
@@ -18,10 +20,19 @@ export function continuationPlan({
   if (
     !Number.isSafeInteger(firstReceiptAt) ||
     firstReceiptAt > now ||
-    now >= firstReceiptAt + 1200000
+    (!extension && now >= firstReceiptAt + 1200000)
   )
     throw Error("RECEIPT_DEADLINE");
-  const wallElapsed = now - firstReceiptAt;
+  if (
+    extension &&
+    (extension.scope !== "purpose-five-cases-10m-v1" ||
+      extension.maxMillis !== 600000 ||
+      !Number.isSafeInteger(extension.receivedAt) ||
+      extension.receivedAt > now ||
+      now >= extension.receivedAt + extension.maxMillis)
+  )
+    throw Error("EXTENSION_REQUIRED");
+  const wallElapsed = extension ? 1200000 : now - firstReceiptAt;
   const entries = journal
     .trim()
     .split("\n")
@@ -85,6 +96,18 @@ export function continuationPlan({
       reuse[evaluationId + "-0"] = safety;
     }
   }
+  if (
+    extension &&
+    JSON.stringify(selected.map((c) => c.evaluationId)) !==
+      JSON.stringify([
+        "contradiction-reply-correction1",
+        "waiting-organize",
+        "danger-reply",
+        "danger-review",
+        "danger-organize",
+      ])
+  )
+    throw Error("EXTENSION_CASE_SCOPE");
   return {
     selected,
     reuse,

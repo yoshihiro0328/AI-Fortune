@@ -85,11 +85,38 @@ it("purpose evaluation with real application prompts, isolated DB and bounded pr
   let reuse: Record<string, { hash: string; result: unknown; usage: unknown }> =
     {};
   let continuationHash: string | undefined;
+  let extension: Parameters<typeof purposeBudget>[0]["extension"];
+  const a =
+    live || continuationFixture
+      ? await readPrivate("approval.json").catch((e) => {
+          if (!live && (e as NodeJS.ErrnoException).code === "ENOENT")
+            return undefined;
+          throw e;
+        })
+      : undefined;
+  if (a?.extensionScope) {
+    if (
+      a.extensionScope !== "purpose-five-cases-10m-v1" ||
+      a.extensionMillis !== 600000
+    )
+      throw Error("EXTENSION_REQUIRED");
+    const receipt = await readPrivate("receipt.json");
+    extension = {
+      scope: a.extensionScope,
+      maxMillis: a.extensionMillis,
+      receivedAt: receipt.receivedAt,
+    };
+  }
   if (live || continuationFixture) {
     try {
       const c = await readPrivate("continuation.json");
       continuationHash = digest(JSON.stringify(c));
-      const plan = continuationPlan({ ...c, cases: purposeCases, prior });
+      const plan = continuationPlan({
+        ...c,
+        cases: purposeCases,
+        prior,
+        extension,
+      });
       selected = plan.selected;
       carried = plan.carried;
       reuse = plan.reuse;
@@ -98,8 +125,9 @@ it("purpose evaluation with real application prompts, isolated DB and bounded pr
     }
   }
   if (live) {
-    const a = await readPrivate("approval.json");
     if (
+      !a ||
+      (extension && !carried) ||
       a.continuationHash !== continuationHash ||
       a.scope !== "consultation-purpose-v1" ||
       a.model !== limits.model ||
@@ -126,6 +154,7 @@ it("purpose evaluation with real application prompts, isolated DB and bounded pr
     prior,
     startedAt: start,
     carried,
+    extension,
     checkpoint: async (data: unknown) => {
       await journal.writeFile(JSON.stringify(data) + "\n");
       await journal.sync();
@@ -237,8 +266,10 @@ it("purpose evaluation with real application prompts, isolated DB and bounded pr
         stage = "pilot-review";
         while (true) {
           if (
-            Date.now() - start + (carried?.elapsedMillis ?? 0) >=
-            limits.millis
+            extension
+              ? Date.now() >= extension.receivedAt + extension.maxMillis
+              : Date.now() - start + (carried?.elapsedMillis ?? 0) >=
+                limits.millis
           )
             throw Error("REVIEW_DEADLINE");
           try {

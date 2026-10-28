@@ -140,3 +140,85 @@ it("preparation and CI waiting cannot reset the first-receipt deadline", () => {
     continuationPlan({ ...fixture(), now: 901000 }).carried.elapsedMillis,
   ).toBe(900000);
 });
+
+it("an explicit 10-minute grant retains the spent old window and anchors deadline to receipt", async () => {
+  const carried = {
+    calls: 27,
+    completed: 27,
+    reservedNano: 25000000,
+    inputTokens: 40000,
+    outputTokens: 3000,
+    elapsedMillis: 1200000,
+  };
+  const extension = {
+    scope: "purpose-five-cases-10m-v1",
+    receivedAt: 2000000,
+    maxMillis: 600000,
+  };
+  let now = 2005000;
+  const b = purposeBudget({
+    prior,
+    carried,
+    extension,
+    now: () => now,
+    checkpoint: async () => {},
+  });
+  expect(b.summary().elapsedMillis).toBe(prior.elapsedMillis + 1200000 + 5000);
+  expect(b.summary().calls).toBe(27);
+  now = 2600000;
+  await expect(
+    b.call(
+      "late",
+      {
+        model: "gpt-6-luna",
+        store: false,
+        input: [{ role: "user", content: "合成" }],
+        max_output_tokens: 100,
+      },
+      async () => {},
+    ),
+  ).rejects.toThrow();
+  expect(() =>
+    purposeBudget({
+      prior,
+      carried,
+      extension: { ...extension, maxMillis: 1200000 },
+      checkpoint: async () => {},
+    }),
+  ).toThrow();
+  expect(() =>
+    purposeBudget({ prior, carried, checkpoint: async () => {} }),
+  ).toThrow();
+});
+it("extension is limited to the approved five cases, not previously passed cases", () => {
+  const f = fixture();
+  const extension = {
+    scope: "purpose-five-cases-10m-v1",
+    receivedAt: 2000000,
+    maxMillis: 600000,
+  };
+  expect(() => continuationPlan({ ...f, now: 2000001, extension })).toThrow(
+    "EXTENSION_CASE_SCOPE",
+  );
+  const c = [
+    { id: "contradiction-reply" },
+    { id: "waiting-organize" },
+    { id: "danger-reply" },
+    { id: "danger-review" },
+    { id: "danger-organize" },
+  ];
+  const j = journal.replaceAll("clear-reply", "contradiction-reply");
+  const p = continuationPlan({
+    ...f,
+    journal: j,
+    expectedHash: digest(j),
+    now: 2000001,
+    extension,
+    cases: c,
+    results: { "contradiction-reply": { input: c[0] } },
+    review: { "contradiction-reply": "fail" },
+    safetyStages: { "contradiction-reply": f.safetyStages["clear-reply"] },
+  });
+  expect(p.carried.elapsedMillis).toBe(1200000);
+  expect(p.selected).toHaveLength(5);
+});

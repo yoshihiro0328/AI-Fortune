@@ -13,13 +13,14 @@ export const limits = Object.freeze({
 });
 /**
  * @typedef {{calls:number,completed:number,reservedNano:number,inputTokens:number,outputTokens:number,elapsedMillis:number}} Carry
- * @param {{prior:any, checkpoint:(data:any)=>Promise<void>, now?:()=>number, startedAt?:number, carried?:Carry}} options
+ * @param {{prior:any, checkpoint:(data:any)=>Promise<void>, now?:()=>number, startedAt?:number, carried?:Carry, extension?:{scope:string,receivedAt:number,maxMillis:number}}} options
  */
 export function purposeBudget({
   prior,
   checkpoint,
   now = Date.now,
   startedAt = now(),
+  extension,
   carried = {
     calls: 0,
     completed: 0,
@@ -51,10 +52,24 @@ export function purposeBudget({
     carried.calls !== carried.completed ||
     carried.calls > limits.calls ||
     carried.reservedNano > limits.nanoUSD ||
-    carried.elapsedMillis >= limits.millis
+    (extension
+      ? carried.elapsedMillis !== limits.millis
+      : carried.elapsedMillis >= limits.millis)
   )
     throw Error("CARRY_REQUIRED");
-  const deadline = startedAt + limits.millis - carried.elapsedMillis;
+  if (
+    extension &&
+    (extension.scope !== "purpose-five-cases-10m-v1" ||
+      extension.maxMillis !== 600000 ||
+      !Number.isSafeInteger(extension.receivedAt) ||
+      extension.receivedAt > now() ||
+      now() >= extension.receivedAt + extension.maxMillis)
+  )
+    throw Error("EXTENSION_REQUIRED");
+  const deadline = extension
+    ? extension.receivedAt + extension.maxMillis
+    : startedAt + limits.millis - carried.elapsedMillis;
+  const runStartedAt = extension?.receivedAt ?? startedAt;
   let calls = carried.calls,
     cost = carried.reservedNano,
     completed = carried.completed,
@@ -76,8 +91,9 @@ export function purposeBudget({
     elapsedMillis:
       prior.elapsedMillis +
       carried.elapsedMillis +
-      Math.max(0, now() - startedAt),
+      Math.max(0, now() - runStartedAt),
     carriedPreserved: carried,
+    timeExtension: extension ?? null,
     billedUSD: null,
   });
   return {
