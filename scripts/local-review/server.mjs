@@ -1,11 +1,15 @@
 import http from "node:http";
 import next from "next";
+import fs from "node:fs";
+import v8 from "node:v8";
 import { createFixture } from "./fixtures.mjs";
 const host = "127.0.0.1",
   port = 5318,
   origin = `http://${host}:${port}`;
 if (
   process.env.LOCAL_REVIEW_ISOLATED !== "true" ||
+  process.env.NODE_ENV !== "production" ||
+  !fs.existsSync(".next/BUILD_ID") ||
   process.env.VERCEL ||
   process.env.OPENAI_API_KEY ||
   process.env.STRIPE_SECRET_KEY ||
@@ -26,16 +30,15 @@ globalThis.fetch = (input, init) => {
 };
 const fixture = createFixture(process.cwd());
 const app = next({
-  dev: true,
+  dev: false,
   hostname: host,
   port,
-  webpack: true,
   quiet: true,
 });
 await app.prepare();
 const handle = app.getRequestHandler();
 const csp =
-  "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
+  "default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; form-action 'self'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'";
 const server = http.createServer(async (req, res) => {
   try {
     res.setHeader("Cache-Control", "private, no-store");
@@ -62,6 +65,12 @@ const server = http.createServer(async (req, res) => {
         synthetic: true,
         mode: fixture.mode,
         external: false,
+        runtime: "production-build",
+        build: fs.readFileSync(".next/BUILD_ID", "utf8").trim(),
+        pid: process.pid,
+        uptimeSeconds: Math.round(process.uptime()),
+        memory: process.memoryUsage(),
+        heapLimitBytes: v8.getHeapStatistics().heap_size_limit,
       });
     if (u.pathname === "/__review/scenario" && method === "POST") {
       let body = "";
@@ -115,13 +124,20 @@ const server = http.createServer(async (req, res) => {
     res.end("LOCAL_REVIEW_REQUEST_FAILED");
   }
 });
-server.on("upgrade", (req, socket, head) => {
-  if (req.headers.host !== `${host}:${port}`) {
-    socket.destroy();
-    return;
-  }
-  app.getUpgradeHandler()(req, socket, head);
-});
+// Production review has no HMR sockets or compiler/watch process.
+server.on("upgrade", (_req, socket) => socket.destroy());
 server.listen(port, host, () => console.log("LOCAL_REVIEW_READY"));
+let closing = false;
 for (const signal of ["SIGTERM", "SIGINT"])
-  process.on(signal, () => server.close(() => process.exit(0)));
+  process.on(signal, () => {
+    if (closing) return;
+    closing = true;
+    const deadline = setTimeout(() => process.exit(1), 5000);
+    deadline.unref();
+    server.close(async () => {
+      await app.close();
+      clearTimeout(deadline);
+      process.exit(0);
+    });
+    server.closeAllConnections();
+  });

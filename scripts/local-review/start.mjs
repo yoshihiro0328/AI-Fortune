@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import { spawn, execFileSync } from "node:child_process";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { runIsolated, start } from "./runtime.mjs";
 const root = process.cwd(),
   destination = process.argv[2];
 if (
@@ -11,7 +12,7 @@ if (
   fs.existsSync(destination)
 )
   throw Error("FRESH_MAC_DIRECTORY_REQUIRED");
-const revision = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+const revision = execFileSync("git", ["rev-parse", "HEAD"], {
   cwd: root,
   encoding: "utf8",
 }).trim();
@@ -61,6 +62,15 @@ fs.writeFileSync(
   path.join(destination, "src/lib/trial/availability.ts"),
   'import "server-only";\nexport async function trialAvailability(){return {enabled:true,maxLength:800,retentionHours:24};}\n',
 );
+// Review-only page overrides. The public application keeps OCR disabled in production.
+for (const rel of ["src/app/chat/page.tsx", "src/app/consult/page.tsx"]) {
+  const file = path.join(destination, rel);
+  const page = fs
+    .readFileSync(file, "utf8")
+    .replace('process.env.NODE_ENV === "development" &&', "true &&")
+    .replace('process.env.CONSULTATION_EVENTS_ENABLED === "true"', "true");
+  fs.writeFileSync(file, page);
+}
 const hashes = {};
 for (const name of [
   "account",
@@ -82,52 +92,34 @@ for (const name of [
   )
     throw Error("COMPONENT_MISMATCH");
 }
-const profile =
-  '(version 1)(allow default)(deny network-outbound)(allow network-outbound (remote ip "localhost:*"))';
-const log = fs.openSync(path.join(destination, "server.log"), "wx", 0o600);
-const env = {
-  PATH: path.dirname(process.execPath) + ":/usr/bin:/bin",
-  HOME: destination,
-  TMPDIR: destination,
-  NODE_ENV: "development",
-  NEXT_TELEMETRY_DISABLED: "1",
-  NEXT_PUBLIC_APP_URL: "http://127.0.0.1:5318",
-  LOCAL_REVIEW_ISOLATED: "true",
-  TRIAL_ENABLED: "false",
-  PREVIEW_DEMO_ENABLED: "false",
-  STRIPE_LIVE_CHECKOUT_ENABLED: "false",
-  AUTH_EMAIL_MODE: "disabled",
-};
-const child = spawn(
-  "/usr/bin/sandbox-exec",
-  ["-p", profile, process.execPath, "scripts/local-review/server.mjs"],
-  { cwd: destination, env, detached: true, stdio: ["ignore", log, log] },
-);
-child.unref();
-fs.closeSync(log);
 fs.writeFileSync(
   path.join(destination, "review-manifest.json"),
   JSON.stringify(
     {
       revision,
       source: root,
-      pid: child.pid,
       origin: "http://127.0.0.1:5318",
       realComponents: hashes,
       generatedOverrides: [
         "layout banner",
         "service-settings synthetic",
         "trial-availability synthetic",
+        "chat/consult local OCR and events",
       ],
       credentials: false,
       externalConnections: false,
-      started: new Date().toISOString(),
+      runtime: "production-build",
     },
     null,
     2,
   ),
   { mode: 0o600 },
 );
-console.log(
-  JSON.stringify({ pid: child.pid, origin: "http://127.0.0.1:5318", revision }),
+await runIsolated(
+  destination,
+  ["node_modules/next/dist/bin/next", "build", "--webpack"],
+  "build.log",
 );
+console.log(JSON.stringify({ built: true, destination, revision }));
+if (!process.argv.includes("--prepare-only"))
+  console.log(JSON.stringify(await start(destination)));

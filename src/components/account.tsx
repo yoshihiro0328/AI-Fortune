@@ -20,6 +20,7 @@ export default function Account({
   testEmailOnly?: boolean;
   verificationOnly?: boolean;
 }) {
+  const [hasHistory, setHasHistory] = useState<boolean | null>(null);
   const [diagnosisNames, setDiagnosisNames] = useState<Record<string, string>>(
     {},
   );
@@ -44,6 +45,7 @@ export default function Account({
       hasUnsaved?: boolean;
     }>("/api/auth");
     setUser(auth.user);
+    if (!auth.user) setHasHistory(null);
     setHasUnsaved(auth.hasUnsaved === true);
     if (auth.recovery) setMode("update");
     const data = await request<Row[]>("/api/diagnoses?offset=0");
@@ -136,7 +138,15 @@ export default function Account({
   return (
     <main id="main" className="flow account-page">
       <p className="eyebrow">マイページ · 相談と契約の確認</p>
-      <h1>{user ? "前の話の、その続きから。" : labels[mode]}</h1>
+      <h1>
+        {user
+          ? hasHistory === true
+            ? "前の話の、その続きから。"
+            : hasHistory === false
+              ? "いま、気になることから。"
+              : "あなたの相談と記録"
+          : labels[mode]}
+      </h1>
       {!user && <p>無料診断は登録なしで使えます。</p>}
       {boot ? (
         <p role="status">アカウントを確認しています…</p>
@@ -155,7 +165,10 @@ export default function Account({
           {user && mode !== "update" ? (
             <>
               {!verificationOnly && (
-                <ConsultationSummary onDiagnosisNames={setDiagnosisNames} />
+                <ConsultationSummary
+                  onDiagnosisNames={setDiagnosisNames}
+                  onHistoryChange={setHasHistory}
+                />
               )}
               {hasUnsaved && (
                 <aside

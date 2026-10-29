@@ -83,7 +83,7 @@ export default function LocalReviewBanner() {
             name="mode"
             value={mode}
             onChange={(e) => setMode(e.target.value)}
-            style={{ width: "auto" }}
+            style={{ width: "auto", minWidth: 0, maxWidth: "100%" }}
           >
             <option value="unsaved">ログイン済み・未保存</option>
             <option value="free">無料会員</option>

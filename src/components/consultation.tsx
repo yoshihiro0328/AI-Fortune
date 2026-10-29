@@ -421,7 +421,11 @@ export default function Consultation({
     <main id="main" className="consult-wrap">
       <div className="consult-heading">
         <div>
-          <p className="eyebrow">いつでも、前の話の続きから。</p>
+          <p className="eyebrow">
+            {home?.threads.length
+              ? "いつでも、前の話の続きから。"
+              : "いま気になっていることを、あなたの言葉で。"}
+          </p>
           <h1>ふたりのことを相談する</h1>
         </div>
       </div>

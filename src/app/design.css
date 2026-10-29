@@ -760,7 +760,10 @@ body:has(.yorisoi-home-shell) > .site-footer {
   text-wrap: pretty;
 }
 .question-ending {
-  white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .question-progress {
   font-size: 15px;

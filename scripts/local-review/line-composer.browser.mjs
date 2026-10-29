@@ -21,7 +21,8 @@ try {
   ])
     for (const tag of ["chat", "consult"]) {
       const context = await browser.newContext({
-        viewport: { width, height: 900 },
+        viewport: { width, height: width === 844 ? 390 : 900 },
+        permissions: ["clipboard-read", "clipboard-write"],
       });
       context.setDefaultTimeout(15000);
       context.setDefaultNavigationTimeout(60000);
@@ -197,10 +198,23 @@ try {
         await expect(input).toHaveValue("保持する合成の相談文");
         await expect(s.locator(".import-count")).toContainText("会話4件");
       }
+      const conversation = s.locator(".import-conversation");
+      if ((await conversation.getAttribute("open")) === null)
+        await conversation.locator(":scope > summary").click();
+      await s.locator(".message-bubble").last().click();
+      const excludedText = "除外する合成発言です。";
+      await s.getByLabel("本文", { exact: true }).fill(excludedText);
+      await s.getByLabel("発言4を送る", { exact: false }).uncheck();
+      await expect(s.locator(".import-count")).toContainText("送信対象3件");
+      await s
+        .getByRole("button", { name: "編集を閉じる", exact: true })
+        .click();
       if (tag === "chat") await p.locator(".p6-check input").first().check();
       await expect(button).toBeEnabled();
       await button.dblclick();
-      await expect(p.locator("p[role=alert]")).toContainText("合成の通信失敗");
+      await expect(p.locator(".composer-feedback [role=alert]")).toContainText(
+        "合成の通信失敗",
+      );
       assert.equal(sends.length, 1);
       await expect(input).toHaveValue("保持する合成の相談文");
       await expect(s.locator(".import-count")).toContainText("会話4件");
@@ -223,7 +237,28 @@ try {
           "[日付：10月28日・時刻：19:35] 相手：返信ありがとう",
         ),
       );
+      assert(
+        !sends[1].text.includes(excludedText),
+        "Excluded message must not be sent",
+      );
       await expect(s.locator(".import-count")).toHaveCount(0);
+      await p
+        .getByRole("button", { name: "文面だけをコピー", exact: true })
+        .last()
+        .click();
+      await expect(
+        p.getByText("文面だけをコピーしました", { exact: true }).last(),
+      ).toBeVisible();
+      const copied = await p.evaluate(() => navigator.clipboard.readText());
+      assert(
+        copied.length > 0 &&
+          !copied.includes("補足") &&
+          !copied.includes("保持する合成"),
+      );
+      if ([390, 1440].includes(width))
+        await p.screenshot({
+          path: `${out}/${tag}-${width}-sent-and-copied.png`,
+        });
       assert.equal(external, 0);
       assert.deepEqual(errors, []);
       results.push({
@@ -240,6 +275,8 @@ try {
         zoom200: true,
         scopeIsolation: tag === "consult",
         failureRetention: true,
+        excludedNotSent: true,
+        replyCopiedWithoutExplanation: true,
         retrySamePayload: true,
         external,
         errors,

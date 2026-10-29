@@ -11,7 +11,9 @@ import {
 import type { ConsultationHome } from "@/lib/consultation/model";
 export default function ConsultationSummary({
   onDiagnosisNames,
+  onHistoryChange,
 }: {
+  onHistoryChange?: (hasHistory: boolean) => void;
   onDiagnosisNames?: (names: Record<string, string>) => void;
 }) {
   const payment = usePaymentDisplay();
@@ -35,6 +37,9 @@ export default function ConsultationSummary({
     }
     onDiagnosisNames(names);
   }, [data, onDiagnosisNames]);
+  useEffect(() => {
+    if (data) onHistoryChange?.(data.threads.length > 0);
+  }, [data, onHistoryChange]);
   async function billing(action: string) {
     setBusy(true);
     setError("");
@@ -53,7 +58,7 @@ export default function ConsultationSummary({
   if (!data)
     return (
       <p role={error ? "alert" : "status"} className={error ? "error" : ""}>
-        {error || "相談の続きを読み込んでいます…"}
+        {error || "相談情報を読み込んでいます…"}
       </p>
     );
   const sub = data.subscription;
@@ -61,9 +66,19 @@ export default function ConsultationSummary({
   return (
     <section className="consultation-summary">
       <div className="account-continue">
-        <p className="eyebrow">続きから話せる場所</p>
-        <h2>その後、どうなりましたか。</h2>
-        <p>新しくあったことや、まだ迷っていることから話せます。</p>
+        <p className="eyebrow">
+          {data.threads.length ? "続きから話せる場所" : "はじめての相談"}
+        </p>
+        <h2>
+          {data.threads.length
+            ? "その後、どうなりましたか。"
+            : "いまの気持ちを、言葉に。"}
+        </h2>
+        <p>
+          {data.threads.length
+            ? "新しくあったことや、まだ迷っていることから話せます。"
+            : "気になることや返信に迷っていることを、自由に書いて相談できます。診断を先に受ける必要はありません。"}
+        </p>
         <Link
           className="button"
           href={
