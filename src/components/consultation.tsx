@@ -662,8 +662,22 @@ export default function Consultation({
                 <button
                   type="button"
                   className="button secondary"
+                  disabled={busy}
                   onClick={() => {
-                    document.getElementById("chat-text")?.focus();
+                    if (subject) {
+                      document.getElementById("chat-text")?.focus();
+                      return;
+                    }
+                    setSidebarOpen(true);
+                    requestAnimationFrame(() => {
+                      const target = home.subjects.length
+                        ? document.querySelector<HTMLButtonElement>(
+                            "#subject-picker .subject-tab",
+                          )
+                        : document.getElementById("nickname");
+                      target?.focus();
+                      target?.scrollIntoView({ block: "center" });
+                    });
                   }}
                 >
                   相談を書く
@@ -672,7 +686,9 @@ export default function Consultation({
               <h2 className="current-subject">
                 {subject
                   ? subject.nickname + "について"
-                  : "相談相手を追加してください"}
+                  : home.subjects.length
+                    ? "相談相手を選んでください"
+                    : "相談相手を追加してください"}
               </h2>
               {subject && (
                 <details className="memory-panel">
@@ -816,7 +832,13 @@ export default function Consultation({
                       <p>{t.user_text}</p>
                     </div>
                     {t.assistant_text ? (
-                      <div className="chat-bubble assistant-message">
+                      <div
+                        className="chat-bubble assistant-message"
+                        id={"answer-" + t.id}
+                        tabIndex={-1}
+                        role="region"
+                        aria-label="よりそいの回答"
+                      >
                         <small>
                           よりそい{t.safety ? " · 安全についてのご案内" : ""}
                         </small>
@@ -985,7 +1007,9 @@ export default function Consultation({
                         const last = turns
                           .filter((t) => t.assistant_text)
                           .at(-1);
-                        const el = document.getElementById("turn-" + last?.id);
+                        const el = document.getElementById(
+                          "answer-" + last?.id,
+                        );
                         el?.scrollIntoView({
                           block: "start",
                           behavior: "smooth",
@@ -996,7 +1020,13 @@ export default function Consultation({
                       最近の回答を見る
                     </button>
                   )}
-                  {!subject && <p>相談相手を選んでから入力してください。</p>}
+                  {!subject && (
+                    <p>
+                      {home.subjects.length
+                        ? "相談相手を選んでから入力してください。「相談を書く」から選択欄へ移動できます。"
+                        : "相談相手の呼び名を追加してから入力してください。「相談を書く」から追加欄へ移動できます。"}
+                    </p>
+                  )}
                   {materialInvalid && (
                     <p>
                       取り込んだ会話の確認箇所と合計文字数を確認してください。

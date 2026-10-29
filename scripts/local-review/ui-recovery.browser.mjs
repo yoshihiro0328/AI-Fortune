@@ -108,7 +108,7 @@ try {
       .locator(".composer-feedback")
       .getByRole("button", { name: "最近の回答を見る" })
       .click();
-    await expect(p.locator(".chat-exchange").last()).toBeFocused();
+    await expect(p.locator(".assistant-message").last()).toBeFocused();
     await p
       .getByRole("button", { name: "文面だけをコピー", exact: true })
       .last()

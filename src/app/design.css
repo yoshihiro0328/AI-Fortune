@@ -2412,10 +2412,12 @@ body:has(.app-layout) > .site-footer {
 .composer-feedback p {
   margin: 0;
 }
-.chat-exchange {
+.chat-exchange,
+.assistant-message {
   scroll-margin-top: 24px;
 }
-.chat-exchange:focus {
+.chat-exchange:focus,
+.assistant-message:focus {
   outline: 2px solid var(--green);
   outline-offset: 4px;
 }

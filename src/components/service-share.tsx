@@ -21,9 +21,11 @@ export default function ServiceShare() {
   return (
     <div className="share-tools">
       <button className="text-button" onClick={copy}>
-        個人情報を含まない紹介文をコピー
+        紹介文をコピー
       </button>
-      <p className="fine">共有は任意です。相談本文や診断結果は含めません。</p>
+      <p className="fine">
+        共有は任意です。個人情報・相談本文・診断結果は含めません。
+      </p>
       {message && <p role="status">{message}</p>}
     </div>
   );
